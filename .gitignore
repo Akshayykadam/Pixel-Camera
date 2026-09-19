@@ -1,0 +1,103 @@
+# ==============================================================================
+# Pixel Camera Looks & Quick Access Backport - .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Android Packages & Binary Build Artifacts
+# ------------------------------------------------------------------------------
+*.apk
+*.apkm
+*.aab
+*.apks
+*.idsig
+*.xapk
+
+# Local build outputs & intermediates
+build/
+bin/
+out/
+gen/
+build_and_patch_pixelcamera.py
+teleprompter_open.xml
+camera-looks-quick-access/patch/
+creator-suite-research/patch/
+pixel-camera-looks-research/patch/
+
+# ------------------------------------------------------------------------------
+# Source APKs, Extracted & Decompiled Workspaces (Multi-GB)
+# ------------------------------------------------------------------------------
+Input_file/
+apktool_base/
+apktool_full/
+decompiled/
+decompiled_*/
+extracted_apkm/
+extracted_pixel8pro/
+dex/
+
+# ADB uiautomator window dump XML files
+*dump*.xml
+*.dump.xml
+live_dump.xml
+live_portrait_dump.xml
+window_dump*.xml
+
+# Reverse-Engineering Tools & Binaries
+# ------------------------------------------------------------------------------
+tools/
+scratch/
+
+# ------------------------------------------------------------------------------
+# Keystores & Signing Credentials (Sensitive)
+# ------------------------------------------------------------------------------
+keystore/
+*.keystore
+*.jks
+*.p12
+*.key
+signing.properties
+
+# ------------------------------------------------------------------------------
+# Gradle & Android Studio / IntelliJ IDEA
+# ------------------------------------------------------------------------------
+.gradle/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.hprof
+
+# IDE Configurations
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------------------
+# Python Intermediates & Virtual Environments
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+
+# ------------------------------------------------------------------------------
+# Operating System Artifacts
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

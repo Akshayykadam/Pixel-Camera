@@ -1,0 +1,57 @@
+name: Build Morphe Patch Package
+
+on:
+  push:
+    paths:
+      - 'morphe-patches/**'
+      - '.github/workflows/build-morphe-patch.yml'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-mpp:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant Execute Permission for Gradlew
+        run: |
+          if [ -f "morphe-patches/gradlew" ]; then
+            chmod +x morphe-patches/gradlew
+          fi
+
+      - name: Build Morphe Patch Package (.mpp)
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: morphe-patches
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew buildAndroid --no-daemon || ./gradlew :patches:buildAndroid --no-daemon || ./gradlew build --no-daemon
+          else
+            gradle buildAndroid --no-daemon || gradle :patches:buildAndroid --no-daemon || gradle build --no-daemon || true
+          fi
+
+      - name: Upload .mpp Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphe-patches-pixelcamera
+          path: morphe-patches/**/build/libs/*.mpp
+          if-no-files-found: warn
+
+      - name: Attach .mpp to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: morphe-patches/**/build/libs/*.mpp
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
