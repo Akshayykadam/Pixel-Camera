@@ -40,7 +40,12 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 4. **Patch & Install**:
    * In Morphe Manager, select the downloaded APKM file.
    * Select your desired patches (e.g. **Camera Looks Backport**, **5x Telephoto Portrait & 10x Zoom**, and **Pixel Camera Clone**).
-   * Tap **Patch**. Once compiled on-device, tap **Install**.
+   * **Universal Options Guide**:
+     * ✅ **Clone app**: **Keep Checked** (required to install alongside stock camera on non-rooted devices).
+     * ⚡ **Change installer source**: **Checked (Recommended)** (prevents Play Protect warnings).
+     * ❌ **Disable Play Store updates**: **Uncheck** (not needed for cloned apps).
+     * ❌ **Override certificate pinning**: **Uncheck** (not needed).
+   * Tap **Proceed to patching**. Once compiled on-device, tap **Install**.
 
 ---
 

@@ -114,8 +114,15 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In **Morphe Manager**, tap **Select an application** → pick the downloaded APKM file.
-   * Select your desired patches (**Camera Looks Backport**, **5x Telephoto Portrait & 10x Zoom**, and **Pixel Camera Clone**).
-   * Tap **Patch**. Morphe will merge the split assets and apply the bytecode patches directly on your phone.
+   * Select your desired Pixel Camera patches (**Camera Looks Backport**, **5x Telephoto Portrait & 10x Zoom**, and **Pixel Camera Clone**).
+   * **Universal Patches Selection Guide**:
+     | Option | Setting | Note |
+     | :--- | :---: | :--- |
+     | **Clone app** | ✅ **CHECK** | **Required for Non-Root** to install side-by-side with stock camera. |
+     | **Change installer source** | ⚡ **CHECK** | Recommended to avoid Play Protect warnings. |
+     | **Disable Play Store updates** | ❌ **UNCHECK** | Not needed for cloned apps; can interfere with camera version logic. |
+     | **Override certificate pinning** | ❌ **UNCHECK** | Only for developer proxy debugging; unnecessary for camera. |
+   * Tap **Proceed to patching** (or **Patch**). Morphe will merge the split assets and apply the bytecode patches directly on your phone.
    * Once finished, tap **Install**!
 5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, 5x telephoto portrait mode, 10x zoom button, and creator tools are unlocked!
 

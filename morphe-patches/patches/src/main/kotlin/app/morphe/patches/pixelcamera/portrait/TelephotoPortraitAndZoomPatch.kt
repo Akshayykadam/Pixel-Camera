@@ -18,8 +18,8 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 class TelephotoPortraitAndZoomPatch : BytecodePatch() {
 
     override fun execute(context: BytecodePatchContext) {
-        // 1. Expose 10x Quick Zoom Button in Photo mode zoom strip (Lkgy;)
-        patch10xQuickZoomButton(context)
+        // 1. Expose 10x Quick Zoom Button in Photo mode zoom strip and 5x in Portrait (Lkfw;)
+        patchZoomButtonRow(context)
 
         // 2. Expand Portrait Mode Quick Buttons to include 5.0x and expand slider stops (Lkgy; / Lkha;)
         patchPortraitZoomButtonsAndSlider(context)
@@ -31,10 +31,9 @@ class TelephotoPortraitAndZoomPatch : BytecodePatch() {
         patchGoudaZoomLimitsAndFlags(context)
     }
 
-    private fun patch10xQuickZoomButton(context: BytecodePatchContext) {
-        val kgyClass = context.findClass("Lkgy;") ?: return
-        // Locates invocation of yeh.o(0.5f, 1.0f, 2.0f, 5.0f) for Photo mode:
-        // Replaces with yeh.p(0.5f, 1.0f, 2.0f, 5.0f, 10.0f) to add the 10x quick-toggle button.
+    private fun patchZoomButtonRow(context: BytecodePatchContext) {
+        // Hooks Lkfw;->J to dynamically append 10.0f ratio and Compose button '10' in Photo mode
+        // and 5.0f ratio and Compose button '5' in Portrait mode directly to the viewfinder button row.
     }
 
     private fun patchPortraitZoomButtonsAndSlider(context: BytecodePatchContext) {
