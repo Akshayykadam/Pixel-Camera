@@ -52,15 +52,15 @@
       ]
     },
     {
-      "name": "5x Telephoto Portrait & 10x Quick Zoom",
-      "description": "Enables 5x optical telephoto computational portrait mode (Mantis pipeline) and unlocks the discrete 10x quick zoom button on viewfinder.",
+      "name": "10x Viewfinder Quick Zoom",
+      "description": "Unlocks the discrete 10x quick zoom button on viewfinder in Photo mode.",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [
         {
           "packageName": "com.google.android.GoogleCamera",
           "name": "Pixel Camera",
-          "description": "Mantis 5x Telephoto Portrait & 10x Quick Zoom",
+          "description": "10x Viewfinder Quick Zoom button in Photo mode",
           "apkFileType": "APK_REQUIRED",
           "appIconColor": "#4285F4",
           "targets": [
