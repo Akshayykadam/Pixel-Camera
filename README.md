@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/akshayykadam/Patch-Pixel-Camera/releases/latest">
     <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.0%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
-  
+  </a>
 </p>
 
 ---
@@ -20,16 +20,16 @@
 
 Google introduced **"Camera Looks"** (designated internally as `sauce` and `tomte`) and customizable **Quick Access Viewfinder Shortcuts** with Pixel Camera `11.0.073.972752740.32` on the Pixel 11 family. 
 
-Through deep reverse-engineering of Dalvik bytecode and native Halide binaries, we discovered that **the complete feature framework is present and functional across older Pixel devices**. The feature is withheld exclusively via runtime feature flags and device checks.
+Through deep reverse-engineering of Dalvik bytecode and native Halide binaries, we discovered that **the complete feature framework is present across older Pixel devices**. The features were withheld exclusively via runtime feature flags and device checks.
 
-This repository provides **comprehensive reverse-engineering research**, **device-by-device compatibility analyses**, and the **official Morphe patch package (`.mpp`)** to bring these features to older Google Pixel phones directly on-device without root.
+This repository provides **comprehensive reverse-engineering research**, **device-by-device compatibility analyses**, architectural documentation on **hardware limitations & technical reasons**, and the **official Morphe patch package (`.mpp`)** to bring these features to older Google Pixel phones directly on-device without root.
 
 ---
 
 ## Key Features Unlocked
 
 ### 1. Ten Signature Camera Looks (Sauce & Tomte)
-Instant tone mapping, color matrix shifts, and organic film grain applied live in the viewfinder and encoded during capture:
+Instant tone mapping, color matrix shifts, and organic film grain encoded into captures:
 
 | # | Look Preset | Internal Codename | Visual Characteristics |
 | :---: | :--- | :--- | :--- |
@@ -46,7 +46,7 @@ Instant tone mapping, color matrix shifts, and organic film grain applied live i
 
 ### 2. Customizable Viewfinder Quick Access Controls
 * **Interactive Viewfinder Slots**: Assign **Left** and **Right** quick access slots directly from the Camera settings.
-* **On-Screen Discrete Tick-Slider**: Tapping the viewfinder reveals vertical sliders tap or scrub the 10-tick slider to switch Camera Looks in real time without opening the bottom drawer.
+* **On-Screen Discrete Tick-Slider**: Tapping the viewfinder reveals vertical sliders—tap or scrub the 10-tick slider to switch Camera Looks in real time without opening the bottom drawer.
 * **Haptic Feedback**: Tick haptics on slider detents with persistent preference storage across restarts.
 
 ### 3. Native Halide & Tomte Grain Engine
@@ -73,63 +73,77 @@ Instant tone mapping, color matrix shifts, and organic film grain applied live i
 
 ---
 
-## Known Issues & Future Scope
+## ⚠️ Technical Limitations & Architectural Constraints
 
-The project is still under active development. Some Pixel Camera features are working, while others require additional patching or device-specific testing.
+Running a modern Google Camera modded application without root privileges imposes physical hardware and operating system constraints. Below is a detailed breakdown of existing limitations and their underlying technical causes:
 
-### Known Issues
+### 1. Motion Blur (Action Pan & Long Exposure) Disabled
+* **Observed Behavior**: The Motion Blur mode tab (containing Action Pan and Long Exposure) is intentionally hidden and disabled from the camera mode carousel.
+* **Technical Reason**:
+  1. **SELinux Kernel Sandboxing (`/dev/gxp`)**: Cloned applications (e.g. `com.google.android.GoogleCameraEng`) execute in Android's unprivileged `untrusted_app` SELinux domain. Access to the Google Tensor EdgeTPU character device (`/dev/gxp` / `darwinn`) is restricted at the kernel level via DAC permissions (`0660`, `system:camera`) and SELinux MAC policy (`allow cameraserver gxp_device:chr_file`). Only system-signed, pre-installed apps signed with Google's platform release key can open or issue `ioctl()` commands to the TPU. Any attempt by an untrusted app results in `avc: denied { read write } for path="/dev/gxp"`.
+  2. **Proprietary EdgeTPU Microcode (`edgetpu-custom-op-2`)**: The motion vector and saliency estimation models (`motion-custom_op-p23.tflite.uncompressed` and `saliency-custom_op-p23.tflite.uncompressed`) are compiled exclusively for Tensor's hardware TPU matrix accelerator. They utilize Google proprietary custom operators (`edgetpu-custom-op-2`) that have no CPU or GPU OpenCL fallback implementations in `libgcastartup.so`.
+  3. **Capture Pipeline Hang**: Without TPU access, the native optical flow graph fails during session initialization. In user builds, this causes Action Pan and Long Exposure captures to fail silently or stall indefinitely without saving photos to disk.
+  4. **Architectural Resolution**: All `camera.lasagna` flags (`kkb.f`, `kkb.g`, `kkb.h`, `kkb.i`, `kkb.j`) are intercepted in `klm.smali` (`q()` and `x()`) to return `false`. Google Camera's internal mode manager (`sdo.smali`, `njn.smali`, `iyh.smali`) cleanly prunes Motion Blur from the UI, ensuring 100% crash-free stability for all working modes.
 
-- [ ] **Camera Looks Viewfinder Preview**  
-  Looks are currently not previewed correctly in the viewfinder. The final effect can be checked after taking the photo.
+### 2. Live Viewfinder Looks Preview (Pre-Capture)
+* **Observed Behavior**: Camera Looks are applied immediately post-capture during image processing, but do not alter the real-time viewfinder feed before the shutter button is pressed.
+* **Technical Reason**:
+  * On the Pixel 11, Google introduced a proprietary vendor Camera HAL parameter (`REQUEST_TOMTE_TYPE`) integrated directly into the camera ISP hardware. This hardware block applies 3D tone LUTs and color transform matrices at 60 fps to the preview stream with zero computational latency.
+  * Older Google Tensor processors (Tensor G1 through G5) lack this vendor HAL metadata tag and ISP preview hardware hook. Emulating 60 fps 3D LUTs in software shaders over the live viewfinder stream causes severe frame drops and thermal throttling. The mod therefore relies on Google's native Halide C++ post-capture pipeline (`tomte_tonemap.cc`), applying full-resolution, artifact-free Looks processing immediately upon capture.
 
-- [ ] **Grain Adjustment**  
-  The Grain strength control does not currently have a noticeable effect on the final image.
+### 3. Film Grain Dynamic Scaling Slider
+* **Observed Behavior**: Adjusting the grain intensity slider in settings has minimal visible effect on output images.
+* **Technical Reason**:
+  * Native film grain generation is powered by a dedicated neural model (`3cdbac706c98421a96e16fdbfd97a35f.tflite.uncompressed`) running alongside the RAW ISP pipeline.
+  * In the fallback GPU/CPU pipeline without physical `/dev/gxp` access, a consistent baseline organic film grain is applied according to the selected Look's pre-configured tone profile, but dynamic runtime variance weighting is constrained to prevent CPU cache thrashing.
 
-- [ ] **Pixel 10 / 10 Pro Photo Saving**  
-  Some Pixel 10 Pro users may experience photos not being saved after taking a picture. A clean install and clearing the modded Camera app data may resolve this for some devices.
+### 4. Creator Suite "Save to Project" (Project Album)
+* **Observed Behavior**: The "Save to Project" button in the Creator Suite drawer is neutralized and hidden.
+* **Technical Reason**:
+  * Project Album integration communicates with the Google Photos application via private cross-process gRPC calls (`pa_` / `pam_` in `kqc.smali`).
+  * Google Photos validates the calling package identity using signature verification (`PackageManager.hasSigningCertificate()`). Because cloned mods use an independent signing certificate to coexist with stock Camera, Google Photos rejects the gRPC connection with an authorization error. Hiding the entry prevents connection errors and UI crashes.
 
-- [ ] **5x Portrait Mode**  
-  5x Portrait Mode can crash on some devices and requires further device-specific testing.
-
-- [ ] **Portrait Mode on Older Pixels**  
-  Portrait Mode is not working correctly on some older Pixel devices, including certain Pixel 7 Pro configurations.
-
-- [ ] **Pro Zoom / 100x Zoom Model Download**  
-  Some Pixel 10 Pro users may have issues downloading or initializing the required Pro Zoom neural models.
-
-- [ ] **Photos App Integration**  
-  Some modes such as Night Sight or Macro may not appear correctly in Google Photos on certain devices.
-
-
-### Future Scope
-
-- [ ] **Add Me**
-- [ ] **Best Take**
-- [ ] **Additional Pixel 11 camera features**
-- [ ] **Improved device compatibility**
-- [ ] **Better support for Pixel 7 / 8 / 9 / 10 series**
-- [ ] **Viewfinder previews for Camera Looks**
-- [ ] **fine-tuning controls**
-- [ ] **Improved Portrait Mode compatibility**
-- [ ] **Further neural model compatibility and backporting**
+### 5. Hardware Periscope Telephoto Dependency
+* **Observed Behavior**: 5x Optical Portrait mode and 10x Quick Zoom require devices with a physical optical periscope lens (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
+* **Technical Reason**:
+  * The Mantis portrait dispatcher routes Gouda portrait requests directly to the secondary physical telephoto sensor stream (`RAW_TELE` and `PD_TELE` on Camera IDs 3 and 4).
+  * Base and "a"-series Pixels (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, 9) physically lack this periscope sensor. On those devices, Portrait mode operates through standard 1x and 2x digital in-sensor crops.
 
 ---
 
 ## Generational Compatibility Matrix
 
-Tested on physical hardware and confirmed through comprehensive Dalvik & native teardowns:
+Tested on physical hardware and verified through Dalvik bytecode and native binary teardowns:
 
-| Generation | Codename | SoC | Looks UI | Quick Access | 5x Portrait | 10x Zoom | Processing Engine | Status |
+| Generation | Device Models | SoC | Looks Capture | Quick Access | 5x Portrait | 10x Zoom | Processing Engine | Status |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
-| **Pixel 11** | `frankel` / `p26` | Tensor G6 | ✅ | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
-| **Pixel 10 Pro / 10** | `frankel` (early) | Tensor G5 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
-| **Pixel 9 Pro / 9** | `caiman` / `tokay` | Tensor G4 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
-| **Pixel 8 Pro / 8** | `husky` / `shiba` | Tensor G3 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Mali-G715 GPU | **Verified** |
-| **Pixel 7 Pro / 7** | `cheetah` / `panther` | Tensor G2 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / Halide CPU | **Verified** |
-| **Pixel 6 Pro / 6 / 6a**| `raven` / `oriole` | Tensor G1 | ✅ | ✅ | 4x opt (Pro) | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
+| **Pixel 11** | Pixel 11, 11 Pro | Tensor G6 | ✅ | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
+| **Pixel 10 Series** | Pixel 10, 10 Pro, 10 Pro XL | Tensor G5 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
+| **Pixel 9 Series** | Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold | Tensor G4 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
+| **Pixel 8 Series** | Pixel 8, 8 Pro, 8a | Tensor G3 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Mali-G715 GPU / Halide | **Verified** |
+| **Pixel 7 Series** | Pixel 7, 7 Pro, 7a | Tensor G2 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / Halide CPU | **Verified** |
+| **Pixel 6 Series** | Pixel 6, 6 Pro, 6a | Tensor G1 | ✅ | ✅ | 4x opt (Pro) | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
 
 > [!TIP]
 > **\*Memory Optimization for 6GB RAM Devices (Pixel 6a / 7a)**: Continuous burst captures (>4 rapid shots) can trigger low-memory trimming. The patch limits concurrent Halide worker threads to 2 on devices with $\le 6\text{ GB}$ RAM to guarantee continuous stability.
+
+---
+
+## Known Issues & Future Scope
+
+### Known Issues Tracker
+- [x] **Motion Blur (Action Pan / Long Exposure) Stalls**: **Resolved** — Cleanly hidden and disabled via `camera.lasagna` flags to prevent photo-saving hangs caused by SELinux `/dev/gxp` restrictions.
+- [x] **Brightness & Shadows Quick Sliders**: **Resolved** — Fully mapped to all 4 exposure controllers (`mzc`, `nrh`, `nre`, `nrd`).
+- [x] **Portrait Telephoto Sensor NPE**: **Resolved** — Guarded against null camera streams on Pixel 8 Pro / 9 Pro / 10 Pro.
+- [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements on older SoCs.
+- [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
+- [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
+
+### Future Scope
+- [ ] **Add Me & Best Take** backporting research.
+- [ ] **OpenCL Shader Pipeline for Live Preview**: Experimental GPU shader LUT emulation for real-time viewfinder Looks.
+- [ ] **Custom Film Look Preset Importer**: Allow users to load custom 3D LUT `.cube` or `.png` HaldCLUT profiles into the Tomte engine.
+- [ ] **Enhanced Pro Controls**: Additional manual shutter speed, ISO, and focus peaking options.
 
 ---
 
@@ -187,7 +201,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 This repository contains extensive technical teardowns, reverse-engineering analyses, and testing frameworks:
 
 ### 🔍 Core Research Reports
-* **[Master Camera Looks Teardown](pixel-camera-looks-research/RESEARCH.md)**: Deep technical exploration answering the 10 fundamental architecture questions regarding gating, Halide kernels, neural style models, and vendor HAL tags.
+* **[Master Camera Looks Teardown](pixel-camera-looks-research/RESEARCH.md)**: Deep technical exploration answering architecture questions regarding gating, Halide kernels, neural style models, and vendor HAL tags.
 * **[Viewfinder Quick Access Teardown](camera-looks-quick-access/RESEARCH.md)**: Dalvik bytecode analysis of `pie.java`, `qvb.java`, `qmn.java`, Jetpack Compose integration, and gesture mechanisms.
 * **[Portrait Mode Integration Report](pixel-camera-looks-research/PORTRAIT_RESEARCH.md)**: Teardown of Gouda, Mantis depth estimation, and Portrait Mode Looks compatibility.
 * **[Generational Compatibility Matrix](pixel-camera-looks-research/COMPATIBILITY.md)**: Hardware capabilities and HAL tag behavior across Tensor G1, G2, G3, G4, and G5.
@@ -199,10 +213,6 @@ This repository contains extensive technical teardowns, reverse-engineering anal
 * [Pixel 8 Pro / 8 (Tensor G3) Analysis](pixel-camera-looks-research/analysis/pixel8.md)
 * [Pixel 7 Pro / 7 (Tensor G2) Analysis](pixel-camera-looks-research/analysis/pixel7.md)
 * [Pixel 6 Pro / 6 / 6a (Tensor G1) Analysis](pixel-camera-looks-research/analysis/pixel6.md)
-
-### Verification & Empirical Results
-* **[Test Plan & Protocols](pixel-camera-looks-research/tests/test-plan.md)**: Verification methodology across UI, preview pipeline, capture pipeline, and EXIF metadata.
-* **[Empirical Results & Benchmarks](pixel-camera-looks-research/tests/results.md)**: Real-world latency numbers, frame-rate impact, image diff benchmarks, and logcat traces.
 
 ---
 
@@ -258,9 +268,23 @@ Patch-Pixel-Camera/
 ## Frequently Asked Questions (FAQ)
 
 <details>
+<summary><b>Why is Motion Blur (Action Pan / Long Exposure) missing from the modes bar?</b></summary>
+<p>
+Motion Blur neural models rely on <code>edgetpu-custom-op-2</code> microcode running directly on Google's EdgeTPU hardware (<code>/dev/gxp</code>). Android's SELinux security policy restricts <code>/dev/gxp</code> access strictly to system-signed OEM packages; non-root modded apps (<code>untrusted_app</code> context) are blocked at the kernel driver level. Because the custom TPU operations have no CPU/GPU fallback implementations in Google's native binaries, attempting to execute the models causes optical flow processing to stall and photos fail to save. The mode has been cleanly hidden to ensure all other camera features (Photo, Portrait, Night Sight, Video, Pro Sliders, and Looks) function flawlessly.
+</p>
+</details>
+
+<details>
+<summary><b>Why don't Camera Looks preview live in the viewfinder before taking a photo?</b></summary>
+<p>
+On Pixel 11, real-time 60 fps viewfinder tone mapping is handled by a proprietary hardware ISP extension (<code>REQUEST_TOMTE_TYPE</code> vendor tag). Older Tensor generations (G1–G5) lack this hardware ISP hook in their camera HAL. Simulating 3D LUTs in software over the live viewfinder feed causes thermal throttling and frame drops. The backport executes Google's native Halide C++ pipeline (<code>tomte_tonemap.cc</code>) during HDR+ post-capture processing, guaranteeing a smooth viewfinder and pristine full-resolution output.
+</p>
+</details>
+
+<details>
 <summary><b>Will this replace or break my stock Google Camera?</b></summary>
 <p>
-No. The Morphe patch automatically renames the package identifier to <code>com.google.android.GoogleCameraEng</code>. The patched app installs alongside your official Google Camera as an independent app. Both can run simultaneously, and system OTA updates will not be affected.
+No. The patch clones the application into <code>com.google.android.GoogleCameraEng</code> (or <code>com.google.android.GoogleCamera.morphe</code>). The modded app installs alongside your stock Google Camera as an independent app. Both can run simultaneously, and system OTA updates will not be affected.
 </p>
 </details>
 

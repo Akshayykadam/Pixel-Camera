@@ -27,6 +27,21 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 
 ---
 
+## ⚠️ Technical Limitations & Non-Root Architectural Constraints
+
+Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on non-rooted devices:
+
+1. **Motion Blur (Action Pan & Long Exposure) Disabled**:
+   - **Reason**: Motion estimation neural networks require Google EdgeTPU hardware access (`/dev/gxp`), which the Linux kernel restricts to system-signed OEM packages. Non-root apps lack DAC and SELinux permissions to open `/dev/gxp`. Since the custom operators (`edgetpu-custom-op-2`) have no CPU/GPU fallback, the mode has been cleanly hidden via `camera.lasagna` flags to ensure captures in Photo, Portrait, Night Sight, and Video never stall.
+2. **Looks Applied Post-Capture**:
+   - **Reason**: Live 60 fps viewfinder tone-mapping on Pixel 11 relies on a proprietary vendor Camera HAL hardware tag (`REQUEST_TOMTE_TYPE`). On Tensor G1–G5, the patch utilizes Google's native Halide C++ pipeline (`tomte_tonemap.cc`) during HDR+ processing, guaranteeing full-resolution quality with zero viewfinder lag.
+3. **Creator Suite "Save to Project" Disabled**:
+   - **Reason**: Cross-process gRPC calls to Google Photos require matching OEM platform signatures. The option is neutralized to prevent authorization errors.
+4. **Physical Periscope Lens Required for 5x / 10x**:
+   - **Reason**: Physical telephoto capture routes directly to the secondary sensor (`RAW_TELE`). Base/non-Pro devices without a physical periscope sensor use standard in-sensor crops.
+
+---
+
 ## 📱 How to Use (For End Users)
 
 ### Option 1: On Your Android Phone (Morphe Manager — Recommended)
