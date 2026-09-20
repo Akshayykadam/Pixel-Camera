@@ -52,7 +52,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 ### 3. Native Halide & Tomte Grain Engine
 * **Native C++ Fallback**: When vendor Camera HAL tags (`REQUEST_TOMTE_TYPE`) are absent on older Tensor SoCs, native routines in `libgcastartup.so` (`wireless/android/camera/tomte/tomte_tonemap.cc`) execute on GPU and CPU.
 * **Neural Style Fallback**: Fallback from TPU to CPU floating-point model (`looknet_v2.1_float.tflite`).
-* **Hardware Portrait Pipeline**: Fully integrated with Google's Gouda & Mantis portrait segmentation pipelines.
+* **Hardware Portrait Pipeline**: Fully integrated with Google's Gouda portrait segmentation pipeline for applying Looks to portrait captures.
 
 ### 4. Pixel Camera Creator Suite
 * **Creator Drawer Tab (`granite`)**: A dedicated creation tool tab in the options menu alongside General settings.
@@ -61,12 +61,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Social Media Framing (`slate` / `basalt`)**: 9:16 vertical, 1:1 square, and custom aspect ratio composition guide overlays.
 * *(See [`creator-suite-research/`](creator-suite-research/) for full documentation and patches).*
 
-### 5. 5x Optical Telephoto Portrait Mode (`mantis`)
-* **True Optical Telephoto Bokeh**: Unlocks physical 5x periscope portrait captures on Pixel 7 Pro, 8 Pro, 9 Pro, and 10 Pro, breaking the artificial 1.5x / 2.0x digital crop restriction.
-* **Hardware Lens Dispatch (`pwz.d`)**: Automatically routes Gouda portrait requests directly to the telephoto sensor stream (`RAW_TELE` + `PD_TELE`) for authentic perspective compression and razor-sharp edge separation.
-* **Dual-Pixel / Stereo Depth Pipeline**: Fully leverages hardware PDAF depth estimation alongside Google's synthetic aperture bilateral blur.
-
-### 6. Dedicated 10x Quick Zoom Viewfinder Button
+### 5. Dedicated 10x Quick Zoom Viewfinder Button
 * **1-Tap 10x Super Res Zoom**: Exposes the discrete **10x** quick-toggle button on the viewfinder zoom strip alongside `0.5x, 1x, 2x, 5x` on Pixel 7 Pro, 8 Pro, and 9 Pro.
 * **Zero Quality Loss**: Instantly activates Google's `NativeZoomPlus` and `NativeFusionZoom` computational pipelines at a single tap without requiring manual pinch-to-zoom gestures.
 * *(See [`pixel-camera-looks-research/PORTRAIT_RESEARCH.md`](pixel-camera-looks-research/PORTRAIT_RESEARCH.md) for full technical teardown).*
@@ -103,11 +98,11 @@ Running a modern Google Camera modded application without root privileges impose
   * Project Album integration communicates with the Google Photos application via private cross-process gRPC calls (`pa_` / `pam_` in `kqc.smali`).
   * Google Photos validates the calling package identity using signature verification (`PackageManager.hasSigningCertificate()`). Because cloned mods use an independent signing certificate to coexist with stock Camera, Google Photos rejects the gRPC connection with an authorization error. Hiding the entry prevents connection errors and UI crashes.
 
-### 5. Hardware Periscope Telephoto Dependency
-* **Observed Behavior**: 5x Optical Portrait mode and 10x Quick Zoom require devices with a physical optical periscope lens (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
+### 5. Hardware Periscope Lens Dependency for 10x Quick Zoom
+* **Observed Behavior**: The 10x Quick Zoom button requires devices with a physical optical periscope lens (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
 * **Technical Reason**:
-  * The Mantis portrait dispatcher routes Gouda portrait requests directly to the secondary physical telephoto sensor stream (`RAW_TELE` and `PD_TELE` on Camera IDs 3 and 4).
-  * Base and "a"-series Pixels (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, 9) physically lack this periscope sensor. On those devices, Portrait mode operates through standard 1x and 2x digital in-sensor crops.
+  * The discrete 10x quick zoom button activates Google's Super Res Zoom and telephoto fusion pipeline directly leveraging the physical periscope telephoto sensor.
+  * Base and "a"-series Pixels (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, 9) physically lack a periscope sensor, operating within standard digital zoom limits.
 
 ---
 
@@ -115,14 +110,14 @@ Running a modern Google Camera modded application without root privileges impose
 
 Tested on physical hardware and verified through Dalvik bytecode and native binary teardowns:
 
-| Generation | Device Models | SoC | Looks Capture | Quick Access | 5x Portrait | 10x Zoom | Processing Engine | Status |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
-| **Pixel 11** | Pixel 11, 11 Pro | Tensor G6 | ✅ | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
-| **Pixel 10 Series** | Pixel 10, 10 Pro, 10 Pro XL | Tensor G5 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
-| **Pixel 9 Series** | Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold | Tensor G4 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
-| **Pixel 8 Series** | Pixel 8, 8 Pro, 8a | Tensor G3 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | Mali-G715 GPU / Halide | **Verified** |
-| **Pixel 7 Series** | Pixel 7, 7 Pro, 7a | Tensor G2 | ✅ | ✅ | ✅ (Pro) | ✅ (Pro) | GPU / Halide CPU | **Verified** |
-| **Pixel 6 Series** | Pixel 6, 6 Pro, 6a | Tensor G1 | ✅ | ✅ | 4x opt (Pro) | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
+| Generation | Device Models | SoC | Looks Capture | Quick Access | 10x Zoom | Processing Engine | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
+| **Pixel 11** | Pixel 11, 11 Pro | Tensor G6 | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
+| **Pixel 10 Series** | Pixel 10, 10 Pro, 10 Pro XL | Tensor G5 | ✅ | ✅ | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
+| **Pixel 9 Series** | Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold | Tensor G4 | ✅ | ✅ | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
+| **Pixel 8 Series** | Pixel 8, 8 Pro, 8a | Tensor G3 | ✅ | ✅ | ✅ (Pro) | Mali-G715 GPU / Halide | **Verified** |
+| **Pixel 7 Series** | Pixel 7, 7 Pro, 7a | Tensor G2 | ✅ | ✅ | ✅ (Pro) | GPU / Halide CPU | **Verified** |
+| **Pixel 6 Series** | Pixel 6, 6 Pro, 6a | Tensor G1 | ✅ | ✅ | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
 
 > [!TIP]
 > **\*Memory Optimization for 6GB RAM Devices (Pixel 6a / 7a)**: Continuous burst captures (>4 rapid shots) can trigger low-memory trimming. The patch limits concurrent Halide worker threads to 2 on devices with $\le 6\text{ GB}$ RAM to guarantee continuous stability.
@@ -134,7 +129,7 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 ### Known Issues Tracker
 - [x] **Motion Blur (Action Pan / Long Exposure) Stalls**: **Resolved** — Cleanly hidden and disabled via `camera.lasagna` flags to prevent photo-saving hangs caused by SELinux `/dev/gxp` restrictions.
 - [x] **Brightness & Shadows Quick Sliders**: **Resolved** — Fully mapped to all 4 exposure controllers (`mzc`, `nrh`, `nre`, `nrd`).
-- [x] **Portrait Telephoto Sensor NPE**: **Resolved** — Guarded against null camera streams on Pixel 8 Pro / 9 Pro / 10 Pro.
+- [x] **Portrait Mode Crash**: **Resolved** — Preserved stable stock portrait pipeline across all devices.
 - [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements on older SoCs.
 - [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
@@ -170,7 +165,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In **Morphe Manager**, tap **Select an application** → pick the downloaded APKM file.
-   * Select your desired Pixel Camera patches (**Camera Looks Backport**, **5x Telephoto Portrait & 10x Zoom**, and **Pixel Camera Clone**).
+   * Select your desired Pixel Camera patches (**Camera Looks Backport**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
    * **Universal Patches Selection Guide**:
      | Option | Setting | Note |
      | :--- | :---: | :--- |
@@ -180,7 +175,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
      | **Override certificate pinning** | ❌ **UNCHECK** | Only for developer proxy debugging; unnecessary for camera. |
    * Tap **Proceed to patching** (or **Patch**). Morphe will merge the split assets and apply the bytecode patches directly on your phone.
    * Once finished, tap **Install**!
-5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, 5x telephoto portrait mode, 10x zoom button, and creator tools are unlocked!
+5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, 10x zoom button, and creator tools are unlocked!
 
 ---
 
@@ -240,7 +235,7 @@ Patch-Pixel-Camera/
 │       └── src/main/kotlin/app/morphe/patches/pixelcamera/
 │           ├── looks/CameraLooksPatch.kt               # Unlocks 10 Looks across Tensor G1–G5
 │           ├── quickaccess/QuickAccessPatch.kt         # Viewfinder shortcut slots & tick-slider
-│           ├── portrait/TelephotoPortraitAndZoomPatch.kt # Mantis 5x Portrait & 10x Zoom button
+│           ├── portrait/TelephotoPortraitAndZoomPatch.kt # 10x Viewfinder Quick Zoom button
 │           ├── creator/CreatorSuitePatch.kt            # Teleprompter HUD, VU meter, & guides
 │           └── clone/PixelCameraClonePatch.kt          # Non-root clone to GoogleCameraEng
 │

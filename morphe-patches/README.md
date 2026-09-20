@@ -21,7 +21,7 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 | :--- | :--- | :--- |
 | **Camera Looks Backport** | `BytecodePatch` | Unlocks 10 hardware-gated Camera Looks (Sauce/Tomte) across Tensor G1–G5. |
 | **Viewfinder Quick Access** | `BytecodePatch` | Enables customizable Left/Right viewfinder quick-access slots and 10-tick slider. |
-| **5x Telephoto Portrait & 10x Zoom** | `BytecodePatch` | Unlocks physical 5x optical telephoto portraits (`camera.gouda.mantis`) and exposes discrete 10x quick zoom button. |
+| **10x Viewfinder Quick Zoom** | `BytecodePatch` | Exposes discrete 10x quick zoom button on viewfinder in Photo mode. |
 | **Creator Suite** | `BytecodePatch` | Unlocks Teleprompter HUD (Biotite), Audio VU Meter (Mica), and Framing Guides (Slate). |
 | **Pixel Camera Clone** | `RawResourcePatch` | Renames package to `com.google.android.GoogleCamera.morphe` for side-by-side install without root. |
 
@@ -37,8 +37,8 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
    - **Reason**: Live 60 fps viewfinder tone-mapping on Pixel 11 relies on a proprietary vendor Camera HAL hardware tag (`REQUEST_TOMTE_TYPE`). On Tensor G1–G5, the patch utilizes Google's native Halide C++ pipeline (`tomte_tonemap.cc`) during HDR+ processing, guaranteeing full-resolution quality with zero viewfinder lag.
 3. **Creator Suite "Save to Project" Disabled**:
    - **Reason**: Cross-process gRPC calls to Google Photos require matching OEM platform signatures. The option is neutralized to prevent authorization errors.
-4. **Physical Periscope Lens Required for 5x / 10x**:
-   - **Reason**: Physical telephoto capture routes directly to the secondary sensor (`RAW_TELE`). Base/non-Pro devices without a physical periscope sensor use standard in-sensor crops.
+4. **Physical Periscope Lens Required for 10x Quick Zoom**:
+   - **Reason**: 10x Quick Zoom utilizes Google's Super Res Zoom and telephoto fusion. Base/non-Pro devices without a physical periscope sensor use standard zoom ranges.
 
 ---
 
@@ -54,7 +54,7 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In Morphe Manager, select the downloaded APKM file.
-   * Select your desired patches (e.g. **Camera Looks Backport**, **5x Telephoto Portrait & 10x Zoom**, and **Pixel Camera Clone**).
+   * Select your desired patches (e.g. **Camera Looks Backport**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
    * **Universal Options Guide**:
      * ✅ **Clone app**: **Keep Checked** (required to install alongside stock camera on non-rooted devices).
      * ⚡ **Change installer source**: **Checked (Recommended)** (prevents Play Protect warnings).
@@ -67,7 +67,7 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 ### Option 2: On Your PC / Mac (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download the latest `pixelcamera-patches.mpp` from [Releases](https://github.com/akshaykadam/Patch-Pixel-Camera/releases).
+2. Download the latest `pixelcamera-patches.mpp` from [Releases](https://github.com/akshayykadam/Patch-Pixel-Camera/releases).
 3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop.
 4. Select the patches and click **Start Patching**.
 5. Transfer the generated `PixelCamera_signed.apk` to your phone or install via ADB:

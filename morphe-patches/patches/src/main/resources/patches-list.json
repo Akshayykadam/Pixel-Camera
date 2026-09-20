@@ -56,15 +56,15 @@
       ]
     },
     {
-      "name": "5x Telephoto Portrait & 10x Quick Zoom",
-      "description": "Enables discrete 10x quick zoom button on viewfinder in Photo mode (Stock Portrait mode preserved).",
+      "name": "10x Viewfinder Quick Zoom",
+      "description": "Unlocks the discrete 10x quick zoom button on viewfinder in Photo mode.",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [
         {
           "packageName": "com.google.android.GoogleCamera",
           "name": "Pixel Camera",
-          "description": "10x Quick Zoom in Photo mode with stock Portrait mode",
+          "description": "10x Viewfinder Quick Zoom button in Photo mode",
           "apkFileType": "APK_REQUIRED",
           "appIconColor": "#4285F4",
           "targets": [

@@ -4,11 +4,11 @@ version = "1.0.1"
 patches {
     about {
         name = "Pixel Camera Looks & Creator Patches"
-        description = "Unlocks Camera Looks, Viewfinder Controls, 5x Portrait & 10x Zoom, and Creator Suite on Pixel 6-10"
-        source = "https://github.com/akshaykadam/Patch-Pixel-Camera"
+        description = "Unlocks Camera Looks, Viewfinder Controls, 10x Zoom, and Creator Suite on Pixel 6-10"
+        source = "https://github.com/akshayykadam/Patch-Pixel-Camera"
         author = "Akshay Kadam"
         contact = "na"
-        website = "https://github.com/akshaykadam/Patch-Pixel-Camera"
+        website = "https://github.com/akshayykadam/Patch-Pixel-Camera"
         license = "GPLv3"
     }
 }
