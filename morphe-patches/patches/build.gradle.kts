@@ -1,5 +1,5 @@
 group = "app.morphe.patches.pixelcamera"
-version = "1.0.0"
+version = "1.0.1"
 
 patches {
     about {
@@ -19,5 +19,6 @@ dependencies {
     compileOnly(libs.gson)
     compileOnly(libs.morphe.patcher)
     compileOnly(libs.smali)
+    compileOnly("com.github.REAndroid:arsclib:a28c6fb2a7")
     patchListGeneratorClasspath(libs.gson)
 }

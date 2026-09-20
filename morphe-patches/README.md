@@ -23,7 +23,7 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 | **Viewfinder Quick Access** | `BytecodePatch` | Enables customizable Left/Right viewfinder quick-access slots and 10-tick slider. |
 | **5x Telephoto Portrait & 10x Zoom** | `BytecodePatch` | Unlocks physical 5x optical telephoto portraits (`camera.gouda.mantis`) and exposes discrete 10x quick zoom button. |
 | **Creator Suite** | `BytecodePatch` | Unlocks Teleprompter HUD (Biotite), Audio VU Meter (Mica), and Framing Guides (Slate). |
-| **Pixel Camera Clone** | `RawResourcePatch` | Renames package to `com.google.android.GoogleCameraEng` for side-by-side install without root. |
+| **Pixel Camera Clone** | `RawResourcePatch` | Renames package to `com.google.android.GoogleCamera.morphe` for side-by-side install without root. |
 
 ---
 
