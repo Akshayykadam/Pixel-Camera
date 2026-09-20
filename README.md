@@ -66,6 +66,12 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Zero Quality Loss**: Instantly activates Google's `NativeZoomPlus` and `NativeFusionZoom` computational pipelines at a single tap without requiring manual pinch-to-zoom gestures.
 * *(See [`pixel-camera-looks-research/PORTRAIT_RESEARCH.md`](pixel-camera-looks-research/PORTRAIT_RESEARCH.md) for full technical teardown).*
 
+### 6. Pro Manual Controls Backport
+* **Manual Focus & Focus Peaking**: Precision focus slider with real-time viewfinder GPU edge peaking highlights (`camera.ark_edge_hex`).
+* **Manual Shutter Speed & ISO**: Full manual exposure dials with dynamic sensor range negotiation (1/8000s up to hardware limit) and instant 1-tap "Reset to Auto".
+* **Live Viewfinder Readout Chips**: Real-time interactive badges over the camera feed displaying active manual exposure and focus metrics (`[1/250s]`, `[ISO 100]`, `[0.5m]`, `[Peaking active]`).
+* **Hardware Camera2 Compatibility**: Operates directly through standard Android Camera2 hardware interfaces (`SENSOR_EXPOSURE_TIME`, `SENSOR_SENSITIVITY`, `LENS_FOCUS_DISTANCE`), ensuring zero reliance on proprietary vendor HAL extensions.
+
 ---
 
 ## ⚠️ Technical Limitations & Architectural Constraints
@@ -110,14 +116,14 @@ Running a modern Google Camera modded application without root privileges impose
 
 Tested on physical hardware and verified through Dalvik bytecode and native binary teardowns:
 
-| Generation | Device Models | SoC | Looks Capture | Quick Access | 10x Zoom | Processing Engine | Status |
-| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
-| **Pixel 11** | Pixel 11, 11 Pro | Tensor G6 | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
-| **Pixel 10 Series** | Pixel 10, 10 Pro, 10 Pro XL | Tensor G5 | ✅ | ✅ | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
-| **Pixel 9 Series** | Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold | Tensor G4 | ✅ | ✅ | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
-| **Pixel 8 Series** | Pixel 8, 8 Pro, 8a | Tensor G3 | ✅ | ✅ | ✅ (Pro) | Mali-G715 GPU / Halide | **Verified** |
-| **Pixel 7 Series** | Pixel 7, 7 Pro, 7a | Tensor G2 | ✅ | ✅ | ✅ (Pro) | GPU / Halide CPU | **Verified** |
-| **Pixel 6 Series** | Pixel 6, 6 Pro, 6a | Tensor G1 | ✅ | ✅ | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
+| Generation | Device Models | SoC | Looks Capture | Quick Access | Pro Controls | 10x Zoom | Processing Engine | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+| **Pixel 11** | Pixel 11, 11 Pro | Tensor G6 | ✅ | ✅ | ✅ | ✅ | Hardware TPU + HAL | **Native** |
+| **Pixel 10 Series** | Pixel 10, 10 Pro, 10 Pro XL | Tensor G5 | ✅ | ✅ | ✅ | ✅ (Pro) | Hybrid TPU / GPU | **Verified** |
+| **Pixel 9 Series** | Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold | Tensor G4 | ✅ | ✅ | ✅ | ✅ (Pro) | GPU / TPU Fallback | **Verified** |
+| **Pixel 8 Series** | Pixel 8, 8 Pro, 8a | Tensor G3 | ✅ | ✅ | ✅ | ✅ (Pro) | Mali-G715 GPU / Halide | **Verified** |
+| **Pixel 7 Series** | Pixel 7, 7 Pro, 7a | Tensor G2 | ✅ | ✅ | ✅ | ✅ (Pro) | GPU / Halide CPU | **Verified** |
+| **Pixel 6 Series** | Pixel 6, 6 Pro, 6a | Tensor G1 | ✅ | ✅ | ✅ | ✅ (Pro) | Halide CPU Worker | **Verified\*** |
 
 > [!TIP]
 > **\*Memory Optimization for 6GB RAM Devices (Pixel 6a / 7a)**: Continuous burst captures (>4 rapid shots) can trigger low-memory trimming. The patch limits concurrent Halide worker threads to 2 on devices with $\le 6\text{ GB}$ RAM to guarantee continuous stability.
@@ -165,7 +171,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In **Morphe Manager**, tap **Select an application** → pick the downloaded APKM file.
-   * Select your desired Pixel Camera patches (**Camera Looks Backport**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
+   * Select your desired Pixel Camera patches (**Camera Looks Backport**, **Pro Manual Controls**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
    * **Universal Patches Selection Guide**:
      | Option | Setting | Note |
      | :--- | :---: | :--- |
@@ -175,7 +181,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
      | **Override certificate pinning** | ❌ **UNCHECK** | Only for developer proxy debugging; unnecessary for camera. |
    * Tap **Proceed to patching** (or **Patch**). Morphe will merge the split assets and apply the bytecode patches directly on your phone.
    * Once finished, tap **Install**!
-5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, 10x zoom button, and creator tools are unlocked!
+5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, Pro Manual Controls (Focus, Shutter Speed, ISO, Peaking, Badges), 10x zoom button, and creator tools are unlocked!
 
 ---
 

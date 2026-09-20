@@ -100,6 +100,30 @@
       ]
     },
     {
+      "name": "Pro Manual Controls",
+      "description": "Enables Pro Manual Controls (Manual Focus, Shutter Speed, ISO, Focus Peaking, and Live Badges) on non-Pro Pixel models.",
+      "default": true,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.GoogleCamera",
+          "name": "Pixel Camera",
+          "description": "Pro manual controls (Focus, Shutter Speed, ISO, Peaking, Badges)",
+          "apkFileType": "APK_REQUIRED",
+          "appIconColor": "#4285F4",
+          "targets": [
+            {
+              "version": "11.0.073.972752740.32",
+              "versionCodes": [69623294],
+              "isExperimental": false,
+              "minSdk": 31,
+              "description": "Official Pixel Camera 11.0 APKM bundle"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Pixel Camera Clone (Non-Root)",
       "description": "Changes package identifier to com.google.android.GoogleCameraEng to allow side-by-side installation alongside stock Camera.",
       "default": true,
