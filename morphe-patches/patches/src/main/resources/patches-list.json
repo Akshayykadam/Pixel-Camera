@@ -16,7 +16,9 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [69623294],
+              "versionCodes": [
+                69623294
+              ],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -42,7 +44,9 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [69623294],
+              "versionCodes": [
+                69623294
+              ],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -52,21 +56,23 @@
       ]
     },
     {
-      "name": "10x Viewfinder Quick Zoom",
-      "description": "Unlocks the discrete 10x quick zoom button on viewfinder in Photo mode.",
+      "name": "5x Telephoto Portrait & 10x Quick Zoom",
+      "description": "Enables discrete 10x quick zoom button on viewfinder in Photo mode (Stock Portrait mode preserved).",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [
         {
           "packageName": "com.google.android.GoogleCamera",
           "name": "Pixel Camera",
-          "description": "10x Viewfinder Quick Zoom button in Photo mode",
+          "description": "10x Quick Zoom in Photo mode with stock Portrait mode",
           "apkFileType": "APK_REQUIRED",
           "appIconColor": "#4285F4",
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [69623294],
+              "versionCodes": [
+                69623294
+              ],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -90,7 +96,9 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [69623294],
+              "versionCodes": [
+                69623294
+              ],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -114,7 +122,9 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [69623294],
+              "versionCodes": [
+                69623294
+              ],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
