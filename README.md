@@ -73,6 +73,48 @@ Instant tone mapping, color matrix shifts, and organic film grain applied live i
 
 ---
 
+## Known Issues & Future Scope
+
+The project is still under active development. Some Pixel Camera features are working, while others require additional patching or device-specific testing.
+
+### Known Issues
+
+- [ ] **Camera Looks Viewfinder Preview**  
+  Looks are currently not previewed correctly in the viewfinder. The final effect can be checked after taking the photo.
+
+- [ ] **Grain Adjustment**  
+  The Grain strength control does not currently have a noticeable effect on the final image.
+
+- [ ] **Pixel 10 / 10 Pro Photo Saving**  
+  Some Pixel 10 Pro users may experience photos not being saved after taking a picture. A clean install and clearing the modded Camera app data may resolve this for some devices.
+
+- [ ] **5x Portrait Mode**  
+  5x Portrait Mode can crash on some devices and requires further device-specific testing.
+
+- [ ] **Portrait Mode on Older Pixels**  
+  Portrait Mode is not working correctly on some older Pixel devices, including certain Pixel 7 Pro configurations.
+
+- [ ] **Pro Zoom / 100x Zoom Model Download**  
+  Some Pixel 10 Pro users may have issues downloading or initializing the required Pro Zoom neural models.
+
+- [ ] **Photos App Integration**  
+  Some modes such as Night Sight or Macro may not appear correctly in Google Photos on certain devices.
+
+
+### Future Scope
+
+- [ ] **Add Me**
+- [ ] **Best Take**
+- [ ] **Additional Pixel 11 camera features**
+- [ ] **Improved device compatibility**
+- [ ] **Better support for Pixel 7 / 8 / 9 / 10 series**
+- [ ] **Viewfinder previews for Camera Looks**
+- [ ] **fine-tuning controls**
+- [ ] **Improved Portrait Mode compatibility**
+- [ ] **Further neural model compatibility and backporting**
+
+---
+
 ## Generational Compatibility Matrix
 
 Tested on physical hardware and confirmed through comprehensive Dalvik & native teardowns:
