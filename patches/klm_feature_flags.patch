@@ -1,0 +1,1161 @@
+--- a/smali_classes2/klm.smali	2026-09-21 21:16:17
++++ b/smali_classes2/klm.smali	2026-09-21 21:04:11
+@@ -447,7 +447,7 @@
+ 
+     sget-object p2, Lkkb;->f:Lkiz;
+ 
+-    invoke-virtual {p0, p2, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p2, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p2, Lkkb;->g:Lkiz;
+ 
+@@ -455,25 +455,25 @@
+ 
+     sget-object p2, Lkkb;->h:Lkiz;
+ 
+-    invoke-virtual {p0, p2, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p2, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p2, Lkkb;->i:Lkiz;
+ 
+-    invoke-virtual {p0, p2, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p2, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p2, Lkkb;->j:Lkiz;
+ 
+-    invoke-virtual {p0, p2, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p2, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p2, Lkkb;->d:Lkiz;
+ 
+-    const-string p3, "motion-custom_op-p22.tflite.uncompressed"
++    const-string p3, "motion-custom_op-p23.tflite.uncompressed"
+ 
+     invoke-virtual {p0, p2, p3}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p2, Lkkb;->e:Lkiz;
+ 
+-    const-string p3, "saliency-custom_op-p22.tflite.uncompressed"
++    const-string p3, "saliency-custom_op-p23.tflite.uncompressed"
+ 
+     invoke-virtual {p0, p2, p3}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+@@ -1662,7 +1662,7 @@
+ 
+     sget-object p5, Lkkb;->f:Lkiz;
+ 
+-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p5, Lkkb;->g:Lkiz;
+ 
+@@ -1670,25 +1670,25 @@
+ 
+     sget-object p5, Lkkb;->h:Lkiz;
+ 
+-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p5, Lkkb;->i:Lkiz;
+ 
+-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p5, Lkkb;->j:Lkiz;
+ 
+-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p5, Lkkb;->d:Lkiz;
+ 
+-    const-string v0, "motion-custom_op-v6.tflite.uncompressed"
++    const-string v0, "motion-custom_op-p23.tflite.uncompressed"
+ 
+     invoke-virtual {p0, p5, v0}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p5, Lkkb;->e:Lkiz;
+ 
+-    const-string v0, "saliency-custom_op-v6.tflite.uncompressed"
++    const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
+ 
+     invoke-virtual {p0, p5, v0}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+@@ -2016,7 +2016,7 @@
+ 
+     sget-object p5, Lkkn;->l:Lkiz;
+ 
+-    const-string v1, "4af512f87afd43af81a4bbd160034804/4af512f87afd43af81a4bbd160034804.uncompressed"
++    const-string v1, ""
+ 
+     invoke-virtual {p0, p5, v1}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+@@ -2046,7 +2046,7 @@
+ 
+     sget-object p5, Lkkn;->k:Lkiz;
+ 
+-    const-string v1, "bb75135a398f4b5ca6c8f6991e0a9992/bb75135a398f4b5ca6c8f6991e0a9992.uncompressed"
++    const-string v1, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
+ 
+     invoke-virtual {p0, p5, v1}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+@@ -2064,19 +2064,19 @@
+ 
+     sget-object p5, Lkkn;->c:Lkiz;
+ 
+-    const-string v1, "883d5b28a96b465dbc777ccfc636f47e/883d5b28a96b465dbc777ccfc636f47e.uncompressed"
++    const-string v1, ""
+ 
+     invoke-virtual {p0, p5, v1}, Lklm;->d(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p5, Lkkn;->d:Lkiz;
+ 
+-    const-string v1, "b305f0a853a14d968fb908b514d82a4e/b305f0a853a14d968fb908b514d82a4e.uncompressed"
++    const-string v1, ""
+ 
+     invoke-virtual {p0, p5, v1}, Lklm;->d(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p5, Lkkn;->e:Lkiz;
+ 
+-    const-string v1, "3d56a07c1f3440b1a8ee45347e2d166d/3d56a07c1f3440b1a8ee45347e2d166d.uncompressed"
++    const-string v1, ""
+ 
+     invoke-virtual {p0, p5, v1}, Lklm;->d(Lkiz;Ljava/lang/String;)V
+ 
+@@ -2120,7 +2120,7 @@
+ 
+     sget-object p5, Lkkn;->Q:Lkiz;
+ 
+-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object p5, Lkkn;->j:Lkiz;
+ 
+@@ -2884,18 +2884,210 @@
+ .method public final a(Lkiy;)Lj$/util/Optional;
+     .locals 7
+ 
++    if-eqz p1, :cond_check_orig_a
++
++    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v0, :cond_check_orig_a
++
++    const-string v1, "camera.centaur_focus_detection_override"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v0
++
++    if-eqz v0, :cond_check_orig_a
++
++    const/4 v0, 0x0
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_orig_a
+     iget-object v0, p0, Lklm;->b:Ljava/util/Map;
+ 
+     invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v0
+ 
++    if-eqz v0, :cond_check_binned_fallbacks
++
+     check-cast v0, Lovu;
+ 
+-    invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    iget-object v1, v0, Lovu;->a:Ljava/lang/Object;
++
++    if-nez v1, :cond_proceed_orig_a
++
++    :cond_check_binned_fallbacks
++    iget-object v1, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v1, :cond_return_empty_a
++
++    const-string v2, "camera.wide_binned_raw_width"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_wbrh
++
++    const/16 v0, 0x7f0
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_wbrh
++    const-string v2, "camera.wide_binned_raw_height"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_tbrw
++
++    const/16 v0, 0x600
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_tbrw
++    const-string v2, "camera.tele_binned_raw_width"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_tbrh
++
++    const/16 v0, 0x7e0
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_tbrh
++    const-string v2, "camera.tele_binned_raw_height"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_ubrw
++
++    const/16 v0, 0x5e8
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_ubrw
++    const-string v2, "camera.uw_binned_raw_width"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_ubrh
++
++    const/16 v0, 0x7e0
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_ubrh
++    const-string v2, "camera.uw_binned_raw_height"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v2
++
++    if-eqz v2, :cond_check_brs
++
++    const/16 v0, 0x5e8
+ 
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_brs
++    const-string v2, "camera.binned_row_start"
++
++    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_return_empty_a
++
++    const/4 v0, 0x0
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_return_empty_a
++    if-nez v0, :cond_proceed_orig_a
++
+     invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
+ 
++    move-result-object v0
++
++    return-object v0
++
++    :cond_proceed_orig_a
++    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
++
+     move-result-object v1
+ 
+     invoke-virtual {p1}, Lkix;->a()Z
+@@ -3042,6 +3234,8 @@
+     :goto_1
+     if-nez v4, :cond_4
+ 
++    check-cast v0, Lovu;
++
+     iget-object p0, v0, Lovu;->a:Ljava/lang/Object;
+ 
+     move-object v4, p0
+@@ -3209,7 +3403,104 @@
+ 
+ .method public final h(Lkiz;)Ljava/lang/String;
+     .locals 3
++
++    if-eqz p1, :cond_check_orig_h
++
++    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v0, :cond_check_orig_h
++
++    const-string v1, "camera.gouda.portrait_segmenter_model_name"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_rear_pdl
++
++    const-string v0, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
++
++    return-object v0
++
++    :cond_check_rear_pdl
++    const-string v1, "camera.gouda.rear_pdlearned"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_front_pdl
++
++    const-string v0, ""
++
++    return-object v0
++
++    :cond_check_front_pdl
++    const-string v1, "camera.gouda.front_pdlearned"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_pdstereo
++
++    const-string v0, ""
++
++    return-object v0
++
++    :cond_check_pdstereo
++    const-string v1, "camera.gouda.pdstereo"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_physeter
++
++    const-string v0, ""
++
++    return-object v0
++
++    :cond_check_physeter
++    const-string v1, "camera.gouda.physeter"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_lasagna_motion_model
++
++    const-string v0, ""
++
++    return-object v0
++
++    :cond_check_lasagna_motion_model
++    const-string v1, "camera.lasagna.motion_model"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_lasagna_saliency_model
++
++    const-string v0, "motion-custom_op-p23.tflite.uncompressed"
++
++    return-object v0
+ 
++    :cond_check_lasagna_saliency_model
++    const-string v1, "camera.lasagna.saliency_model"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_orig_h
++
++    const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
++
++    return-object v0
++
++    :cond_check_orig_h
+     iget-object v0, p0, Lklm;->b:Ljava/util/Map;
+ 
+     invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+@@ -3559,6 +3850,311 @@
+ .method public final q(Lkiz;)Z
+     .locals 3
+ 
++    if-eqz p1, :cond_check_orig
++
++    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v0, :cond_check_orig
++
++    const-string v1, "camera.lasagna"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_sauce
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_sauce
++    const-string v1, "camera.sauce"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_qa
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_qa
++    const-string v1, "camera.quick_access"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_gs
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_gs
++    const-string v1, "camera.getting_started_enabled"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_granite
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_granite
++    const-string v1, "camera.enable_granite"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_biotite
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_biotite
++    const-string v1, "camera.enable_biotite"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_mica
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_mica
++    const-string v1, "camera.enable_mica"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_slate
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_slate
++    const-string v1, "camera.enable_slate"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_basalt
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_basalt
++    const-string v1, "camera.enable_basalt"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_autoscroll
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_autoscroll
++    const-string v1, "camera.biotite_auto_scroll"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_cpu_seg
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_cpu_seg
++    const-string v1, "segmenter_force_cpu_inference"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_tpu_del
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_tpu_del
++    const-string v1, "segmenter_use_darwinn_tpu_delegate"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_almond_tpu
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_almond_tpu
++    const-string v1, "camera.almond_use_tpu"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_cyclops_tpu
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_cyclops_tpu
++    const-string v1, "camera.cyclops_use_tpu"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_offline_comp
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_offline_comp
++    const-string v1, "camera.gouda.use_darwinn_offline_compilation"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_fg_color_tpu
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_fg_color_tpu
++    const-string v1, "camera.gouda.foreground_color_estimator_use_tpu"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_macro_badging
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_macro_badging
++    const-string v1, "camera.enable_macro_focus_badging"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_centaur_setting
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_centaur_setting
++    const-string v1, "camera.enable_centaur"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_boba_jelly
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_boba_jelly
++    const-string v1, "camera.enable_boba_jelly"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_boba_eligible
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_boba_eligible
++    const-string v1, "camera.boba_jelly_eligible"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_lasagna_darwinn
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_lasagna_darwinn
++    const-string v1, "camera.lasagna.use_darwinn"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_ark_lens
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_ark_lens
++    const-string v1, "camera.ark_lens_selector"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_ark
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_ark
++    const-string v1, "camera.ark"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_orig
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_orig
+     iget-object v0, p0, Lklm;->b:Ljava/util/Map;
+ 
+     invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+@@ -3660,7 +4256,76 @@
+ 
+ .method public final r(Lkiz;)Lj$/util/Optional;
+     .locals 6
++
++    if-eqz p1, :cond_check_orig_r
++
++    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v0, :cond_check_orig_r
++
++    const-string v1, "camera.boba_jelly_min_active_area_ratio"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_boba_thresh
++
++    const/4 v0, 0x0
++
++    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_boba_thresh
++    const-string v1, "camera.boba_jelly_threshold"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_boba_ext
++
++    const/high16 v0, 0x3f800000    # 1.0f
++
++    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_boba_ext
++    const-string v1, "camera.boba_jelly_ext_threshold"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_orig_r
+ 
++    const/high16 v0, 0x3f800000    # 1.0f
++
++    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v0
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    return-object v0
++
++    :cond_check_orig_r
+     iget-object v0, p0, Lklm;->b:Ljava/util/Map;
+ 
+     invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+@@ -3890,18 +4555,250 @@
+ .end method
+ 
+ .method public final x(Lkiz;)Z
+-    .locals 0
++    .locals 3
+ 
+-    iget-object p0, p0, Lklm;->b:Ljava/util/Map;
++    if-eqz p1, :cond_check_orig_x
++
++    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
++
++    if-eqz v0, :cond_check_orig_x
++
++    const-string v1, "camera.lasagna"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_ark_lens_x
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_ark_lens_x
++    const-string v1, "camera.ark_lens_selector"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_ark_x
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_ark_x
++    const-string v1, "camera.ark"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_0
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_0
++    const-string v1, "camera.enable_granite"
+ 
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_1
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_1
++    const-string v1, "camera.enable_biotite"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_2
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_2
++    const-string v1, "camera.enable_mica"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_3
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_3
++    const-string v1, "camera.enable_slate"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_4
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_4
++    const-string v1, "camera.enable_basalt"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_5
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_5
++    const-string v1, "camera.biotite_auto_scroll"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_6
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_6
++    const-string v1, "camera.enable_macro_focus_badging"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_7
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_7
++    const-string v1, "camera.enable_boba_jelly"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_8
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_8
++    const-string v1, "camera.boba_jelly_eligible"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_9
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_9
++    const-string v1, "camera.ark_enabled"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_10
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_10
++    const-string v1, "camera.ark_focus_available"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_11
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_11
++    const-string v1, "camera.ark_edge_hex"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_12
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_12
++    const-string v1, "camera.ark_shutter_speed_available"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_creator_x_13
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_creator_x_13
++    const-string v1, "camera.ark_ISO_available"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_check_orig_x
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_check_orig_x
++iget-object p0, p0, Lklm;->b:Ljava/util/Map;
++
+     invoke-interface {p0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object p0
+ 
+     check-cast p0, Lovu;
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    if-nez p0, :cond_not_null_x
+ 
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_not_null_x
+     iget-object p0, p0, Lovu;->a:Ljava/lang/Object;
+ 
+     check-cast p0, Ljava/lang/Boolean;
+@@ -3912,3 +4809,59 @@
+ 
+     return p0
+ .end method
++
++.method public static isPixel8Series()Z
++    .locals 2
++
++    sget-object v0, Landroid/os/Build;->DEVICE:Ljava/lang/String;
++
++    if-nez v0, :cond_check_p8
++
++    const/4 v0, 0x0
++
++    return v0
++
++    :cond_check_p8
++    const-string v1, "husky"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_shiba
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_shiba
++    const-string v1, "shiba"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_akita
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_akita
++    const-string v1, "akita"
++
++    invoke-virtual {v0, v1}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
++
++    move-result v1
++
++    if-eqz v1, :cond_false
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :cond_false
++    const/4 v0, 0x0
++
++    return v0
++.end method

@@ -1,0 +1,286 @@
+--- a/smali/kid.smali	2026-09-21 21:16:16
++++ b/smali/kid.smali	2026-09-21 21:04:11
+@@ -265,268 +265,56 @@
+ .method public static final b(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+-
+-    invoke-static {p0}, Lkid;->e(Lklm;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->l:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->e:Lkiz;
++    const/4 v0, 0x1
+ 
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final c(Lklm;)Z
+     .locals 1
+ 
+-    invoke-static {p0}, Lkid;->d(Lklm;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->k:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->d:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
++    const/4 v0, 0x1
+ 
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final d(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    const/4 v0, 0x1
+ 
+-    invoke-static {p0}, Lkid;->e(Lklm;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->j:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->c:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final e(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+-
+-    sget-object v0, Lkid;->h:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_0
+-
+-    sget-object v0, Lkid;->b:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
++    const/4 v0, 0x1
+ 
+-    if-eqz p0, :cond_0
+-
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final f(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    const/4 v0, 0x1
+ 
+-    invoke-static {p0}, Lkid;->e(Lklm;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->n:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->g:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final g(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    const/4 v0, 0x1
+ 
+-    invoke-static {p0}, Lkid;->e(Lklm;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->m:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->f:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public static final h(Lklm;)Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    const/4 v0, 0x1
+ 
+-    sget-object v0, Lkid;->i:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->x(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_1
+-
+-    sget-object v0, Lkid;->c:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_0
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_1
+-    :goto_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
++

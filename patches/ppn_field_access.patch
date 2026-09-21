@@ -1,0 +1,474 @@
+--- a/smali/ppn.smali	2026-09-21 21:16:17
++++ b/smali/ppn.smali	2026-09-21 21:04:11
+@@ -14,7 +14,7 @@
+ 
+ .field private final e:Z
+ 
+-.field private final f:Losw;
++.field public final f:Losw;
+ 
+ .field private final g:Lulx;
+ 
+@@ -44,7 +44,7 @@
+ 
+ .field private t:Lufv;
+ 
+-.field private final u:Ljava/util/concurrent/atomic/AtomicBoolean;
++.field public final u:Ljava/util/concurrent/atomic/AtomicBoolean;
+ 
+ .field private final v:Lzfl;
+ 
+@@ -477,37 +477,37 @@
+ 
+ # virtual methods
+ .method public final declared-synchronized a(FF)Lppm;
+-    .locals 8
++    .locals 10
+ 
+     monitor-enter p0
+ 
+     :try_start_0
+     iget-object v0, p0, Lppn;->u:Ljava/util/concurrent/atomic/AtomicBoolean;
+ 
+-    invoke-virtual {v0}, Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z
++    if-eqz v0, :cond_skip_u
+ 
+-    move-result v0
++    const/4 v1, 0x1
+ 
+-    if-nez v0, :cond_0
++    invoke-virtual {v0, v1}, Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V
+ 
+-    goto/16 :goto_2
++    :cond_skip_u
++    const/4 v0, 0x0
+ 
+-    :cond_0
+-    iget-object v0, p0, Lppn;->s:Luus;
++    const/high16 v1, 0x3f800000    # 1.0f
+ 
+-    if-eqz v0, :cond_7
++    invoke-static {p1, v0, v1}, Laaaq;->aH(FFF)F
+ 
+-    invoke-static {p1}, Lppn;->q(F)Z
++    move-result p1
+ 
+-    move-result v1
++    const v0, 0x3d4ccccd    # 0.05f
+ 
+-    if-eqz v1, :cond_7
++    invoke-static {p2, v0, v1}, Laaaq;->aH(FFF)F
+ 
+-    invoke-static {p2}, Lppn;->q(F)Z
++    move-result p2
+ 
+-    move-result v1
++    iget-object v0, p0, Lppn;->s:Luus;
+ 
+-    if-eqz v1, :cond_7
++    if-eqz v0, :cond_default_s
+ 
+     invoke-interface {v0}, Luus;->a()F
+ 
+@@ -519,99 +519,68 @@
+ 
+     move-result v1
+ 
++    int-to-float v1, v1
++
++    mul-float/2addr v1, v0
++
+     iget-object v2, p0, Lppn;->s:Luus;
+ 
+     invoke-interface {v2}, Luus;->e()I
+ 
+     move-result v2
+ 
+-    int-to-float v1, v1
+-
+-    mul-float/2addr v1, v0
+-
+     int-to-float v2, v2
+ 
+     mul-float/2addr v2, v0
+ 
+-    iget-object v3, p0, Lppn;->o:Ljava/lang/Float;
++    goto :goto_ev_calc
+ 
+-    if-eqz v3, :cond_4
++    :cond_default_s
++    const v0, 0x3e2aaaab    # 0.16666667f (1/6 EV step)
+ 
+-    iget-object v3, p0, Lppn;->p:Ljava/lang/Float;
++    const/high16 v1, -0x3f800000    # -4.0f min EV
+ 
+-    if-eqz v3, :cond_4
++    const/high16 v2, 0x40800000    # +4.0f max EV
+ 
+-    iget-object v3, p0, Lppn;->q:Ljava/lang/Float;
+-
+-    if-nez v3, :cond_1
+-
+-    goto/16 :goto_0
+-
+-    :cond_1
++    :goto_ev_calc
+     sub-float/2addr v2, v1
+ 
+     mul-float/2addr v2, p1
+ 
+     add-float/2addr v1, v2
+ 
+-    iget-object p1, p0, Lppn;->r:Ljava/lang/Float;
++    div-float v2, v1, v0
+ 
+-    invoke-virtual {p1}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    invoke-static {v2}, Ljava/lang/Math;->round(F)I
+ 
+-    iget-object p1, p0, Lppn;->w:Lklm;
++    move-result v6
+ 
+-    sget-object v2, Lkim;->c:Lkiz;
++    const-wide/high16 v8, 0x4000000000000000L    # 2.0
+ 
+-    invoke-virtual {p1, v2}, Lklm;->q(Lkiz;)Z
++    float-to-double v4, v1
+ 
+-    move-result p1
++    invoke-static {v8, v9, v4, v5}, Ljava/lang/Math;->pow(DD)D
+ 
+-    const-wide/high16 v2, 0x4000000000000000L    # 2.0
++    move-result-wide v8
+ 
+-    if-eqz p1, :cond_2
++    double-to-float v3, v8
+ 
+-    float-to-double p1, v1
++    float-to-double v4, p2
+ 
+-    invoke-static {v2, v3, p1, p2}, Ljava/lang/Math;->pow(DD)D
++    const-wide/high16 v8, 0x3fe8000000000000L    # 0.75
+ 
+-    move-result-wide p1
++    invoke-static {v4, v5, v8, v9}, Ljava/lang/Math;->pow(DD)D
+ 
+-    double-to-float p1, p1
++    move-result-wide v8
+ 
+-    div-float/2addr v1, v0
++    double-to-float v7, v8
+ 
+-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+-
+-    move-result v6
+-
+-    iget-object p2, p0, Lppn;->o:Ljava/lang/Float;
+-
+-    invoke-virtual {p2}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p2
+-
+-    mul-float v3, p2, p1
++    mul-float v4, v3, v7
+ 
+-    iget-object p2, p0, Lppn;->p:Ljava/lang/Float;
++    move v5, v3
+ 
+-    invoke-virtual {p2}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p2
+-
+-    mul-float v4, p2, p1
+-
+-    iget-object p2, p0, Lppn;->q:Ljava/lang/Float;
+-
+-    invoke-virtual {p2}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p2
+-
+-    mul-float v5, p2, p1
+-
+     new-instance v2, Lppm;
+ 
+-    const/high16 v7, 0x3f800000    # 1.0f
+-
+     invoke-direct/range {v2 .. v7}, Lppm;-><init>(FFFIF)V
+     :try_end_0
+     .catchall {:try_start_0 .. :try_end_0} :catchall_0
+@@ -620,212 +589,10 @@
+ 
+     return-object v2
+ 
+-    :cond_2
+-    float-to-double v4, v1
+-
+-    :try_start_1
+-    invoke-static {v2, v3, v4, v5}, Ljava/lang/Math;->pow(DD)D
+-
+-    move-result-wide v2
+-
+-    double-to-float p1, v2
+-
+-    div-float/2addr v1, v0
+-
+-    float-to-double v2, p2
+-
+-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+-
+-    move-result p2
+-
+-    iget-object v0, p0, Lppn;->r:Ljava/lang/Float;
+-
+-    invoke-virtual {v0}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v0
+-
+-    float-to-double v0, v0
+-
+-    invoke-static {v2, v3, v0, v1}, Ljava/lang/Math;->pow(DD)D
+-
+-    move-result-wide v0
+-
+-    double-to-float v0, v0
+-
+-    invoke-direct {p0, v0}, Lppn;->n(F)F
+-
+-    move-result v0
+-
+-    iget-object v1, p0, Lppn;->o:Ljava/lang/Float;
+-
+-    invoke-virtual {v1}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v1
+-
+-    mul-float v3, v1, p1
+-
+-    mul-float v4, v3, v0
+-
+-    iget-object p1, p0, Lppn;->m:Ljava/lang/Float;
+-
+-    invoke-virtual {p1}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p1
+-
+-    div-float p1, v4, p1
+-
+-    iget-object v1, p0, Lppn;->n:Ljava/lang/Float;
+-
+-    invoke-virtual {v1}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v1
+-
+-    mul-float v5, v1, p1
+-
+-    if-nez p2, :cond_3
+-
+-    const/4 p2, -0x1
+-
+-    :cond_3
+-    move v6, p2
+-
+-    iget-object p1, p0, Lppn;->p:Ljava/lang/Float;
+-
+-    invoke-virtual {p1}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p1
+-
+-    iget-object p2, p0, Lppn;->o:Ljava/lang/Float;
+-
+-    invoke-virtual {p2}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p2
+-
+-    div-float/2addr p1, p2
+-
+-    div-float v7, v0, p1
+-
+-    new-instance v2, Lppm;
+-
+-    invoke-direct/range {v2 .. v7}, Lppm;-><init>(FFFIF)V
+-    :try_end_1
+-    .catchall {:try_start_1 .. :try_end_1} :catchall_0
+-
+-    monitor-exit p0
+-
+-    return-object v2
+-
+-    :cond_4
+-    :goto_0
+-    :try_start_2
+-    iget-object p1, p0, Lppn;->l:Ljava/lang/Float;
+-
+-    if-eqz p1, :cond_6
+-
+-    iget-object p2, p0, Lppn;->m:Ljava/lang/Float;
+-
+-    if-eqz p2, :cond_6
+-
+-    iget-object p2, p0, Lppn;->n:Ljava/lang/Float;
+-
+-    if-nez p2, :cond_5
+-
+-    goto :goto_1
+-
+-    :cond_5
+-    invoke-virtual {p1}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p1
+-
+-    iget-object p2, p0, Lppn;->m:Ljava/lang/Float;
+-
+-    invoke-virtual {p2}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result p2
+-
+-    iget-object v0, p0, Lppn;->n:Ljava/lang/Float;
+-
+-    invoke-virtual {v0}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v0
+-
+-    invoke-direct {p0, p1, p2, v0}, Lppn;->o(FFF)V
+-
+-    new-instance v1, Lppm;
+-
+-    const/4 v5, 0x0
+-
+-    const/4 v6, 0x0
+-
+-    const/4 v2, 0x0
+-
+-    const/4 v3, 0x0
+-
+-    const/4 v4, 0x0
+-
+-    invoke-direct/range {v1 .. v6}, Lppm;-><init>(FFFIF)V
+-    :try_end_2
+-    .catchall {:try_start_2 .. :try_end_2} :catchall_0
+-
+-    monitor-exit p0
+-
+-    return-object v1
+-
+-    :cond_6
+-    :goto_1
+-    :try_start_3
+-    new-instance v0, Lppm;
+-
+-    const/4 v4, 0x0
+-
+-    const/4 v5, 0x0
+-
+-    const/4 v1, 0x0
+-
+-    const/4 v2, 0x0
+-
+-    const/4 v3, 0x0
+-
+-    invoke-direct/range {v0 .. v5}, Lppm;-><init>(FFFIF)V
+-    :try_end_3
+-    .catchall {:try_start_3 .. :try_end_3} :catchall_0
+-
+-    monitor-exit p0
+-
+-    return-object v0
+-
+-    :cond_7
+-    :goto_2
+-    :try_start_4
+-    new-instance v0, Lppm;
+-
+-    const/4 v4, 0x0
+-
+-    const/4 v5, 0x0
+-
+-    const/4 v1, 0x0
+-
+-    const/4 v2, 0x0
+-
+-    const/4 v3, 0x0
+-
+-    invoke-direct/range {v0 .. v5}, Lppm;-><init>(FFFIF)V
+-    :try_end_4
+-    .catchall {:try_start_4 .. :try_end_4} :catchall_0
++    :catchall_0
++    move-exception p1
+ 
+-    monitor-exit p0
+-
+-    return-object v0
+-
+-    :catchall_0
+-    move-exception v0
+-
+-    move-object p1, v0
+-
+-    :try_start_5
+     monitor-exit p0
+-    :try_end_5
+-    .catchall {:try_start_5 .. :try_end_5} :catchall_0
+ 
+     throw p1
+ .end method
+@@ -1585,59 +1352,9 @@
+ .method public final declared-synchronized i()Z
+     .locals 1
+ 
+-    monitor-enter p0
+-
+-    :try_start_0
+-    iget-object v0, p0, Lppn;->t:Lufv;
+-
+-    if-eqz v0, :cond_0
+-
+-    invoke-interface {v0}, Lufv;->d()Ljava/lang/Object;
+-
+-    move-result-object v0
++    const/4 v0, 0x0
+ 
+-    check-cast v0, Lppq;
+-
+-    iget-boolean v0, v0, Lppq;->a:Z
+-
+-    if-eqz v0, :cond_0
+-
+-    iget-object v0, p0, Lppn;->t:Lufv;
+-
+-    invoke-interface {v0}, Lufv;->d()Ljava/lang/Object;
+-
+-    move-result-object v0
+-
+-    check-cast v0, Lppq;
+-
+-    iget-boolean v0, v0, Lppq;->b:Z
+-    :try_end_0
+-    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+-
+-    if-eqz v0, :cond_0
+-
+-    monitor-exit p0
+-
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_0
+-    monitor-exit p0
+-
+-    const/4 p0, 0x0
+-
+-    return p0
+-
+-    :catchall_0
+-    move-exception v0
+-
+-    :try_start_1
+-    monitor-exit p0
+-    :try_end_1
+-    .catchall {:try_start_1 .. :try_end_1} :catchall_0
+-
+-    throw v0
++    return v0
+ .end method
+ 
+ .method public final declared-synchronized j(Luep;Lufv;)V

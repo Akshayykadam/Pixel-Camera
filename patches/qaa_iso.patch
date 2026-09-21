@@ -1,0 +1,13 @@
+--- a/smali/qaa.smali	2026-09-21 21:16:17
++++ b/smali/qaa.smali	2026-09-21 16:46:49
+@@ -1096,10 +1096,6 @@
+ 
+ .method public final v(IZLsnw;)V
+     .locals 2
+-
+-    if-nez p2, :cond_0
+-
+-    return-void
+ 
+     :cond_0
+     iget-object p2, p0, Lqaa;->d:Lput;

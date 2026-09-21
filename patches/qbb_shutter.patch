@@ -1,0 +1,13 @@
+--- a/smali/qbb.smali	2026-09-21 21:16:17
++++ b/smali/qbb.smali	2026-09-21 16:46:49
+@@ -1078,10 +1078,6 @@
+ 
+ .method public final v(JZLsnw;)V
+     .locals 1
+-
+-    if-nez p3, :cond_0
+-
+-    return-void
+ 
+     :cond_0
+     iget-object p3, p0, Lqbb;->d:Lpus;

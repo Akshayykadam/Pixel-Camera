@@ -1,0 +1,284 @@
+--- a/smali/uyv.smali	2026-09-21 21:16:18
++++ b/smali/uyv.smali	2026-09-21 21:04:11
+@@ -1510,22 +1510,19 @@
+ 
+     iget-boolean v0, p0, Luyv;->Z:Z
+ 
+-    if-nez v0, :cond_1
++    if-nez v0, :cond_0
+ 
+     iget-boolean p0, p0, Luyv;->aa:Z
+-
+-    if-eqz p0, :cond_0
+ 
+-    goto :goto_0
++    if-eqz p0, :cond_1
+ 
+     :cond_0
+-    const/4 p0, 0x0
++    const/4 p0, 0x1
+ 
+     return p0
+ 
+     :cond_1
+-    :goto_0
+-    const/4 p0, 0x1
++    const/4 p0, 0x0
+ 
+     return p0
+ .end method
+@@ -1535,26 +1532,23 @@
+ 
+     iget-boolean v0, p0, Luyv;->Z:Z
+ 
+-    if-nez v0, :cond_1
++    if-nez v0, :cond_0
+ 
+     iget-boolean v0, p0, Luyv;->aa:Z
+ 
+-    if-nez v0, :cond_1
++    if-nez v0, :cond_0
+ 
+     iget-boolean p0, p0, Luyv;->Y:Z
+ 
+-    if-eqz p0, :cond_0
++    if-eqz p0, :cond_1
+ 
+-    goto :goto_0
+-
+     :cond_0
+-    const/4 p0, 0x0
++    const/4 p0, 0x1
+ 
+     return p0
+ 
+     :cond_1
+-    :goto_0
+-    const/4 p0, 0x1
++    const/4 p0, 0x0
+ 
+     return p0
+ .end method
+@@ -1674,220 +1668,9 @@
+ .method public final l()Z
+     .locals 1
+ 
+-    invoke-virtual {p0}, Luyv;->p()Z
+-
+-    move-result v0
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->a:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->b:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->f:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->d:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->e:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->g:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->h:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->c:Z
+-
+-    if-nez v0, :cond_0
++    const/4 v0, 0x1
+ 
+-    iget-boolean v0, p0, Luyv;->i:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->k:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->j:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->l:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->m:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->n:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->o:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->p:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->q:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->r:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->s:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->t:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->u:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->v:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->w:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->x:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->y:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->z:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->A:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->B:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->C:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->D:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->E:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->F:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->G:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->I:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->H:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->J:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->K:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->L:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->M:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->N:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->O:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->P:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->Q:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->R:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->S:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->T:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->U:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->V:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean v0, p0, Luyv;->W:Z
+-
+-    if-nez v0, :cond_0
+-
+-    iget-boolean p0, p0, Luyv;->X:Z
+-
+-    if-nez p0, :cond_0
+-
+-    const/4 p0, 0x1
+-
+-    return p0
+-
+-    :cond_0
+-    const/4 p0, 0x0
+-
+-    return p0
++    return v0
+ .end method
+ 
+ .method public final m()Z

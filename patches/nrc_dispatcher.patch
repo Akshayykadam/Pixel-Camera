@@ -1,0 +1,196 @@
+--- a/smali_classes2/nrc.smali	2026-09-21 21:16:17
++++ b/smali_classes2/nrc.smali	2026-09-21 21:04:11
+@@ -131,101 +131,10 @@
+     :pswitch_3
+     iget-object p0, p0, Lnrc;->a:Lnqu;
+ 
+-    iget-object v0, p0, Lnqu;->a:Lsmy;
+-
+-    if-eqz v0, :cond_0
+-
+-    invoke-static {p1}, Lobf;->p(F)Ljava/lang/String;
+-
+-    move-result-object v1
+-
+-    invoke-virtual {v0, v1}, Lsmy;->f(Ljava/lang/String;)V
+-
+-    :cond_0
+-    if-nez p2, :cond_1
+-
+-    goto/16 :goto_0
+-
+-    :cond_1
+     check-cast p0, Lnrm;
+ 
+-    iget-object p2, p0, Lnrm;->r:Lnrf;
+-
+-    invoke-virtual {p2, v3}, Lnrf;->c(Z)V
+-
+-    iget-object p2, p0, Lnrm;->k:Lugh;
+-
+-    invoke-interface {p2, v4}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object p2, p0, Lnrm;->i:Lugh;
+-
+-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+-
+-    move-result-object v0
+-
+-    invoke-interface {p2, v0}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object p2, p0, Lnrm;->j:Lugh;
+-
+-    move-object v1, p2
+-
+-    check-cast v1, Lufn;
+-
+-    iget-object v3, v1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast v3, Ljava/lang/Float;
+-
+-    invoke-virtual {v3}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v3
+-
+-    cmpl-float v2, v3, v2
+-
+-    if-nez v2, :cond_2
+-
+-    iget v2, p0, Lnrm;->o:F
+-
+-    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+-
+-    move-result-object v2
+-
+-    invoke-interface {p2, v2}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    :cond_2
+-    iget-object p2, p0, Lnrm;->h:Lugh;
+-
+-    invoke-interface {p2}, Lugh;->d()Ljava/lang/Object;
+-
+-    move-result-object v2
+-
+-    check-cast v2, Lnql;
+-
+-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+-
+-    move-result-object v0
+-
+-    iput-object v0, v2, Lnql;->e:Lj$/util/Optional;
+-
+-    iget-object v0, v1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast v0, Ljava/lang/Float;
+-
+-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+-
+-    move-result-object v0
+-
+-    iput-object v0, v2, Lnql;->b:Lj$/util/Optional;
+-
+-    invoke-interface {p2, v2}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object p0, p0, Lnrm;->t:Lrex;
++    invoke-virtual {p0, p1, p2, p3}, Lnrm;->s(FZLsnw;)V
+ 
+-    const/4 p2, 0x3
+-
+-    float-to-double v0, p1
+-
+-    invoke-virtual {p0, p3, p2, v0, v1}, Lrex;->E(Lsnw;ID)V
+-
+     return-void
+ 
+     :pswitch_4
+@@ -373,89 +282,12 @@
+     return-void
+ 
+     :pswitch_8
+-    if-eqz p2, :cond_c
+-
+     iget-object p0, p0, Lnrc;->a:Lnqu;
+ 
+     check-cast p0, Lnrd;
+ 
+-    iget-object p2, p0, Lnrd;->n:Lnrf;
+-
+-    invoke-virtual {p2, v3}, Lnrf;->c(Z)V
+-
+-    iget-object p2, p0, Lnrd;->h:Lugh;
+-
+-    invoke-interface {p2, v4}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+-
+-    move-result-object p2
+-
+-    iget-object v0, p0, Lnrd;->g:Lugh;
+-
+-    invoke-interface {v0, p2}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object v0, p0, Lnrd;->f:Lugh;
+-
+-    move-object v1, v0
+-
+-    check-cast v1, Lufn;
+-
+-    iget-object v3, v1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast v3, Ljava/lang/Float;
+-
+-    invoke-virtual {v3}, Ljava/lang/Float;->floatValue()F
+-
+-    move-result v3
+-
+-    cmpl-float v2, v3, v2
+-
+-    if-nez v2, :cond_7
+-
+-    iget v2, p0, Lnrd;->l:F
++    invoke-virtual {p0, p1, p2, p3}, Lnrd;->s(FZLsnw;)V
+ 
+-    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+-
+-    move-result-object v2
+-
+-    invoke-interface {v0, v2}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    :cond_7
+-    iget-object v0, p0, Lnrd;->k:Lugh;
+-
+-    invoke-interface {v0}, Lugh;->d()Ljava/lang/Object;
+-
+-    move-result-object v2
+-
+-    check-cast v2, Lnql;
+-
+-    invoke-static {p2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+-
+-    move-result-object p2
+-
+-    iput-object p2, v2, Lnql;->b:Lj$/util/Optional;
+-
+-    iget-object p2, v1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast p2, Ljava/lang/Float;
+-
+-    invoke-static {p2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+-
+-    move-result-object p2
+-
+-    iput-object p2, v2, Lnql;->e:Lj$/util/Optional;
+-
+-    invoke-interface {v0, v2}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object p0, p0, Lnrd;->p:Lrex;
+-
+-    const/16 p2, 0x8
+-
+-    float-to-double v0, p1
+-
+-    invoke-virtual {p0, p3, p2, v0, v1}, Lrex;->E(Lsnw;ID)V
+-
+     return-void
+ 
+     :cond_8

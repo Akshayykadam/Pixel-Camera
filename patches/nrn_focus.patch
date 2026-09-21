@@ -1,0 +1,13 @@
+--- a/smali/nrn.smali	2026-09-21 21:16:17
++++ b/smali/nrn.smali	2026-09-21 16:46:49
+@@ -885,10 +885,6 @@
+ 
+ .method public final t(FZLsnw;)V
+     .locals 4
+-
+-    if-nez p2, :cond_0
+-
+-    goto :goto_0
+ 
+     :cond_0
+     add-float/2addr p1, p1

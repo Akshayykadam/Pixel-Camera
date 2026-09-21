@@ -1,0 +1,258 @@
+--- a/smali/kqc.smali	2026-09-21 21:16:16
++++ b/smali/kqc.smali	2026-09-21 21:04:11
+@@ -292,243 +292,24 @@
+ .end method
+ 
+ .method public final l(Lpfr;)V
+-    .locals 7
+-
+-    invoke-interface {p1}, Lpfr;->J()Luep;
+-
+-    move-result-object v0
++    .locals 0
+ 
+-    invoke-interface {p1}, Lpfr;->e()Lsql;
++    return-void
++.end method
+ 
+-    move-result-object v1
+-
+-    sget-object v2, Lsql;->c:Lsql;
+-
+-    const/4 v3, 0x1
++.method public final q(Lpfr;)Z
++    .locals 1
+ 
+-    const/4 v4, 0x0
+-
+-    if-ne v1, v2, :cond_0
+-
+-    iget-object v1, p0, Lkqc;->h:Lklm;
+-
+-    invoke-static {v1}, Lkid;->b(Lklm;)Z
+-
+-    move-result v1
+-
+-    if-eqz v1, :cond_0
+-
+-    iget-object v1, p0, Lkqc;->g:Lugh;
++    const/4 v0, 0x0
+ 
+-    check-cast v1, Lufn;
++    return v0
++.end method
+ 
+-    iget-object v1, v1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast v1, Ljava/lang/Boolean;
+-
+-    invoke-virtual {v1}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result v1
+-
+-    if-nez v1, :cond_0
+-
+-    move v1, v3
+-
+-    goto :goto_0
+-
+-    :cond_0
+-    move v1, v4
+-
+-    :goto_0
+-    iget-object v2, p0, Lkqc;->e:Lugh;
+-
+-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+-
+-    move-result-object v1
+-
+-    invoke-interface {v2, v1}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    iget-object v1, p0, Lkqc;->d:Lugh;
++.method public final u(Lpfr;)Z
++    .locals 1
+ 
+-    new-instance v5, Lkfa;
++    const/4 v0, 0x0
+ 
+-    const/4 v6, 0x7
+-
+-    invoke-direct {v5, v6}, Lkfa;-><init>(I)V
+-
+-    new-instance v6, Lufy;
+-
+-    invoke-direct {v6, v1, v5, v1}, Lufy;-><init>(Lufv;Lxvv;Lufv;)V
+-
+-    invoke-static {v6}, Lufr;->a(Lufv;)Lufv;
+-
+-    move-result-object v1
+-
+-    const/4 v5, 0x3
+-
+-    new-array v5, v5, [Lufv;
+-
+-    aput-object v2, v5, v4
+-
+-    aput-object v1, v5, v3
+-
+-    const/4 v1, 0x2
+-
+-    iget-object v2, p0, Lkqc;->a:Lugh;
+-
+-    aput-object v2, v5, v1
+-
+-    invoke-static {v5}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
+-
+-    move-result-object v1
+-
+-    new-instance v2, Lufu;
+-
+-    invoke-direct {v2, v1}, Lufu;-><init>(Ljava/util/Collection;)V
+-
+-    new-instance v1, Lqmu;
+-
+-    const/16 v3, 0x12
+-
+-    invoke-direct {v1, v3}, Lqmu;-><init>(I)V
+-
+-    new-instance v4, Lufy;
+-
+-    invoke-direct {v4, v2, v1, v2}, Lufy;-><init>(Lufv;Lxvv;Lufv;)V
+-
+-    invoke-static {v4}, Lufr;->a(Lufv;)Lufv;
+-
+-    move-result-object v1
+-
+-    new-instance v2, Lkfd;
+-
+-    invoke-direct {v2, p0, v3}, Lkfd;-><init>(Ljava/lang/Object;I)V
+-
+-    sget-object v3, Lzdy;->a:Lzdy;
+-
+-    invoke-interface {v1, v2, v3}, Lufv;->gv(Lule;Ljava/util/concurrent/Executor;)Lula;
+-
+-    move-result-object v1
+-
+-    invoke-virtual {v0, v1}, Luep;->e(Lula;)V
+-
+-    iget-object v1, p0, Lkqc;->f:Lufv;
+-
+-    new-instance v2, Ljlt;
+-
+-    const/16 v4, 0x8
+-
+-    invoke-direct {v2, p0, p1, v4}, Ljlt;-><init>(Ljava/lang/Object;Ljava/lang/Object;I)V
+-
+-    invoke-interface {v1, v2, v3}, Lufv;->gv(Lule;Ljava/util/concurrent/Executor;)Lula;
+-
+-    move-result-object v1
+-
+-    invoke-virtual {v0, v1}, Luep;->e(Lula;)V
+-
+-    iget-object p0, p0, Lkqc;->g:Lugh;
+-
+-    new-instance v1, Lkfd;
+-
+-    const/16 v2, 0x13
+-
+-    invoke-direct {v1, p1, v2}, Lkfd;-><init>(Ljava/lang/Object;I)V
+-
+-    invoke-interface {p0, v1, v3}, Lugh;->gv(Lule;Ljava/util/concurrent/Executor;)Lula;
+-
+-    move-result-object p0
+-
+-    invoke-virtual {v0, p0}, Luep;->e(Lula;)V
+-
+-    return-void
++    return v0
+ .end method
+ 
+-.method public final q(Lpfr;)Z
+-    .locals 2
+-
+-    invoke-interface {p1}, Lpfr;->e()Lsql;
+-
+-    move-result-object p1
+-
+-    sget-object v0, Lsql;->c:Lsql;
+-
+-    const/4 v1, 0x0
+-
+-    if-ne p1, v0, :cond_0
+-
+-    iget-object p1, p0, Lkqc;->h:Lklm;
+-
+-    invoke-static {p1}, Lkid;->b(Lklm;)Z
+-
+-    move-result p1
+-
+-    if-eqz p1, :cond_0
+-
+-    iget-object p1, p0, Lkqc;->g:Lugh;
+-
+-    check-cast p1, Lufn;
+-
+-    iget-object p1, p1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast p1, Ljava/lang/Boolean;
+-
+-    invoke-virtual {p1}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result p1
+-
+-    if-nez p1, :cond_0
+-
+-    const/4 v1, 0x1
+-
+-    :cond_0
+-    iget-object p0, p0, Lkqc;->e:Lugh;
+-
+-    move-object p1, p0
+-
+-    check-cast p1, Lufn;
+-
+-    iget-object v0, p1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast v0, Ljava/lang/Boolean;
+-
+-    invoke-virtual {v0}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result v0
+-
+-    if-eq v0, v1, :cond_1
+-
+-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+-
+-    move-result-object v0
+-
+-    invoke-interface {p0, v0}, Lugh;->a(Ljava/lang/Object;)V
+-
+-    :cond_1
+-    iget-object p0, p1, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast p0, Ljava/lang/Boolean;
+-
+-    invoke-virtual {p0}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result p0
+-
+-    return p0
+-.end method
+-
+-.method public final u(Lpfr;)Z
+-    .locals 0
+-
+-    iget-object p0, p0, Lkqc;->a:Lugh;
+-
+-    check-cast p0, Lufn;
+-
+-    iget-object p0, p0, Lufn;->c:Ljava/lang/Object;
+-
+-    check-cast p0, Ljava/lang/Boolean;
+-
+-    invoke-virtual {p0}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result p0
+-
+-    return p0
+-.end method

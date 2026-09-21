@@ -1,0 +1,550 @@
+--- a/smali/nrd.smali	2026-09-21 21:16:17
++++ b/smali/nrd.smali	2026-09-21 21:04:11
+@@ -1,5 +1,5 @@
+ .class public Lnrd;
+-.super Lnqu;
++.super Lqhr;
+ .source "PG"
+ 
+ # interfaces
+@@ -43,7 +43,7 @@
+ 
+ .field private s:Landroid/view/View;
+ 
+-.field private final t:Lppn;
++.field public final t:Lppn;
+ 
+ .field private final u:Luer;
+ 
+@@ -51,7 +51,11 @@
+ 
+ .field private w:Z
+ 
++.field public final x:Lufn;
+ 
++.field public rst:Lsmq;
++
++
+ # direct methods
+ .method static constructor <clinit>()V
+     .locals 1
+@@ -70,8 +74,16 @@
+ .method public constructor <init>(Losw;Lnrf;Lppn;Lugh;Luer;Lufv;Lnqt;Lhze;Lrex;Lrdw;)V
+     .locals 3
+ 
+-    invoke-direct {p0}, Lnqu;-><init>()V
++    invoke-direct {p0}, Lqhr;-><init>()V
+ 
++    new-instance v0, Lufn;
++
++    const-string v1, ""
++
++    invoke-direct {v0, v1}, Lufn;-><init>(Ljava/lang/Object;)V
++
++    iput-object v0, p0, Lnrd;->x:Lufn;
++
+     new-instance v0, Ljava/util/concurrent/atomic/AtomicBoolean;
+ 
+     invoke-direct {v0}, Ljava/util/concurrent/atomic/AtomicBoolean;-><init>()V
+@@ -211,13 +223,13 @@
+     return-object p1
+ 
+     :cond_0
+-    new-instance p0, Ljava/lang/IllegalStateException;
++    new-instance p1, Lnht;
+ 
+-    const-string p1, "Cannot bind multiple times."
+-
+-    invoke-direct {p0, p1}, Ljava/lang/IllegalStateException;-><init>(Ljava/lang/String;)V
++    const/4 v0, 0x3
+ 
+-    throw p0
++    invoke-direct {p1, p0, v0}, Lnht;-><init>(Ljava/lang/Object;I)V
++
++    return-object p1
+ .end method
+ 
+ .method public final d()V
+@@ -244,97 +256,130 @@
+ .end method
+ 
+ .method public final e()V
+-    .locals 2
++    .locals 5
+ 
+-    iget-object v0, p0, Lnrd;->n:Lnrf;
++    iget-object v0, p0, Lnrd;->e:Lejf;
+ 
++    if-eqz v0, :cond_rst_btn_d
++
+     const/4 v1, 0x0
+ 
+-    invoke-virtual {v0, v1}, Lnrf;->c(Z)V
+-
+-    iget-object v0, p0, Lnrd;->h:Lugh;
+-
+     invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+ 
+     move-result-object v1
+ 
+-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
++    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
+ 
+-    iget-object v0, p0, Lnrd;->g:Lugh;
+-
+-    const/high16 v1, -0x40800000    # -1.0f
++    :cond_rst_btn_d
++    iget-object v0, p0, Lnrd;->x:Lufn;
+ 
+-    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++    if-eqz v0, :cond_rst_x
+ 
+-    move-result-object v1
++    const-string v1, ""
+ 
+-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
++    invoke-virtual {v0, v1}, Lufn;->a(Ljava/lang/Object;)V
+ 
+-    iget-object v0, p0, Lnrd;->f:Lugh;
+-
+-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+-
++    :cond_rst_x
+     iget-object v0, p0, Lnqu;->a:Lsmy;
+ 
+-    if-eqz v0, :cond_0
++    if-eqz v0, :cond_skip_smy_d
+ 
+     const/high16 v1, 0x3f000000    # 0.5f
+ 
+-    invoke-static {v1}, Lnrd;->k(F)F
+-
+-    move-result v1
+-
+     invoke-static {v0, v1}, Lsmy;->i(Lsmy;F)V
+ 
+-    goto :goto_0
++    const-string v1, ""
+ 
+-    :cond_0
+-    sget-object v0, Lnrd;->c:Lykq;
++    invoke-virtual {v0, v1}, Lsmy;->f(Ljava/lang/String;)V
+ 
+-    invoke-virtual {v0}, Lykh;->c()Lyld;
++    :cond_skip_smy_d
++    iget-object v0, p0, Lnrd;->g:Lugh;
+ 
+-    move-result-object v0
++    const/high16 v1, -0x40800000    # -1.0f
+ 
+-    const/16 v1, 0xfe8
++    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+ 
+-    invoke-interface {v0, v1}, Lyko;->O(I)Lyld;
++    move-result-object v1
+ 
+-    move-result-object v0
++    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+ 
+-    check-cast v0, Lyko;
++    iget-object v0, p0, Lnrd;->t:Lppn;
+ 
+-    const-string v1, "Brightness slider not found"
++    if-eqz v0, :cond_skip_ev_rst_d
+ 
+-    invoke-interface {v0, v1}, Lyko;->s(Ljava/lang/String;)V
++    iget-object v0, v0, Lppn;->f:Losw;
+ 
+-    :goto_0
+-    iget-object v0, p0, Lnrd;->t:Lppn;
++    if-eqz v0, :cond_skip_ev_rst_d
+ 
+-    invoke-virtual {v0}, Lppn;->f()V
++    const/high16 v1, 0x3f000000    # 0.5f
+ 
+-    invoke-virtual {v0}, Lppn;->g()V
++    iget-object v2, p0, Lnrd;->f:Lugh;
+ 
+-    iget-object p0, p0, Lnrd;->k:Lugh;
++    if-eqz v2, :cond_get_s_rst_done
+ 
+-    invoke-interface {p0}, Lugh;->d()Ljava/lang/Object;
++    check-cast v2, Lufn;
+ 
+-    move-result-object v0
++    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
++
++    check-cast v2, Ljava/lang/Float;
++
++    if-eqz v2, :cond_get_s_rst_done
++
++    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
++
++    move-result v2
++
++    const/4 v3, 0x0
++
++    cmpl-float v3, v2, v3
++
++    if-ltz v3, :cond_get_s_rst_done
++
++    move v1, v2
++
++    :cond_get_s_rst_done
++    const/high16 v2, 0x3f000000    # 0.5f
++
++    sub-float/2addr v1, v2
++
++    const/high16 v2, 0x41400000    # 12.0f
++
++    mul-float/2addr v1, v2
++
++    invoke-static {v1}, Ljava/lang/Math;->round(F)I
++
++    move-result v1
++
++    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+ 
+-    check-cast v0, Lnql;
++    move-result-object v1
+ 
+-    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
++    iget-object v0, v0, Losw;->b:Lugh;
+ 
+-    move-result-object v1
++    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+ 
+-    iput-object v1, v0, Lnql;->b:Lj$/util/Optional;
++    :cond_skip_ev_rst_d
++    iget-object v0, p0, Lnrd;->n:Lnrf;
+ 
+-    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
++    const/4 v1, 0x0
+ 
+-    move-result-object v1
++    invoke-virtual {v0, v1}, Lnrf;->c(Z)V
+ 
+-    iput-object v1, v0, Lnql;->e:Lj$/util/Optional;
++    iget-object v0, p0, Lnrd;->k:Lugh;
+ 
+-    invoke-interface {p0, v0}, Lugh;->a(Ljava/lang/Object;)V
++    invoke-interface {v0}, Lugh;->d()Ljava/lang/Object;
++
++    move-result-object v1
++
++    check-cast v1, Lnql;
++
++    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
++
++    move-result-object v2
++
++    iput-object v2, v1, Lnql;->b:Lj$/util/Optional;
++
++    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+ 
+     return-void
+ .end method
+@@ -719,6 +764,8 @@
+ 
+     invoke-direct {v5, v1, v6, v2}, Lsmq;-><init>(Ljava/lang/String;Ladfx;Lejf;)V
+ 
++    iput-object v5, v0, Lnrd;->rst:Lsmq;
++
+     iget-object v1, v0, Lnqu;->b:Lsbl;
+ 
+     move-object/from16 v2, v18
+@@ -746,7 +793,294 @@
+     if-eqz p1, :cond_0
+ 
+     invoke-virtual {p0}, Lnqu;->g()V
++
++    :cond_0
++    return-void
++.end method
++
++.method public final k()F
++    .locals 1
++
++    const/high16 v0, 0x3f000000    # 0.5f
++
++    return v0
++.end method
++
++.method public final n()Lufv;
++    .locals 1
++
++    iget-object v0, p0, Lnrd;->x:Lufn;
++
++    return-object v0
++.end method
++
++.method public final o()Ljava/lang/Integer;
++    .locals 1
++
++    const v0, 0x7f1300f4
+ 
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    return-object v0
++.end method
++
++.method public final p()Ljava/lang/Integer;
++    .locals 1
++
++    const v0, 0x7f1300fa
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    return-object v0
++.end method
++
++.method public final q()Ljava/lang/Integer;
++    .locals 1
++
++    const v0, 0x7f1300f9
++
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    return-object v0
++.end method
++
++.method public final s(FZLsnw;)V
++    .locals 8
++
++    invoke-static {p1}, Lobf;->p(F)Ljava/lang/String;
++
++    move-result-object v0
++
++    iget-object v1, p0, Lnrd;->x:Lufn;
++
++    if-eqz v1, :cond_0
++
++    invoke-virtual {v1, v0}, Lufn;->a(Ljava/lang/Object;)V
++
+     :cond_0
++    iget-object v1, p0, Lnqu;->a:Lsmy;
++
++    if-eqz v1, :cond_1
++
++    invoke-virtual {v1, v0}, Lsmy;->f(Ljava/lang/String;)V
++
++    :cond_1
++    iget-object v0, p0, Lnrd;->e:Lejf;
++
++    if-eqz v0, :cond_skip_rst
++
++    const/high16 v1, 0x3f000000    # 0.5f
++
++    cmpl-float v1, p1, v1
++
++    if-eqz v1, :cond_rst_off
++
++    const/4 v1, 0x1
++
++    goto :goto_rst
++
++    :cond_rst_off
++    const/4 v1, 0x0
++
++    :goto_rst
++    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
++
++    move-result-object v1
++
++    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
++
++    :cond_skip_rst
++    iget-object v0, p0, Lnrd;->t:Lppn;
++
++    if-eqz v0, :cond_ppn
++
++    iget-object v1, v0, Lppn;->u:Ljava/util/concurrent/atomic/AtomicBoolean;
++
++    const/4 v2, 0x1
++
++    invoke-virtual {v1, v2}, Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V
++
++    iget-object v0, v0, Lppn;->f:Losw;
++
++    if-eqz v0, :cond_ppn
++
++    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v1
++
++    iget-object v2, v0, Losw;->g:Lugh;
++
++    invoke-interface {v2, v1}, Lugh;->a(Ljava/lang/Object;)V
++
++    const/high16 v1, 0x3f000000    # 0.5f
++
++    iget-object v2, p0, Lnrd;->f:Lugh;
++
++    if-eqz v2, :cond_get_s_done
++
++    check-cast v2, Lufn;
++
++    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
++
++    check-cast v2, Ljava/lang/Float;
++
++    if-eqz v2, :cond_get_s_done
++
++    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
++
++    move-result v2
++
++    const/4 v3, 0x0
++
++    cmpl-float v3, v2, v3
++
++    if-ltz v3, :cond_get_s_done
++
++    move v1, v2
++
++    :cond_get_s_done
++    const/high16 v2, 0x3f000000    # 0.5f
++
++    sub-float v3, p1, v2
++
++    const/high16 v4, 0x41c00000    # 24.0f
++
++    mul-float/2addr v3, v4
++
++    sub-float v2, v1, v2
++
++    const/high16 v4, 0x41400000    # 12.0f
++
++    mul-float/2addr v2, v4
++
++    add-float/2addr v3, v2
++
++    invoke-static {v3}, Ljava/lang/Math;->round(F)I
++
++    move-result v2
++
++    const/16 v3, 0x18
++
++    if-le v2, v3, :cond_clamp_high_b
++
++    move v2, v3
++
++    :cond_clamp_high_b
++    const/16 v3, -0x18
++
++    if-ge v2, v3, :cond_clamp_low_b
++
++    move v2, v3
++
++    :cond_clamp_low_b
++    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v2
++
++    iget-object v0, v0, Losw;->b:Lugh;
++
++    invoke-interface {v0, v2}, Lugh;->a(Ljava/lang/Object;)V
++
++    :cond_ppn
++    const/4 v0, 0x1
++
++    iget-object v1, p0, Lnrd;->n:Lnrf;
++
++    invoke-virtual {v1, v0}, Lnrf;->c(Z)V
++
++    iget-object v1, p0, Lnrd;->h:Lugh;
++
++    invoke-static {v0}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
++
++    move-result-object v0
++
++    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
++
++    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v0
++
++    iget-object v1, p0, Lnrd;->g:Lugh;
++
++    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
++
++    iget-object v1, p0, Lnrd;->f:Lugh;
++
++    move-object v2, v1
++
++    check-cast v2, Lufn;
++
++    iget-object v3, v2, Lufn;->c:Ljava/lang/Object;
++
++    check-cast v3, Ljava/lang/Float;
++
++    invoke-virtual {v3}, Ljava/lang/Float;->floatValue()F
++
++    move-result v3
++
++    const/4 v4, 0x0
++
++    cmpg-float v3, v3, v4
++
++    if-gez v3, :cond_3
++
++    const/high16 v3, 0x3f000000    # 0.5f
++
++    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++
++    move-result-object v3
++
++    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
++
++    :cond_3
++    iget-object v1, p0, Lnrd;->k:Lugh;
++
++    invoke-interface {v1}, Lugh;->d()Ljava/lang/Object;
++
++    move-result-object v3
++
++    check-cast v3, Lnql;
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    iput-object v0, v3, Lnql;->b:Lj$/util/Optional;
++
++    iget-object v0, v2, Lufn;->c:Ljava/lang/Object;
++
++    check-cast v0, Ljava/lang/Float;
++
++    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
++
++    move-result-object v0
++
++    iput-object v0, v3, Lnql;->e:Lj$/util/Optional;
++
++    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
++
++    iget-object v0, p0, Lnrd;->p:Lrex;
++
++    const/16 v1, 0x8
++
++    float-to-double v2, p1
++
++    invoke-virtual {v0, p3, v1, v2, v3}, Lrex;->E(Lsnw;ID)V
++
+     return-void
+ .end method
++
++
++.method public final h()Lsmq;
++    .locals 1
++
++    iget-object v0, p0, Lnrd;->rst:Lsmq;
++
++    return-object v0
++.end method
