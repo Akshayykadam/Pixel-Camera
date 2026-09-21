@@ -32,5 +32,69 @@ val proControlsPatch = bytecodePatch(
                 }
             }
         }
+
+        // ── 2. Remove Dragging Suppression on Pro Sliders for Live Viewfinder Response ──
+        // In stock Gcam, slider updates were gated on touch release (z == true). Removing
+        // the initial if-nez / if-eqz branch allows live viewfinder adjustments during dragging.
+
+        // a) ISO: qaa.v(IZLsnw;)V
+        mutableClassDefByOrNull("Lqaa;")?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "v" &&
+                it.parameterTypes.size == 3 &&
+                it.parameterTypes[0] == "I" &&
+                it.parameterTypes[1] == "Z" &&
+                it.parameterTypes[2] == "Lsnw;"
+            }?.let { method ->
+                method.implementation?.let { impl ->
+                    val first = impl.instructions.firstOrNull()
+                    if (first != null && (first.opcode == Opcode.IF_EQZ || first.opcode == Opcode.IF_NEZ)) {
+                        impl.removeInstruction(0)
+                        if (impl.instructions.firstOrNull()?.opcode == Opcode.RETURN_VOID) {
+                            impl.removeInstruction(0)
+                        }
+                    }
+                }
+            }
+        }
+
+        // b) Shutter Speed: qbb.v(JZLsnw;)V
+        mutableClassDefByOrNull("Lqbb;")?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "v" &&
+                it.parameterTypes.size == 3 &&
+                it.parameterTypes[0] == "J" &&
+                it.parameterTypes[1] == "Z" &&
+                it.parameterTypes[2] == "Lsnw;"
+            }?.let { method ->
+                method.implementation?.let { impl ->
+                    val first = impl.instructions.firstOrNull()
+                    if (first != null && (first.opcode == Opcode.IF_EQZ || first.opcode == Opcode.IF_NEZ)) {
+                        impl.removeInstruction(0)
+                        if (impl.instructions.firstOrNull()?.opcode == Opcode.RETURN_VOID) {
+                            impl.removeInstruction(0)
+                        }
+                    }
+                }
+            }
+        }
+
+        // c) Manual Focus: nrn.t(FZLsnw;)V
+        mutableClassDefByOrNull("Lnrn;")?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "t" &&
+                it.parameterTypes.size == 3 &&
+                it.parameterTypes[0] == "F" &&
+                it.parameterTypes[1] == "Z" &&
+                it.parameterTypes[2] == "Lsnw;"
+            }?.let { method ->
+                method.implementation?.let { impl ->
+                    val first = impl.instructions.firstOrNull()
+                    if (first != null && (first.opcode == Opcode.IF_EQZ || first.opcode == Opcode.IF_NEZ)) {
+                        impl.removeInstruction(0)
+                    }
+                }
+            }
+        }
     }
 }
