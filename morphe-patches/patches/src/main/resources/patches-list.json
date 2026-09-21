@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "patches": [
     {
       "name": "Camera Looks Backport",
@@ -16,9 +16,7 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [
-                69623294
-              ],
+              "versionCodes": [69623294],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -44,9 +42,7 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [
-                69623294
-              ],
+              "versionCodes": [69623294],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -70,9 +66,7 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [
-                69623294
-              ],
+              "versionCodes": [69623294],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -96,9 +90,31 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [
-                69623294
-              ],
+              "versionCodes": [69623294],
+              "isExperimental": false,
+              "minSdk": 31,
+              "description": "Official Pixel Camera 11.0 APKM bundle"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pro Manual Controls",
+      "description": "Enables Pro Manual Controls (Manual Focus, Shutter Speed, ISO, Focus Peaking, and Live Badges) on non-Pro Pixel models.",
+      "default": true,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.GoogleCamera",
+          "name": "Pixel Camera",
+          "description": "Pro manual controls (Focus, Shutter Speed, ISO, Peaking, Badges)",
+          "apkFileType": "APK_REQUIRED",
+          "appIconColor": "#4285F4",
+          "targets": [
+            {
+              "version": "11.0.073.972752740.32",
+              "versionCodes": [69623294],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"
@@ -109,9 +125,19 @@
     },
     {
       "name": "Pixel Camera Clone (Non-Root)",
-      "description": "Changes package identifier to com.google.android.GoogleCameraEng to allow side-by-side installation alongside stock Camera.",
+      "description": "Changes package identifier to com.google.android.GoogleCamera.morphe to allow side-by-side installation alongside stock Camera.",
       "default": true,
       "dependencies": [],
+      "options": [
+        {
+          "key": "packageName",
+          "title": "Package name",
+          "description": "Package name to use for the cloned app.",
+          "required": true,
+          "default": "com.google.android.GoogleCamera.morphe",
+          "type": "STRING"
+        }
+      ],
       "compatiblePackages": [
         {
           "packageName": "com.google.android.GoogleCamera",
@@ -122,9 +148,7 @@
           "targets": [
             {
               "version": "11.0.073.972752740.32",
-              "versionCodes": [
-                69623294
-              ],
+              "versionCodes": [69623294],
               "isExperimental": false,
               "minSdk": 31,
               "description": "Official Pixel Camera 11.0 APKM bundle"

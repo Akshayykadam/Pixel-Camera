@@ -1,76 +1,116 @@
 package app.morphe.patches.pixelcamera.clone
 
-import app.morphe.patcher.patch.rawResourcePatch
-import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
-import com.reandroid.arsc.chunk.xml.ResXmlAttribute
-import com.reandroid.arsc.chunk.xml.ResXmlElement
+import app.morphe.patcher.patch.resourcePatch
+import app.morphe.patcher.patch.stringOption
+import org.w3c.dom.Element
 
-val pixelCameraClonePatch = rawResourcePatch(
+val pixelCameraClonePatch = resourcePatch(
     name = "Pixel Camera Clone (Non-Root)",
-    description = "Changes package identifier to com.google.android.GoogleCamera.morphe to allow side-by-side installation alongside stock Camera."
+    description = "Changes package identifier to com.google.android.GoogleCamera.morphe to allow side-by-side installation alongside stock Camera.",
+    default = true
 ) {
+    val packageNameOption = stringOption(
+        key = "packageName",
+        default = "com.google.android.GoogleCamera.morphe",
+        values = mapOf("com.google.android.GoogleCamera.morphe" to "com.google.android.GoogleCamera.morphe"),
+        title = "Package name",
+        description = "Package name to use for the cloned app.",
+        required = true
+    )
+
     compatibleWith(
         "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32"),
+        "com.google.android.GoogleCameraEng" to setOf("11.0.073.972752740.32")
     )
+
     execute {
-        val manifestFile = get("AndroidManifest.xml", false)
-        if (manifestFile.exists()) {
-            val manifest = AndroidManifestBlock.load(manifestFile)
+        val targetPkg = packageNameOption.value ?: "com.google.android.GoogleCamera.morphe"
 
-            // 1. Set package name
-            manifest.packageName = "com.google.android.GoogleCamera.morphe"
+        document("AndroidManifest.xml").use { doc ->
+            val root = doc.documentElement
+            root.setAttribute("package", targetPkg)
 
-            // 2. Iterate all attributes and update package references
-            val it: MutableIterator<ResXmlAttribute> = manifest.recursiveAttributes()
-            while (it.hasNext()) {
-                val attr = it.next()
-                // Do not modify the root package attribute again
-                if ("package" == attr.name && attr.parentElement == manifest.manifestElement) {
-                    continue
-                }
-                val valStr = attr.valueAsString
-                if (valStr != null) {
-                    if (valStr.contains("com.google.android.GoogleCamera")) {
-                        attr.setValueAsString(valStr.replace("com.google.android.GoogleCamera", "com.google.android.GoogleCamera.morphe"))
-                    } else if (valStr == "com.google.android.apps.camera.specialtypes.SpecialTypesProvider") {
-                        attr.setValueAsString("com.google.android.GoogleCamera.morphe.specialtypes.SpecialTypesProvider")
+            // 1. Dynamic receiver and permissions
+            for (tag in listOf("permission", "uses-permission")) {
+                val list = doc.getElementsByTagName(tag)
+                for (i in 0 until list.length) {
+                    val elem = list.item(i) as? Element ?: continue
+                    val name = elem.getAttribute("android:name")
+                    if (name.isNotEmpty() && (name.startsWith("com.google.android.GoogleCamera") || name.startsWith("com.google.android.GoogleCameraEng"))) {
+                        elem.setAttribute(
+                            "android:name",
+                            name.replace("com.google.android.GoogleCameraEng", targetPkg)
+                                .replace("com.google.android.GoogleCamera", targetPkg)
+                        )
                     }
                 }
             }
 
-            // 3. Ensure SearchIndexablesProvider authority is uniquely suffixed
-            for (provider in manifest.listApplicationElementsByTag("provider")) {
-                val authAttr = provider.searchAttributeByName("authorities")
-                if (authAttr != null && "com.google.android.GoogleCamera.morphe" == authAttr.valueAsString) {
-                    authAttr.setValueAsString("com.google.android.GoogleCamera.morphe.search")
+            // 2. Scheme launch host
+            val dataList = doc.getElementsByTagName("data")
+            for (i in 0 until dataList.length) {
+                val elem = dataList.item(i) as? Element ?: continue
+                val host = elem.getAttribute("android:host")
+                if (host == "com.google.android.GoogleCamera" || host == "com.google.android.GoogleCameraEng") {
+                    elem.setAttribute("android:host", targetPkg)
                 }
             }
 
-            // 4. Remove split attributes if present
-            if (manifest.isSplit) {
-                manifest.setSplit(null, false)
-            }
-
-            // 5. Remove Google Play split & stamp metadata
-            manifest.removeElementsIf { element: ResXmlElement ->
-                if ("meta-data" == element.name) {
-                    val nameAttr = element.searchAttributeByName("name")
-                    val nameVal = nameAttr?.valueAsString
-                    nameVal != null && (
-                        nameVal == "com.android.vending.splits" ||
-                        nameVal == "com.android.vending.derived.apk.id" ||
-                        nameVal == "com.android.stamp.source" ||
-                        nameVal == "com.android.stamp.type"
-                    )
-                } else {
-                    false
+            // 3. Content Provider authorities
+            val providers = doc.getElementsByTagName("provider")
+            for (i in 0 until providers.length) {
+                val elem = providers.item(i) as? Element ?: continue
+                val auth = elem.getAttribute("android:authorities")
+                if (auth.isNotEmpty()) {
+                    if (auth == "com.google.android.GoogleCamera" || auth == "com.google.android.GoogleCameraEng" || auth == targetPkg) {
+                        elem.setAttribute("android:authorities", "$targetPkg.search")
+                    } else if (auth.startsWith("com.google.android.GoogleCamera.")) {
+                        elem.setAttribute("android:authorities", auth.replace("com.google.android.GoogleCamera.", "$targetPkg."))
+                    } else if (auth.startsWith("com.google.android.GoogleCameraEng.")) {
+                        elem.setAttribute("android:authorities", auth.replace("com.google.android.GoogleCameraEng.", "$targetPkg."))
+                    } else if (auth == "com.google.android.apps.camera.specialtypes.SpecialTypesProvider") {
+                        elem.setAttribute("android:authorities", "$targetPkg.specialtypes.SpecialTypesProvider")
+                    }
                 }
             }
 
-            manifest.refreshFull()
-            manifest.writeBytes(manifestFile)
+            // 4. Remove Google Play split & stamp metadata to convert to standalone monolithic APK
+            val metaDataList = doc.getElementsByTagName("meta-data")
+            val toRemove = mutableListOf<Element>()
+            for (i in 0 until metaDataList.length) {
+                val elem = metaDataList.item(i) as? Element ?: continue
+                val name = elem.getAttribute("android:name")
+                if (name in setOf(
+                    "com.android.vending.splits",
+                    "com.android.vending.derived.apk.id",
+                    "com.android.stamp.source",
+                    "com.android.stamp.type"
+                )) {
+                    toRemove.add(elem)
+                }
+            }
+            for (elem in toRemove) {
+                elem.parentNode?.removeChild(elem)
+            }
+
+            // 5. Remove split attributes from root if present
+            root.removeAttribute("android:requiredSplitTypes")
+            root.removeAttribute("android:splitTypes")
+            root.removeAttribute("android:isSplitRequired")
         }
+
+        // Also update app name in strings.xml if present
+        try {
+            val stringsFile = get("res/values/strings.xml", false)
+            if (stringsFile.exists()) {
+                var content = stringsFile.readText(Charsets.UTF_8)
+                content = content.replace(
+                    "<string name=\"app_name\">Camera</string>",
+                    "<string name=\"app_name\">PixelCamera</string>"
+                )
+                stringsFile.writeText(content, Charsets.UTF_8)
+            }
+        } catch (_: Throwable) {}
     }
 }
-

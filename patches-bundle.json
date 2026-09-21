@@ -1,7 +1,7 @@
 {
   "created_at": "2026-09-20T12:00:00",
   "description": "Pixel Camera 11.0 signature backports: 10 Camera Looks (Sauce/Tomte), Viewfinder Quick Access Controls, Pro Manual Controls (Focus, Shutter Speed, ISO, Peaking), 10x Quick Zoom Button, Creator Suite, and Non-Root Clone.",
-  "download_url": "https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.0.1/morphe-patches-pixelcamera-1.0.1.mpp",
+  "download_url": "https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.0.2/morphe-patches-pixelcamera-1.0.2.mpp",
   "signature_download_url": "",
-  "version": "1.0.1"
+  "version": "1.0.2"
 }

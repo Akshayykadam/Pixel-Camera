@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "patches": [
     {
       "name": "Camera Looks Backport",
@@ -125,9 +125,19 @@
     },
     {
       "name": "Pixel Camera Clone (Non-Root)",
-      "description": "Changes package identifier to com.google.android.GoogleCameraEng to allow side-by-side installation alongside stock Camera.",
+      "description": "Changes package identifier to com.google.android.GoogleCamera.morphe to allow side-by-side installation alongside stock Camera.",
       "default": true,
       "dependencies": [],
+      "options": [
+        {
+          "key": "packageName",
+          "title": "Package name",
+          "description": "Package name to use for the cloned app.",
+          "required": true,
+          "default": "com.google.android.GoogleCamera.morphe",
+          "type": "STRING"
+        }
+      ],
       "compatiblePackages": [
         {
           "packageName": "com.google.android.GoogleCamera",

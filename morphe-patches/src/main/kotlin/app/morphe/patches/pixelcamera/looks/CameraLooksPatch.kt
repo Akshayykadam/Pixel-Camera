@@ -11,26 +11,18 @@ val cameraLooksPatch = bytecodePatch(
 ) {
     compatibleWith(
         "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32"),
+        "com.google.android.GoogleCameraEng" to setOf("11.0.073.972752740.32"),
         "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
     )
     execute {
+        // ── 1. Hook uyv.l()Z → always return true (sauce-eligible flag) ─────────────────
+        // uyv.l()Z is the master device-eligibility check for Camera Looks (Sauce & Tomte).
+        // Returning true enables Camera Looks across all supported Pixel generations cleanly
+        // without causing native initialization errors or missing CameraCharacteristics crashes.
         mutableClassDefByOrNull("Luyv;")?.let { clazz ->
             clazz.methods.firstOrNull { it.name == "l" && it.returnType == "Z" }?.let { method ->
                 method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) {
-                        impl.removeInstruction(0)
-                    }
-                    impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                    impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                }
-            }
-        }
-        mutableClassDefByOrNull("Lqau;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.returnType == "Z" && it.parameterTypes.isEmpty() }?.let { method ->
-                method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) {
-                        impl.removeInstruction(0)
-                    }
+                    while (impl.instructions.isNotEmpty()) impl.removeInstruction(0)
                     impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
                     impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
                 }
