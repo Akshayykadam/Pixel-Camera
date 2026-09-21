@@ -17,7 +17,6 @@ build/
 bin/
 out/
 gen/
-build_and_patch_pixelcamera.py
 teleprompter_open.xml
 camera-looks-quick-access/patch/
 creator-suite-research/patch/

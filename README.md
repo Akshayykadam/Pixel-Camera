@@ -225,8 +225,16 @@ Patch-Pixel-Camera/
 ├── LICENSE                              # GNU General Public License v3.0 (GPL-3.0)
 ├── .gitignore                           # Excludes multi-GB APKs, decompiled trees, & secrets
 ├── .github/workflows/                   # Automated CI workflows (Morphe .mpp builder)
+├── build_and_patch_pixelcamera.py       # Standalone automated build, smali patching & signing script
 ├── patches-bundle.json                  # Morphe Manager custom source release metadata
 ├── patches-list.json                    # Morphe Manager patch catalog & target compatibility
+│
+├── smali_patches/                       # Standalone Smali reference patches & injected bytecode
+│   ├── README.md                        # Documentation of all 16 patched smali modules
+│   ├── TomteInitHelper.smali            # Injected Tomte neural helper
+│   ├── nrd.smali / nrm.smali            # Dual-EV Brightness & Shadows with Reset buttons
+│   ├── nrc.smali / pfh.smali            # Bottom sheet dispatcher & direct AE compensation
+│   └── klm.smali / qaa.smali / qbb.smali # Pro flags (camera.ark) and live drag suppression
 │
 ├── morphe-patches/                      # Official Morphe Patch Package (.mpp) Source
 │   ├── README.md                        # Morphe patch usage & compilation guide
@@ -241,6 +249,7 @@ Patch-Pixel-Camera/
 │       └── src/main/kotlin/app/morphe/patches/pixelcamera/
 │           ├── looks/CameraLooksPatch.kt               # Unlocks 10 Looks across Tensor G1–G5
 │           ├── quickaccess/QuickAccessPatch.kt         # Viewfinder shortcut slots & tick-slider
+│           ├── pro/ProControlsPatch.kt                 # Pro manual controls (Focus, Shutter, ISO)
 │           ├── portrait/TelephotoPortraitAndZoomPatch.kt # 10x Viewfinder Quick Zoom button
 │           ├── creator/CreatorSuitePatch.kt            # Teleprompter HUD, VU meter, & guides
 │           └── clone/PixelCameraClonePatch.kt          # Non-root clone to GoogleCameraEng
