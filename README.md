@@ -1,8 +1,8 @@
 <div align="center">
 
-# Pixel Camera: Looks & Quick Access Backport
+# Pixel Camera: Looks and Creator Suit Backport
 
-**Unlocking Google Pixel 11's next-generation "Camera Looks" & Viewfinder Quick Access on Pixel 6 through Pixel 10.**
+**Unlocking Google Pixel 11's next-generation "Camera Looks" and "Creator Suit" on Pixel 6 through Pixel 10.**
 <br />
 
 <!-- DOWNLOAD CTA BUTTONS -->
@@ -18,7 +18,7 @@
 
 ## Overview
 
-Google introduced **"Camera Looks"** (designated internally as `sauce` and `tomte`) and customizable **Quick Access Viewfinder Shortcuts** with Pixel Camera `11.0.073.972752740.32` on the Pixel 11 family. 
+Google introduced **"Camera Looks"** (designated internally as `sauce` and `tomte`) and customizable **"Creator Suit"** with Pixel Camera `11.0.073.972752740.32` on the Pixel 11 family. 
 
 Through deep reverse-engineering of Dalvik bytecode and native Halide binaries, we discovered that **the complete feature framework is present across older Pixel devices**. The features were withheld exclusively via runtime feature flags and device checks.
 
