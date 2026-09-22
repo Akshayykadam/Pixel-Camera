@@ -12,6 +12,8 @@
 
 .field public static sSelectedLookId:I
 
+.field public static sLastSelectedLook:Lqlh;
+
 
 # direct methods
 .method static constructor <clinit>()V
@@ -30,6 +32,10 @@
     const/4 v0, 0x1
 
     sput v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v0, 0x0
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
 
     return-void
 .end method
@@ -435,4 +441,37 @@
 
     .line 49
     return-void
+.end method
+
+.method public static onLookObjectSelected(Lqlh;)V
+    .locals 2
+
+    if-eqz p0, :cond_null
+
+    sput-object p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+
+    iget v0, p0, Lqlh;->d:I
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V
+
+    return-void
+
+    :cond_null
+    const/4 v0, 0x0
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+
+    const/4 v0, 0x0
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V
+
+    return-void
+.end method
+
+.method public static getLastSelectedLook()Lqlh;
+    .locals 1
+
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+
+    return-object v0
 .end method

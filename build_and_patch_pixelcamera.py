@@ -2610,9 +2610,7 @@ def patch_qmy_smali():
 
     if-eqz p1, :cond_skip_notify
 
-    iget v0, p1, Lqlh;->d:I
-
-    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqlh;)V
 
     :cond_skip_notify
     iget v0, p1, Lqlh;->d:I"""
@@ -2621,9 +2619,66 @@ def patch_qmy_smali():
         content = content.replace(target, replacement)
         with open(qmy_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] qmy.smali: TomteInitHelper.onLookSelected notified on look change.")
+        print("    [+] qmy.smali: TomteInitHelper.onLookObjectSelected notified on look change.")
+    elif "onLookObjectSelected" in content:
+        print("    [+] qmy.smali: already patched with onLookObjectSelected.")
+    elif "onLookSelected" in content:
+        content = content.replace("invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V",
+                                "invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqlh;)V")
+        with open(qmy_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] qmy.smali: updated to TomteInitHelper.onLookObjectSelected.")
     else:
         print("    [!] Warning: target in qmy.smali not found or already patched.")
+
+def patch_qkj_smali():
+    print("[*] Patching qkj.smali (Sauce EXIF metadata fallback via TomteInitHelper)...")
+    qkj_path = os.path.join(APKTOOL_DIR, "smali", "qkj.smali")
+    if not os.path.exists(qkj_path):
+        return
+    with open(qkj_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """    iget-object v0, p0, Lost;->p:Lxwg;
+
+    invoke-virtual {v0}, Lxwg;->f()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lqlh;
+
+    const/4 v1, 0x0
+
+    if-nez v0, :cond_0"""
+
+    replacement = """    iget-object v0, p0, Lost;->p:Lxwg;
+
+    invoke-virtual {v0}, Lxwg;->f()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lqlh;
+
+    if-nez v0, :cond_check_fallback
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getLastSelectedLook()Lqlh;
+
+    move-result-object v0
+
+    :cond_check_fallback
+    const/4 v1, 0x0
+
+    if-nez v0, :cond_0"""
+
+    if target in content:
+        content = content.replace(target, replacement)
+        with open(qkj_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] qkj.smali: Added TomteInitHelper fallback to qkj.Z Sauce EXIF builder.")
+    elif ":cond_check_fallback" in content:
+        print("    [+] qkj.smali: already patched with TomteInitHelper fallback.")
+    else:
+        print("    [!] Warning: qkj.smali target not found.")
 
 def patch_mia_smali():
     print("[*] Patching mia.smali (Force TomteGrain#initialize at app startup)...")
@@ -2725,7 +2780,96 @@ def patch_ioy_smali():
     with open(ioy_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    :pswitch_7
+    # Case 14 (:pswitch_5 - Night Sight mode)
+    target_5 = """    :pswitch_5
+    iget-object v0, p0, Lioy;->a:Laccg;
+
+    invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lisk;
+
+    sget-object v1, Lsql;->g:Lsql;
+
+    invoke-virtual {v0, v1}, Lisk;->a(Lsql;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_a
+
+    iget-object p0, p0, Lioy;->b:Laccg;
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_a
+    sget-object p0, Lxuz;->a:Lxuz;
+
+    return-object p0"""
+
+    replacement_5 = """    :pswitch_5
+    iget-object p0, p0, Lioy;->b:Laccg;
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0"""
+
+    # Case 13 (:pswitch_6 - 12MP Photo mode)
+    target_6 = """    :pswitch_6
+    iget-object v0, p0, Lioy;->a:Laccg;
+
+    invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lisk;
+
+    sget-object v1, Lsql;->b:Lsql;
+
+    invoke-virtual {v0, v1}, Lisk;->a(Lsql;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_b
+
+    iget-object p0, p0, Lioy;->b:Laccg;
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_b
+    sget-object p0, Lxuz;->a:Lxuz;
+
+    return-object p0"""
+
+    replacement_6 = """    :pswitch_6
+    iget-object p0, p0, Lioy;->b:Laccg;
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0"""
+
+    # Case 12 (:pswitch_7 - Portrait / Other mode)
+    target_7 = """    :pswitch_7
     iget-object v0, p0, Lioy;->a:Laccg;
 
     invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
@@ -2753,7 +2897,7 @@ def patch_ioy_smali():
 
     return-object p0"""
 
-    replacement = """    :pswitch_7
+    replacement_7 = """    :pswitch_7
     iget-object p0, p0, Lioy;->b:Laccg;
 
     check-cast p0, Ling;
@@ -2764,13 +2908,23 @@ def patch_ioy_smali():
 
     return-object p0"""
 
-    if target in content:
-        content = content.replace(target, replacement)
-        with open(ioy_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] ioy.smali patched: selected look always provided to Lost.p.")
+    patched = False
+    if target_5 in content:
+        content = content.replace(target_5, replacement_5)
+        patched = True
+    if target_6 in content:
+        content = content.replace(target_6, replacement_6)
+        patched = True
+    if target_7 in content:
+        content = content.replace(target_7, replacement_7)
+        patched = True
+
+    with open(ioy_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    if patched or (replacement_5 in content and replacement_6 in content and replacement_7 in content):
+        print("    [+] ioy.smali patched: selected look always provided to Lost.p for Photo (12MP), Night Sight, and Portrait.")
     else:
-        print("    [!] Warning: ioy.smali target not found.")
+        print("    [!] Warning: ioy.smali targets not found.")
 
 def patch_mla_smali():
     print("[*] Patching mla.smali (Applying effective Look ID to ShotParams_tomte_type)...")
@@ -3211,7 +3365,7 @@ def patch_pwo_smali():
         print("    [+] pwo.smali: a()J patched with handle logging.")
 
 def patch_kgy_smali():
-    print("[*] Patching kgy.smali (Pixel 8 Pro: 10x Photo button & 5x Portrait buttons)...")
+    print("[*] Patching kgy.smali (Pixel 8 Pro: 10x button across Photo, Night Sight, Video)...")
     kgy_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kgy.smali")
     if not os.path.exists(kgy_path):
         print("    [!] Warning: kgy.smali not found.")
@@ -3279,13 +3433,272 @@ def patch_kgy_smali():
     if photo_target in content:
         content = content.replace(photo_target, photo_repl)
         print("    [+] kgy.smali: 10x button added to Photo mode.")
-    elif "Lyeh;->p" in content[:content.find("aput-object v3, v1, v11")]:
-        print("    [+] kgy.smali: 10x button already present in Photo mode.")
-    else:
-        print("    [!] Warning: kgy.smali 10x Photo target not found.")
+
+    # 2. Night Sight & Video mode buttons
+    ns_target = """    sget-object v5, Lyri;->g:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    ns_repl = """    sget-object v5, Lyri;->g:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    if ns_target in content:
+        content = content.replace(ns_target, ns_repl)
+        print("    [+] kgy.smali: 10x button added to Night Sight mode.")
+
+    v_target1 = """    sget-object v5, Lyri;->K:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    v_repl1 = """    sget-object v5, Lyri;->K:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    if v_target1 in content:
+        content = content.replace(v_target1, v_repl1)
+
+    v_target2 = """    sget-object v5, Lyri;->i:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    v_repl2 = """    sget-object v5, Lyri;->i:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    if v_target2 in content:
+        content = content.replace(v_target2, v_repl2)
 
     with open(kgy_path, "w", encoding="utf-8") as f:
         f.write(content)
+
+def patch_kgx_smali():
+    print("[*] Patching kgx.smali (Pixel 9 Pro: 10x button across Night Sight & Video)...")
+    kgx_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kgx.smali")
+    if not os.path.exists(kgx_path):
+        return
+    with open(kgx_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    replacements = [
+        ("""    sget-object v5, Lyri;->g:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
+         """    sget-object v5, Lyri;->g:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
+
+        ("""    sget-object v5, Lyri;->R:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
+         """    sget-object v5, Lyri;->R:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
+
+        ("""    sget-object v5, Lyri;->K:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
+         """    sget-object v5, Lyri;->K:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
+
+        ("""    sget-object v5, Lyri;->i:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
+         """    sget-object v5, Lyri;->i:Lyri;
+
+    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+
+    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""")
+    ]
+
+    for t, r in replacements:
+        if t in content:
+            content = content.replace(t, r)
+
+    with open(kgx_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] kgx.smali: 10x button added across all modes.")
+
+def patch_khk_smali():
+    print("[*] Patching khk.smali (Pixel 10 Pro: 10x button across all modes)...")
+    khk_path = os.path.join(APKTOOL_DIR, "smali_classes2", "khk.smali")
+    if not os.path.exists(khk_path):
+        return
+    with open(khk_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    photo_t = """    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
+
+    move-result-object v10
+
+    invoke-virtual {v3, v10}, Laaxk;->v(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+
+    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    const/high16 v11, 0x41f00000    # 30.0f
+
+    invoke-static {v11}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v11
+
+    invoke-static/range {v6 .. v11}, Lyeh;->q(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    photo_r = """    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
+
+    move-result-object v11
+
+    invoke-virtual {v3, v11}, Laaxk;->v(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+
+    const/high16 v11, 0x41f00000    # 30.0f
+
+    invoke-static {v11}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v11
+
+    invoke-static/range {v6 .. v11}, Lyeh;->q(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    if photo_t in content:
+        content = content.replace(photo_t, photo_r)
+
+    modes_t = "invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"
+    modes_r = "invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"
+    content = content.replace(modes_t, modes_r)
+
+    with open(khk_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] khk.smali: 10x button added for Pixel 10 Pro across all modes.")
+
+def patch_kgs_smali():
+    print("[*] Patching kgs.smali (Pixel 9 Pro Fold: 10x button across all modes)...")
+    kgs_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kgs.smali")
+    if not os.path.exists(kgs_path):
+        return
+    with open(kgs_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    photo_t = """    invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
+
+    move-result-object v10
+
+    invoke-virtual {v3, v10}, Laaxk;->v(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+
+    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    const/high16 v11, 0x41f00000    # 30.0f
+
+    invoke-static {v11}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v11
+
+    invoke-static/range {v6 .. v11}, Lyeh;->q(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    photo_r = """    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
+
+    move-result-object v11
+
+    invoke-virtual {v3, v11}, Laaxk;->v(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+
+    const/high16 v11, 0x41f00000    # 30.0f
+
+    invoke-static {v11}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v11
+
+    invoke-static/range {v6 .. v11}, Lyeh;->q(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
+
+    if photo_t in content:
+        content = content.replace(photo_t, photo_r)
+
+    modes_t = "invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"
+    modes_r = "invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"
+    content = content.replace(modes_t, modes_r)
+
+    with open(kgs_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] kgs.smali: 10x button added for Pixel 9 Pro Fold across all modes.")
 
 def patch_kha_smali():
     print("[*] Patching kha.smali (5x Portrait presets in kha)...")
@@ -3347,7 +3760,7 @@ def patch_kha_smali():
         f.write(content)
 
 def patch_kfl_smali():
-    print("[*] Patching kfl.smali (Populating 10x Quick Zoom button in UI button list)...")
+    print("[*] Patching kfl.smali (Dynamically ensuring 10x Quick Zoom button in button list)...")
     kfl_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kfl.smali")
     if not os.path.exists(kfl_path):
         print("    [!] Warning: kfl.smali not found.")
@@ -3355,101 +3768,59 @@ def patch_kfl_smali():
     with open(kfl_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    kfl_target = """    :cond_11
-    const/4 v5, 0x0
+    # Revert dead-code hook if present
+    if ":cond_skip_10x\n" in content or ":cond_skip_10x\r\n" in content:
+        old_full_pattern = re.compile(r"    :cond_11\s+const/4 v5, 0x0\s+:goto_8\s+invoke-interface \{v1\}, Ljava/util/List;->isEmpty\(\)Z.*?    :cond_skip_10x\s+const/4 v5, 0x0\s+invoke-virtual \{v6, v1\}, Laaxk;->t\(Ljava/lang/Iterable;\)V", re.DOTALL)
+        content = old_full_pattern.sub("    :cond_11\n    const/4 v5, 0x0\n\n    :goto_8\n    invoke-virtual {v6, v1}, Laaxk;->t(Ljava/lang/Iterable;)V", content)
 
-    :goto_8
-    invoke-virtual {v6, v1}, Laaxk;->t(Ljava/lang/Iterable;)V"""
+    kfl_target = """    :cond_c
+    :goto_6
+    invoke-virtual {v6, v7}, Laaxk;->v(Ljava/lang/Iterable;)V"""
 
-    kfl_repl = """    :cond_11
-    const/4 v5, 0x0
+    kfl_repl = """    :cond_c
+    :goto_6
+    const/high16 v1, 0x40a00000    # 5.0f
 
-    :goto_8
-    invoke-interface {v1}, Ljava/util/List;->isEmpty()Z
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {v7, v1}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_skip_10x_kfl
+
+    const/high16 v1, 0x41200000    # 10.0f
+
+    invoke-static {v1, v13}, Ljava/lang/Float;->compare(FF)I
+
+    move-result v1
+
+    if-gtz v1, :cond_skip_10x_kfl
+
+    const/high16 v1, 0x41200000    # 10.0f
+
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {v7, v1}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
 
     move-result v2
 
-    if-nez v2, :cond_skip_10x
+    if-nez v2, :cond_skip_10x_kfl
 
-    invoke-static {v1}, Laaax;->bv(Ljava/util/List;)Ljava/lang/Object;
+    invoke-interface {v7, v1}, Ljava/util/List;->add(Ljava/lang/Object;)Z
 
-    move-result-object v2
-
-    check-cast v2, Lkhm;
-
-    iget v7, v2, Lkhm;->c:F
-
-    const/high16 v8, 0x40a00000    # 5.0f
-
-    cmpl-float v7, v7, v8
-
-    if-nez v7, :cond_skip_10x
-
-    const/high16 v7, 0x41200000    # 10.0f
-
-    invoke-static {v7, v13}, Ljava/lang/Float;->compare(FF)I
-
-    move-result v8
-
-    if-gtz v8, :cond_skip_10x
-
-    const/4 v8, 0x5
-
-    const/4 v11, 0x0
-
-    invoke-virtual {v2, v8, v11}, Laaxp;->a(ILjava/lang/Object;)Ljava/lang/Object;
-
-    move-result-object v2
-
-    check-cast v2, Laaxk;
-
-    invoke-static {v1}, Laaax;->bv(Ljava/util/List;)Ljava/lang/Object;
-
-    move-result-object v8
-
-    check-cast v8, Lkhm;
-
-    invoke-virtual {v2, v8}, Laaxk;->r(Laaxp;)V
-
-    invoke-static {v7, v2}, Lhpq;->bi(FLaaxk;)V
-
-    iget-object v7, v2, Laaxk;->b:Laaxp;
-
-    invoke-virtual {v7}, Laaxp;->T()Z
-
-    move-result v7
-
-    if-nez v7, :cond_clone_10x
-
-    invoke-virtual {v2}, Laaxk;->o()V
-
-    :cond_clone_10x
-    iget-object v7, v2, Laaxk;->b:Laaxp;
-
-    check-cast v7, Lkhm;
-
-    const-string v8, ""
-
-    iput-object v8, v7, Lkhm;->d:Ljava/lang/String;
-
-    iput-object v8, v7, Lkhm;->f:Ljava/lang/String;
-
-    invoke-static {v2}, Lhpq;->bh(Laaxk;)Lkhm;
-
-    move-result-object v2
-
-    invoke-interface {v1, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
-
-    :cond_skip_10x
-    const/4 v5, 0x0
-
-    invoke-virtual {v6, v1}, Laaxk;->t(Ljava/lang/Iterable;)V"""
+    :cond_skip_10x_kfl
+    invoke-virtual {v6, v7}, Laaxk;->v(Ljava/lang/Iterable;)V"""
 
     if kfl_target in content:
         content = content.replace(kfl_target, kfl_repl)
         print("    [+] kfl.smali: 10x Quick Zoom button dynamically generated when 5x is present and max zoom >= 10x.")
-    elif ":cond_skip_10x" in content:
-        print("    [+] kfl.smali: already patched.")
+    elif ":cond_skip_10x_kfl" in content:
+        print("    [+] kfl.smali: already patched with dynamic 10x hook.")
     else:
         print("    [!] Warning: kfl.smali target not found.")
 
@@ -3468,47 +3839,17 @@ def patch_kfw_smali():
     kfw_repl = """    :goto_a
     iget-object v6, v0, Lkfw;->Q:Ljava/util/List;
 
-    invoke-interface {v6}, Ljava/util/List;->size()I
+    const/high16 v8, 0x40a00000    # 5.0f
 
-    move-result v8
-
-    const/4 v9, 0x4
-
-    if-lt v8, v9, :cond_skip_10x_kfw
-
-    const/4 v8, 0x0
-
-    invoke-interface {v6, v8}, Ljava/util/List;->get(I)Ljava/lang/Object;
+    invoke-static {v8}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v8
 
-    check-cast v8, Ljava/lang/Float;
-
-    invoke-virtual {v8}, Ljava/lang/Float;->floatValue()F
+    invoke-interface {v6, v8}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
 
     move-result v8
 
-    const/high16 v9, 0x3f800000    # 1.0f
-
-    cmpl-float v8, v8, v9
-
-    if-gez v8, :cond_skip_10x_kfw
-
-    invoke-static {v6}, Laaax;->bv(Ljava/util/List;)Ljava/lang/Object;
-
-    move-result-object v8
-
-    check-cast v8, Ljava/lang/Float;
-
-    invoke-virtual {v8}, Ljava/lang/Float;->floatValue()F
-
-    move-result v8
-
-    const/high16 v9, 0x40a00000    # 5.0f
-
-    cmpl-float v8, v8, v9
-
-    if-nez v8, :cond_skip_10x_kfw
+    if-eqz v8, :cond_skip_10x_kfw
 
     const/high16 v8, 0x41200000    # 10.0f
 
@@ -3545,6 +3886,11 @@ def patch_kfw_smali():
     if kfw_target in content:
         content = content.replace(kfw_target, kfw_repl)
         print("    [+] kfw.smali: 10x Quick Zoom button successfully hooked in UI toggle row.")
+    elif "invoke-interface {v6, v8}, Ljava/util/List;->size()I" in content:
+        # Update existing older hook
+        old_hook_pat = re.compile(r"    :goto_a\s+iget-object v6, v0, Lkfw;->Q:Ljava/util/List;.*?    :cond_skip_10x_kfw\s+if-eq v13, v1, :cond_10", re.DOTALL)
+        content = old_hook_pat.sub(kfw_repl, content)
+        print("    [+] kfw.smali: updated to relaxed 10x Quick Zoom hook.")
     elif ":cond_skip_10x_kfw" in content:
         print("    [+] kfw.smali: already patched.")
     else:
@@ -5869,9 +6215,13 @@ def main():
     patch_mia_smali()
     patch_muh_smali()
     patch_ioy_smali()
+    patch_qkj_smali()
     patch_mla_smali()
     patch_pwh_smali()
     patch_kgy_smali()
+    patch_kgx_smali()
+    patch_khk_smali()
+    patch_kgs_smali()
     patch_kfl_smali()
     patch_kfw_smali()
     patch_qhm_smali()
