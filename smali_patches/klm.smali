@@ -3862,6 +3862,19 @@
 
     move-result v1
 
+    if-eqz v1, :cond_check_use_eclipse
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_use_eclipse
+    const-string v1, "camera.use_eclipse"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_sauce
 
     const/4 v0, 0x0
@@ -4564,6 +4577,19 @@
     if-eqz v0, :cond_check_orig_x
 
     const-string v1, "camera.lasagna"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_use_eclipse_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_use_eclipse_x
+    const-string v1, "camera.use_eclipse"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 

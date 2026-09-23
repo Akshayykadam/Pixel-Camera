@@ -791,6 +791,19 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_use_eclipse
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_use_eclipse
+    const-string v0, "camera.use_eclipse"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_not_found
 
     const/4 v0, 0x0

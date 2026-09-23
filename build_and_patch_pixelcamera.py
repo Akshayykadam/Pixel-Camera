@@ -119,6 +119,17 @@ def patch_manifest():
         f.write(content)
     print("    [+] AndroidManifest.xml successfully patched.")
 
+    # 6. Lower minSdkVersion in apktool.yml so APK can install on Android 14, 15, and 16
+    apktool_yml_path = os.path.join(APKTOOL_DIR, "apktool.yml")
+    if os.path.exists(apktool_yml_path):
+        with open(apktool_yml_path, "r", encoding="utf-8") as f:
+            yml_content = f.read()
+        yml_content = re.sub(r'minSdkVersion:\s*\d+', 'minSdkVersion: 34', yml_content)
+        yml_content = re.sub(r'targetSdkVersion:\s*\d+', 'targetSdkVersion: 36', yml_content)
+        with open(apktool_yml_path, "w", encoding="utf-8") as f:
+            f.write(yml_content)
+        print("    [+] apktool.yml minSdkVersion set to 34 (supports Android 14, 15, 16).")
+
 def patch_app_name():
     print("[*] Setting app label to 'PixelCamera'...")
     strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
@@ -183,6 +194,32 @@ def patch_klm_smali():
     if-eqz v0, :cond_check_orig
 
     const-string v1, "camera.lasagna"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_use_eclipse
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_use_eclipse
+    const-string v1, "camera.use_eclipse"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_milk
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_milk
+    const-string v1, "camera.milk"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 
@@ -305,35 +342,9 @@ def patch_klm_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_cpu_seg
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_check_cpu_seg
-    const-string v1, "segmenter_force_cpu_inference"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_tpu_del
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_check_tpu_del
-    const-string v1, "segmenter_use_darwinn_tpu_delegate"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
     if-eqz v1, :cond_check_almond_tpu
 
-    const/4 v0, 0x0
+    const/4 v0, 0x1
 
     return v0
 
@@ -352,32 +363,6 @@ def patch_klm_smali():
 
     :cond_check_cyclops_tpu
     const-string v1, "camera.cyclops_use_tpu"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_offline_comp
-
-    const/4 v0, 0x0
-
-    return v0
-
-    :cond_check_offline_comp
-    const-string v1, "camera.gouda.use_darwinn_offline_compilation"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_fg_color_tpu
-
-    const/4 v0, 0x0
-
-    return v0
-
-    :cond_check_fg_color_tpu
-    const-string v1, "camera.gouda.foreground_color_estimator_use_tpu"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
@@ -445,6 +430,32 @@ def patch_klm_smali():
     const-string v1, "camera.lasagna.use_darwinn"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_tpu_generic
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_tpu_generic
+    const-string v1, "use_tpu"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_darwinn_generic
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_darwinn_generic
+    const-string v1, "darwinn"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
 
     move-result v1
 
@@ -539,6 +550,58 @@ def patch_klm_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_use_eclipse_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_use_eclipse_x
+    const-string v1, "camera.use_eclipse"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_milk_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_milk_x
+    const-string v1, "camera.milk"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_tpu_generic_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_tpu_generic_x
+    const-string v1, "use_tpu"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_darwinn_generic_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_darwinn_generic_x
+    const-string v1, "darwinn"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_ark_lens_x
 
     const/4 v0, 0x0
@@ -592,71 +655,6 @@ def patch_klm_smali():
 
     if-eqz v0, :cond_check_orig_h
 
-    const-string v1, "camera.gouda.portrait_segmenter_model_name"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_rear_pdl
-
-    const-string v0, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
-
-    return-object v0
-
-    :cond_check_rear_pdl
-    const-string v1, "camera.gouda.rear_pdlearned"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_front_pdl
-
-    const-string v0, ""
-
-    return-object v0
-
-    :cond_check_front_pdl
-    const-string v1, "camera.gouda.front_pdlearned"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_pdstereo
-
-    const-string v0, ""
-
-    return-object v0
-
-    :cond_check_pdstereo
-    const-string v1, "camera.gouda.pdstereo"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_physeter
-
-    const-string v0, ""
-
-    return-object v0
-
-    :cond_check_physeter
-    const-string v1, "camera.gouda.physeter"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_lasagna_motion_model
-
-    const-string v0, ""
-
-    return-object v0
-
-    :cond_check_lasagna_motion_model
     const-string v1, "camera.lasagna.motion_model"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
@@ -676,9 +674,87 @@ def patch_klm_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig_h
+    if-eqz v1, :cond_check_gouda_segmenter_model
 
     const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_segmenter_model
+    const-string v1, "camera.gouda.portrait_segmenter_model_name"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_monocular_model
+
+    const-string v0, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_monocular_model
+    const-string v1, "camera.gouda.monocular_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_rear_pdlearned_model
+
+    const-string v0, "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_rear_pdlearned_model
+    const-string v1, "camera.gouda.rear_pdlearned_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_pdstereo_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_pdstereo_model
+    const-string v1, "camera.gouda.pdstereo_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_depth_postprocessor_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_depth_postprocessor_model
+    const-string v1, "camera.gouda.depth_postprocessor_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_portrait_matting_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_portrait_matting_model
+    const-string v1, "camera.gouda.portrait_matting_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_h
+
+    const-string v0, "portrait_matting_mask_1024_768.tflite.uncompressed"
 
     return-object v0
 
@@ -770,234 +846,15 @@ def patch_klm_smali():
             content = content[:r_start] + new_r + content[map_idx2:]
             print("    [+] klm.smali: r(Lkiz;) patched for Gouda max_zoom, mantis, and Boba Jelly flags.")
 
-    # 3b. Patch a(Lkiy;)Lj$/util/Optional; for Centaur focus override and binned RAW fallbacks
-    a_start = content.find(".method public final a(Lkiy;)Lj$/util/Optional;")
-    if a_start != -1:
-        a_end = content.find(".end method", a_start)
-        target_marker_a = "iget-object v0, p0, Lklm;->b:Ljava/util/Map;"
-        map_idx_a = content.find(target_marker_a, a_start)
-        orig_class_call = "invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;"
-        class_idx = content.find(orig_class_call, map_idx_a)
-        if map_idx_a != -1 and class_idx != -1 and class_idx < a_end:
-            post_class_idx = class_idx + len(orig_class_call)
-            new_a = """.method public final a(Lkiy;)Lj$/util/Optional;
-    .locals 7
-
-    if-eqz p1, :cond_check_orig_a
-
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
-
-    if-eqz v0, :cond_check_orig_a
-
-    const-string v1, "camera.centaur_focus_detection_override"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_check_orig_a
-
-    const/4 v0, 0x0
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_orig_a
-    iget-object v0, p0, Lklm;->b:Ljava/util/Map;
-
-    invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
-
-    move-result-object v0
-
-    if-eqz v0, :cond_check_binned_fallbacks
-
-    check-cast v0, Lovu;
-
-    iget-object v1, v0, Lovu;->a:Ljava/lang/Object;
-
-    if-nez v1, :cond_proceed_orig_a
-
-    :cond_check_binned_fallbacks
-    iget-object v1, p1, Lkix;->a:Ljava/lang/String;
-
-    if-eqz v1, :cond_return_empty_a
-
-    const-string v2, "camera.wide_binned_raw_width"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_wbrh
-
-    const/16 v0, 0x7f0
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_wbrh
-    const-string v2, "camera.wide_binned_raw_height"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_tbrw
-
-    const/16 v0, 0x600
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_tbrw
-    const-string v2, "camera.tele_binned_raw_width"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_tbrh
-
-    const/16 v0, 0x7e0
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_tbrh
-    const-string v2, "camera.tele_binned_raw_height"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_ubrw
-
-    const/16 v0, 0x5e8
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_ubrw
-    const-string v2, "camera.uw_binned_raw_width"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_ubrh
-
-    const/16 v0, 0x7e0
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_ubrh
-    const-string v2, "camera.uw_binned_raw_height"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_brs
-
-    const/16 v0, 0x5e8
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_check_brs
-    const-string v2, "camera.binned_row_start"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_return_empty_a
-
-    const/4 v0, 0x0
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_return_empty_a
-    if-nez v0, :cond_proceed_orig_a
-
-    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
-
-    move-result-object v0
-
-    return-object v0
-
-    :cond_proceed_orig_a
-    """
-            content = content[:a_start] + new_a + content[post_class_idx:]
-            print("    [+] klm.smali: a(Lkiy;) patched for centaur_focus_detection_override and binned RAW fallbacks.")
-
-    # 4. Replace model strings in klm.smali
-    content = content.replace("bb75135a398f4b5ca6c8f6991e0a9992/bb75135a398f4b5ca6c8f6991e0a9992.uncompressed",
-                              "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed")
+    # 4. Replace missing Lasagna models in klm.smali
     content = content.replace("4af512f87afd43af81a4bbd160034804/4af512f87afd43af81a4bbd160034804.uncompressed", "")
     content = content.replace("883d5b28a96b465dbc777ccfc636f47e/883d5b28a96b465dbc777ccfc636f47e.uncompressed", "")
     content = content.replace("b305f0a853a14d968fb908b514d82a4e/b305f0a853a14d968fb908b514d82a4e.uncompressed", "")
     content = content.replace("3d56a07c1f3440b1a8ee45347e2d166d/3d56a07c1f3440b1a8ee45347e2d166d.uncompressed", "")
-    content = content.replace("4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed", "")
-    content = content.replace("5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed", "")
+    content = content.replace("motion-custom_op-p22.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed")
+    content = content.replace("saliency-custom_op-p22.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
+    content = content.replace("motion-custom_op-v6.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed")
+    content = content.replace("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
     content = content.replace("motion-custom_op-p22.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed")
     content = content.replace("saliency-custom_op-p22.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
     content = content.replace("motion-custom_op-v6.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed")
@@ -1036,14 +893,6 @@ def patch_hpq_smali():
     with open(hpq_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 1. Replace segmenter model with CPU flatbuffer model across all device configs (P26, P25, P23)
-    content = content.replace("bb75135a398f4b5ca6c8f6991e0a9992/bb75135a398f4b5ca6c8f6991e0a9992.uncompressed",
-                              "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed")
-    content = content.replace("2a34d8be893844f799d8b56c678860f1/2a34d8be893844f799d8b56c678860f1.uncompressed",
-                              "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed")
-    content = content.replace("7fe4f2379fb94c6e887f7eca7960e084/7fe4f2379fb94c6e887f7eca7960e084.uncompressed",
-                              "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed")
-
     # Replace all motion/saliency models to p23 (native Tensor G3, valid FlatBuffer)
     content = content.replace("motion-custom_op-p22.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed")
     content = content.replace("saliency-custom_op-p22.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
@@ -1056,8 +905,6 @@ def patch_hpq_smali():
     content = content.replace("b305f0a853a14d968fb908b514d82a4e/b305f0a853a14d968fb908b514d82a4e.uncompressed", "")
     content = content.replace("3d56a07c1f3440b1a8ee45347e2d166d/3d56a07c1f3440b1a8ee45347e2d166d.uncompressed", "")
     content = content.replace("2fa01617d50043c798a5457a3473cbd9/2fa01617d50043c798a5457a3473cbd9.uncompressed", "")
-    content = content.replace("4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed", "")
-    content = content.replace("5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed", "")
     content = content.replace("f4d498c17ff445c395da824c601acbc9/f4d498c17ff445c395da824c601acbc9.uncompressed", "")
     content = content.replace("a8b044b9956f4fea8c40e347223b0447/a8b044b9956f4fea8c40e347223b0447.uncompressed", "")
     content = content.replace("2120a6d71ec64923851163e058d16b77/2120a6d71ec64923851163e058d16b77.uncompressed", "")
@@ -1070,20 +917,10 @@ def patch_hpq_smali():
         "70ea5dedf8a14631bf31d89bf26dde7c.uncompressed",
         "c76dccefa6284f11902b8eadee538ca5.uncompressed",
         "1497ad4cfd5b4362804e2f59813e986d.uncompressed",
-        "1a6566f5ceb54b50b61f553f347f6f64/1a6566f5ceb54b50b61f553f347f6f64.uncompressed",
-        "dd674d048bbc43c1b338a6692cf9c481/dd674d048bbc43c1b338a6692cf9c481.uncompressed",
-        "a3a43595f3aa49b3b4ab6ff4bb63de83/a3a43595f3aa49b3b4ab6ff4bb63de83.uncompressed",
-        "881739470eaba348da266e4f8cec36a8/881739470eaba348da266e4f8cec36a8.uncompressed",
-        "a982533a4222473db9f191c212a99740/a982533a4222473db9f191c212a99740.uncompressed",
-        "f452199b34d445868df25db5b960f191/f452199b34d445868df25db5b960f191.uncompressed",
         "b881ce5aefc948e1a9118dd65eb9f8f1.tflite.uncompressed",
         "8bd5e22b220348078faf705e9f359e3d.tflite.uncompressed",
         "14fd121a077b4304bce9977a3d97a42a.tflite.uncompressed",
         "b933c7da1fa54d36a167d0287af1eb34/b933c7da1fa54d36a167d0287af1eb34.uncompressed",
-        "a7a5b6a2bc5b4e04a8a64f9b30c86bf1/a7a5b6a2bc5b4e04a8a64f9b30c86bf1.uncompressed",
-        "01bac7b33fc440d59b8ddc817ce91b7c/01bac7b33fc440d59b8ddc817ce91b7c.uncompressed",
-        "6e4f8cec36a8881739470eaba348da26/6e4f8cec36a8881739470eaba348da26.uncompressed",
-        "0b2b230344f74db8868ffd9f1c042393/0b2b230344f74db8868ffd9f1c042393.uncompressed",
         "8f8f04c8160444b9994367d3c0863f18/8f8f04c8160444b9994367d3c0863f18.uncompressed",
         "5712d9433c92464496f2668a824dbd3d/5712d9433c92464496f2668a824dbd3d.uncompressed",
         "all_in_film_blender_sharded_512_256-graph-custom_op_tpu_p25.tflite.uncompressed",
@@ -1094,12 +931,48 @@ def patch_hpq_smali():
     for h in missing_milk_hashes:
         content = content.replace(h, "")
 
-    # 2b. Null Gouda depth/matting models missing from APK (fixes telephoto portrait crash)
-    content = content.replace("c21a1523ba6c48c2a0bf2ca4f6d6c0f0/c21a1523ba6c48c2a0bf2ca4f6d6c0f0.uncompressed", "")  # rear_pdlearned_model
-    content = content.replace("9599cabbb2fa4aa79ee0c44f0c1553ad/9599cabbb2fa4aa79ee0c44f0c1553ad.uncompressed", "")  # pdstereo_model
-    content = content.replace("efaffa0bfaf74be2ad2e17aeff79f3db/efaffa0bfaf74be2ad2e17aeff79f3db.uncompressed", "")  # monocular_model
-    content = content.replace("de8bc16ea114427d88425742785fccac/de8bc16ea114427d88425742785fccac.uncompressed", "")  # depth_postprocessor_model
-    content = content.replace("518658ef4ea04adf8e19e64d5aa019d0/518658ef4ea04adf8e19e64d5aa019d0.uncompressed", "")  # portrait_matting_model
+    # 2b. Map all device portrait models across generations (P21..P25) to verified non-TPU pure TFLite models
+    # Monocular models (front/rear portrait depth) -> midasnet
+    content = content.replace("881739470eaba348da266e4f8cec36a8/881739470eaba348da266e4f8cec36a8.uncompressed",
+                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
+    content = content.replace("6e4f8cec36a8881739470eaba348da26/6e4f8cec36a8881739470eaba348da26.uncompressed",
+                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
+    content = content.replace("efaffa0bfaf74be2ad2e17aeff79f3db/efaffa0bfaf74be2ad2e17aeff79f3db.uncompressed",
+                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
+    content = content.replace("ec36a8881739470eaba348da266e4f8c/ec36a8881739470eaba348da266e4f8c.uncompressed",
+                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
+
+    # Rear learned PD models -> ""
+    content = content.replace("c21a1523ba6c48c2a0bf2ca4f6d6c0f0/c21a1523ba6c48c2a0bf2ca4f6d6c0f0.uncompressed", "")
+    content = content.replace("1a6566f5ceb54b50b61f553f347f6f64/1a6566f5ceb54b50b61f553f347f6f64.uncompressed", "")
+    content = content.replace("dd674d048bbc43c1b338a6692cf9c481/dd674d048bbc43c1b338a6692cf9c481.uncompressed", "")
+    content = content.replace("a7a5b6a2bc5b4e04a8a64f9b30c86bf1/a7a5b6a2bc5b4e04a8a64f9b30c86bf1.uncompressed", "")
+    content = content.replace("a06600a838c64acd9c68ae65f8b2bc5f/a06600a838c64acd9c68ae65f8b2bc5f.uncompressed", "")
+    content = content.replace("2c51b285d81a44d7a619538fe13cb421/2c51b285d81a44d7a619538fe13cb421.uncompressed", "")
+    content = content.replace("4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed", "")
+
+    # PD stereo models -> ""
+    content = content.replace("9599cabbb2fa4aa79ee0c44f0c1553ad/9599cabbb2fa4aa79ee0c44f0c1553ad.uncompressed", "")
+    content = content.replace("a3a43595f3aa49b3b4ab6ff4bb63de83/a3a43595f3aa49b3b4ab6ff4bb63de83.uncompressed", "")
+    content = content.replace("0e14a3dd073345168f939198e03f2d4e/0e14a3dd073345168f939198e03f2d4e.uncompressed", "")
+    content = content.replace("5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed", "")
+
+    # Depth postprocessor models -> ""
+    content = content.replace("de8bc16ea114427d88425742785fccac/de8bc16ea114427d88425742785fccac.uncompressed", "")
+    content = content.replace("a982533a4222473db9f191c212a99740/a982533a4222473db9f191c212a99740.uncompressed", "")
+    content = content.replace("0b2b230344f74db8868ffd9f1c042393/0b2b230344f74db8868ffd9f1c042393.uncompressed", "")
+    content = content.replace("cac29f5597f5453bbabb54f6f2080e39/cac29f5597f5453bbabb54f6f2080e39.uncompressed", "")
+
+    # Portrait matting models -> portrait_matting_mask_1024_768
+    content = content.replace("518658ef4ea04adf8e19e64d5aa019d0/518658ef4ea04adf8e19e64d5aa019d0.uncompressed",
+                              "portrait_matting_mask_1024_768.tflite.uncompressed")
+    content = content.replace("f452199b34d445868df25db5b960f191/f452199b34d445868df25db5b960f191.uncompressed",
+                              "portrait_matting_mask_1024_768.tflite.uncompressed")
+    content = content.replace("01bac7b33fc440d59b8ddc817ce91b7c/01bac7b33fc440d59b8ddc817ce91b7c.uncompressed",
+                              "portrait_matting_mask_1024_768.tflite.uncompressed")
+    content = content.replace("a7ab2018912b4f958760b7763b36256a/a7ab2018912b4f958760b7763b36256a.uncompressed",
+                              "portrait_matting_mask_1024_768.tflite.uncompressed")
+
 
     # 3. Disable use_darwinn_offline_compilation (kkn.Q)
     target_q = """    sget-object v4, Lkkn;->Q:Lkiz;
@@ -1228,9 +1101,21 @@ def patch_hpq_smali():
     if target_ax_khw in content:
         content = content.replace(target_ax_khw, repl_ax_khw)
 
+    # 5. Disable failing Eclipse AE on Pixel 10 (hpq.aX)
+    target_ax_bb = """    sget-object v4, Lkjq;->bb:Lkiz;
+
+    invoke-virtual {p0, v4, v1}, Lklm;->n(Lkiz;Z)V"""
+
+    repl_ax_bb = """    sget-object v4, Lkjq;->bb:Lkiz;
+
+    invoke-virtual {p0, v4, v2}, Lklm;->n(Lkiz;Z)V"""
+
+    if target_ax_bb in content:
+        content = content.replace(target_ax_bb, repl_ax_bb)
+
     with open(hpq_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] hpq.smali: segmenter model replaced, missing/TPU models nulled, binned RAW dimensions added to Pixel 10 Pro/Base.")
+    print("    [+] hpq.smali: segmenter model replaced, missing/TPU models nulled, binned RAW dimensions added, camera.use_eclipse disabled on Pixel 10.")
 
 def patch_kic_smali():
     print("[*] Patching kic.smali (Nulling failing TPU PD models)...")
@@ -1241,8 +1126,6 @@ def patch_kic_smali():
     with open(kic_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    content = content.replace("4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed", "")
-    content = content.replace("5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed", "")
     content = content.replace("c757a03ae8d64d1b9375002b75dcdbbc/c757a03ae8d64d1b9375002b75dcdbbc.uncompressed", "")
     content = content.replace("0ea471704af14008b0483bc9b630a85c/0ea471704af14008b0483bc9b630a85c.uncompressed", "")
     # Replace all v6 models with p23 (native Tensor G3, valid FlatBuffer)
@@ -1260,9 +1143,26 @@ def patch_kic_smali():
     invoke-virtual {p0, v3, v4}, Lklm;->n(Lkiz;Z)V"""
     content = content.replace(target_darwinn, repl_darwinn)
 
+    # Disable portrait_depth_use_tpu (kkn.aj) and portrait_matting_use_tpu (kkn.ak) in kic.smali
+    target_kic_tpu = """    sget-object p1, Lkkn;->aj:Lkiz;
+
+    invoke-virtual {p0, p1, v1}, Lklm;->n(Lkiz;Z)V
+
+    sget-object p1, Lkkn;->ak:Lkiz;
+
+    invoke-virtual {p0, p1, v1}, Lklm;->n(Lkiz;Z)V"""
+    repl_kic_tpu = """    sget-object p1, Lkkn;->aj:Lkiz;
+
+    invoke-virtual {p0, p1, v4}, Lklm;->n(Lkiz;Z)V
+
+    sget-object p1, Lkkn;->ak:Lkiz;
+
+    invoke-virtual {p0, p1, v4}, Lklm;->n(Lkiz;Z)V"""
+    content = content.replace(target_kic_tpu, repl_kic_tpu)
+
     with open(kic_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] kic.smali: EdgeTPU PD models nulled and lasagna use_darwinn disabled.")
+    print("    [+] kic.smali: EdgeTPU PD models nulled, gouda TPU flags disabled, and lasagna use_darwinn disabled.")
 
 def patch_mwg_smali():
     print("[*] Patching mwg.smali (Force CPU inference for Lasagna / Motion Blur)...")
@@ -2977,122 +2877,214 @@ def patch_mla_smali():
 
 
 def patch_pvz_smali():
-    print("[*] Patching pvz.smali (Enabling Mantis telephoto routing for rear camera)...")
-    pvz_path = os.path.join(APKTOOL_DIR, "smali", "pvz.smali")
-    if not os.path.exists(pvz_path):
-        print("    [!] Warning: pvz.smali not found.")
+    print("[*] Restoring and configuring pvz.smali (Stock Gouda configuration)...")
+    clean_pvz = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pvz.smali")
+    dest_pvz = os.path.join(APKTOOL_DIR, "smali", "pvz.smali")
+    if os.path.exists(clean_pvz):
+        shutil.copy2(clean_pvz, dest_pvz)
+        print("    [+] pvz.smali: Restored clean stock file.")
+    else:
+        print("    [!] Warning: clean pvz.smali not found in scratch/clean_apktool.")
         return
-    with open(pvz_path, "r", encoding="utf-8") as f:
+
+    with open(dest_pvz, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """.method public final e(Z)Z
-    .locals 0
+    # Force all TPU flags (n, o, p, q, r) to false so PortraitProcessorInterface runs on CPU/GPU without EdgeTPU access error
+    target_tpu_pvz = """    sget-object v0, Lkkn;->aj:Lkiz;
 
-    if-eqz p1, :cond_0
+    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
 
-    iget-boolean p0, p0, Lpvz;->g:Z
+    move-result v0
 
-    return p0
+    iput-boolean v0, p0, Lpvz;->n:Z
 
-    :cond_0
-    iget-boolean p0, p0, Lpvz;->f:Z
+    sget-object v0, Lkkn;->ak:Lkiz;
 
-    return p0
-.end method"""
+    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
 
-    replacement = """.method public final e(Z)Z
-    .locals 0
+    move-result v0
 
-    const/4 p0, 0x0
+    iput-boolean v0, p0, Lpvz;->o:Z
 
-    return p0
-.end method"""
+    sget-object v0, Lkkn;->am:Lkiz;
 
-    if target in content:
-        content = content.replace(target, replacement)
-        with open(pvz_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] pvz.smali: e(Z)Z patched to return false (WIDE pipeline, no Mantis).")
-    elif "const/4 p0, 0x0" in content[content.find(".method public final e(Z)Z"):content.find(".method public final e(Z)Z")+200]:
-        print("    [+] pvz.smali: already patched.")
+    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+
+    move-result v0
+
+    iput-boolean v0, p0, Lpvz;->p:Z
+
+    sget-object v0, Lkkn;->al:Lkiz;
+
+    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+
+    move-result v0
+
+    iput-boolean v0, p0, Lpvz;->q:Z
+
+    sget-object v0, Lkkn;->ar:Lkiz;
+
+    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+
+    move-result v0
+
+    iput-boolean v0, p0, Lpvz;->r:Z"""
+
+    repl_tpu_pvz = """    const/4 v0, 0x0
+
+    iput-boolean v0, p0, Lpvz;->n:Z
+
+    iput-boolean v0, p0, Lpvz;->o:Z
+
+    iput-boolean v0, p0, Lpvz;->p:Z
+
+    iput-boolean v0, p0, Lpvz;->q:Z
+
+    iput-boolean v0, p0, Lpvz;->r:Z"""
+
+    if target_tpu_pvz in content:
+        content = content.replace(target_tpu_pvz, repl_tpu_pvz, 1)
+        print("    [+] pvz.smali: Disabled TPU flags (n, o, p, q, r = false).")
     else:
-        print("    [!] Warning: pvz.smali target method e(Z)Z not matched.")
+        print("    [!] Warning: pvz.smali TPU target block not found.")
+
+    with open(dest_pvz, "w", encoding="utf-8") as f:
+        f.write(content)
 
 def patch_pwh_smali():
-    print("[*] Verifying pwh.smali (Ensuring clean bytecode without register mismatch)...")
-    pwh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pwh.smali")
-    if not os.path.exists(pwh_path):
-        print("    [!] Warning: pwh.smali not found.")
+    print("[*] Restoring and configuring pwh.smali (Portrait capture task)...")
+    clean_pwh = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali_classes2", "pwh.smali")
+    dest_pwh = os.path.join(APKTOOL_DIR, "smali_classes2", "pwh.smali")
+    if os.path.exists(clean_pwh):
+        shutil.copy2(clean_pwh, dest_pwh)
+        print("    [+] pwh.smali: Restored clean stock file.")
+    else:
+        print("    [!] Warning: clean pwh.smali not found in scratch/clean_apktool.")
         return
-    with open(pwh_path, "r", encoding="utf-8") as f:
+
+    with open(dest_pwh, "r", encoding="utf-8") as f:
         content = f.read()
 
-    corrupt_block = """    invoke-virtual {v0}, Lpwp;->a()J
+    # Allow monocular depth model to load unconditionally for all cameras
+    target_mono_check = """    if-eqz v14, :cond_2
 
-    move-result-wide v4
+    :try_start_3
+    invoke-virtual {v5}, Luvf;->l()Luve;
 
-    cmp-long v2, v4, v2
+    move-result-object v14
 
-    if-nez v2, :cond_pwh_seg
+    move-object/from16 v16, v5
 
-    invoke-virtual {v0}, Lpwp;->b()V
+    sget-object v5, Luve;->a:Luve;
 
-    invoke-virtual {v0}, Lpwp;->a()J
+    invoke-virtual {v14, v5}, Luve;->equals(Ljava/lang/Object;)Z
 
-    move-result-wide v4
+    move-result v5
 
-    :cond_pwh_seg
-    move-wide/from16 v46, v4
+    if-eqz v5, :cond_3
 
-    goto :goto_11
+    sget-object v5, Lkkn;->u:Lkiz;
 
-    :cond_29
-    const-wide/16 v2, 0x0
+    invoke-virtual {v13, v5}, Lklm;->h(Lkiz;)Ljava/lang/String;
 
-    move-wide/from16 v46, v2"""
+    move-result-object v5
 
-    clean_block = """    invoke-virtual {v0}, Lpwp;->a()J
+    invoke-static {v5}, Lxiw;->E(Ljava/lang/String;)Ljava/lang/String;
 
-    move-result-wide v4
+    move-result-object v5
 
-    move-wide/from16 v46, v4
+    goto :goto_1
 
-    goto :goto_11
+    :cond_2
+    move-object/from16 v16, v5
 
-    :cond_29
-    move-wide/from16 v46, v2"""
+    :cond_3
+    const-string v5, \"\""""
 
-    if corrupt_block in content:
-        content = content.replace(corrupt_block, clean_block)
-        with open(pwh_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] pwh.smali: restored clean bytecode.")
+    repl_mono_check = """    move-object/from16 v16, v5
+
+    :try_start_3
+    sget-object v5, Lkkn;->u:Lkiz;
+
+    invoke-virtual {v13, v5}, Lklm;->h(Lkiz;)Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-static {v5}, Lxiw;->E(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v5"""
+
+    if target_mono_check in content:
+        content = content.replace(target_mono_check, repl_mono_check, 1)
+        print("    [+] pwh.smali: Enabled monocular depth model loading for all cameras.")
     else:
-        print("    [+] pwh.smali: bytecode is clean.")
+        print("    [!] Warning: pwh.smali monocular target block not found.")
+
+    with open(dest_pwh, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_pwm_smali():
+    print("[*] Restoring and configuring pwm.smali (PortraitRequest dispatch)...")
+    clean_pwm = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali_classes2", "pwm.smali")
+    dest_pwm = os.path.join(APKTOOL_DIR, "smali_classes2", "pwm.smali")
+    if os.path.exists(clean_pwm):
+        shutil.copy2(clean_pwm, dest_pwm)
+        print("    [+] pwm.smali: Restored clean stock file.")
+    else:
+        print("    [!] Warning: clean pwm.smali not found in scratch/clean_apktool.")
+        return
+
+    with open(dest_pwm, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Route ALL portrait captures (front and rear cameras) to znc.e (kMonocular)
+    start_marker = "    if-eqz v8, :cond_3"
+    end_marker = "    :cond_b\n    :goto_2"
+
+    idx1 = content.find(start_marker)
+    idx2 = content.find(end_marker)
+
+    if idx1 != -1 and idx2 != -1 and idx1 < idx2:
+        end_idx = idx2 + len("    :cond_b\n")
+        repl = """    sget-object v6, Lznc;->e:Lznc;
+
+    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lznc;)V\n\n"""
+        content = content[:idx1] + repl + content[end_idx:]
+        print("    [+] pwm.smali: Successfully routed all portrait captures to znc.e (kMonocular).")
+    else:
+        print("    [!] Warning: pwm.smali dispatch target block not found.")
+
+    with open(dest_pwm, "w", encoding="utf-8") as f:
+        f.write(content)
 
 def patch_pwp_smali():
-    print("[*] Patching pwp.smali (PortraitSegmenterManager lazy-init, logging, and fallback asset handling)...")
-    pwp_path = os.path.join(APKTOOL_DIR, "smali", "pwp.smali")
-    if not os.path.exists(pwp_path):
-        print("    [!] Warning: pwp.smali not found.")
+    print("[*] Restoring and hardening pwp.smali (PortraitSegmenterManager)...")
+    clean_pwp = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pwp.smali")
+    dest_pwp = os.path.join(APKTOOL_DIR, "smali", "pwp.smali")
+    if not os.path.exists(clean_pwp):
+        print("    [!] Warning: clean pwp.smali not found in scratch/clean_apktool.")
         return
-    with open(pwp_path, "r", encoding="utf-8") as f:
+    with open(clean_pwp, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 1. Replace a()J with clean lazy-initialization b() (pure original bytecode, no register conflicts)
-    a_start = content.find(".method public final a()J")
-    if a_start != -1:
-        a_end = content.find(".end method", a_start) + len(".end method")
-        new_a = """.method public final a()J
-    .locals 3
+    # 1. In pwp.a(): If !this.e, invoke this.b() synchronously before returning handle
+    target_a = """    iget-boolean v1, p0, Lpwp;->e:Z
+
+    if-nez v1, :cond_0
+
+    monitor-exit v0
+
+    const-wide/16 v0, 0x0
+
+    return-wide v0"""
+
+    repl_a = """    iget-boolean v1, p0, Lpwp;->e:Z
+
+    if-nez v1, :cond_0
 
     invoke-virtual {p0}, Lpwp;->b()V
 
-    iget-object v0, p0, Lpwp;->c:Ljava/lang/Object;
-
-    monitor-enter v0
-
-    :try_start_0
     iget-boolean v1, p0, Lpwp;->e:Z
 
     if-nez v1, :cond_0
@@ -3101,268 +3093,99 @@ def patch_pwp_smali():
 
     const-wide/16 v0, 0x0
 
-    return-wide v0
+    return-wide v0"""
 
-    :cond_0
-    iget-object p0, p0, Lpwp;->d:Lzrz;
+    if target_a in content:
+        content = content.replace(target_a, repl_a, 1)
+        print("    [+] pwp.smali: Added synchronous b() initialization in a().")
 
-    invoke-interface {p0}, Lzrz;->getSegmenterHandle()J
+    # 2. In pwp.b(): Default model name to 1c33 stock model if null or empty
+    target_b_model = """    iget-object v0, v1, Lpwp;->g:Landroid/content/Context;
 
-    move-result-wide v1
+    iget-object v3, v1, Lpwp;->b:Ljava/lang/String;"""
 
-    monitor-exit v0
+    repl_b_model = """    iget-object v0, v1, Lpwp;->g:Landroid/content/Context;
 
-    return-wide v1
+    iget-object v3, v1, Lpwp;->b:Ljava/lang/String;
 
-    :catchall_0
-    move-exception p0
+    if-eqz v3, :cond_pwp_default_model
 
-    monitor-exit v0
-    :try_end_0
-    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+    invoke-virtual {v3}, Ljava/lang/String;->isEmpty()Z
 
-    throw p0
-.end method"""
-        content = content[:a_start] + new_a + content[a_end:]
-        print("    [+] pwp.smali: a()J restored with clean lazy-init.")
+    move-result v4
 
-    # 2. Add fallback asset loading
-    target_catch = """    :catch_0
-    move-exception v0
+    if-nez v4, :cond_pwp_default_model
 
-    :try_start_2
-    sget-object v3, Lpwp;->a:Lykq;
+    goto :cond_pwp_model_ok
 
-    invoke-virtual {v3}, Lykh;->b()Lyld;
+    :cond_pwp_default_model
+    const-string v3, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
 
-    move-result-object v3
+    iput-object v3, v1, Lpwp;->b:Ljava/lang/String;
 
-    const/16 v6, 0x16c4
+    :cond_pwp_model_ok"""
 
-    invoke-interface {v3, v6}, Lyko;->O(I)Lyld;
+    if target_b_model in content:
+        content = content.replace(target_b_model, repl_b_model, 1)
+        print("    [+] pwp.smali: Added 1c33 stock model fallback in b().")
 
-    move-result-object v3
-
-    check-cast v3, Lyko;
-
-    const-string v6, "Unable to load the asset: %s"
-
-    invoke-interface {v3, v6, v0}, Lyko;->v(Ljava/lang/String;Ljava/lang/Object;)V
-
-    const/4 v0, 0x2
-
-    invoke-direct {v1, v0}, Lpwp;->c(I)V
-
-    :goto_0"""
-
-    replacement_catch = """    :catch_0
-    move-exception v0
-
-    :try_start_2
-    sget-object v3, Lpwp;->a:Lykq;
-
-    invoke-virtual {v3}, Lykh;->b()Lyld;
-
-    move-result-object v3
-
-    const/16 v6, 0x16c4
-
-    invoke-interface {v3, v6}, Lyko;->O(I)Lyld;
-
-    move-result-object v3
-
-    check-cast v3, Lyko;
-
-    const-string v6, "Unable to load asset: %s, falling back to vakunov flatbuffer"
-
-    invoke-interface {v3, v6, v0}, Lyko;->v(Ljava/lang/String;Ljava/lang/Object;)V
-
-    :try_start_fb
-    iget-object v0, v1, Lpwp;->g:Landroid/content/Context;
-
-    invoke-virtual {v0}, Landroid/content/Context;->getAssets()Landroid/content/res/AssetManager;
-
-    move-result-object v0
-
-    const-string v3, "tflite_vakunov_multi-subject_2018-06-09.fb"
-
-    invoke-virtual {v0, v3}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
-
-    move-result-object v0
-
-    invoke-virtual {v0}, Ljava/io/InputStream;->available()I
-
-    move-result v3
-
-    new-array v5, v3, [B
-
-    invoke-static {v0, v5, v4, v3}, Lcom/google/common/io/ByteStreams;->read(Ljava/io/InputStream;[BII)I
-
-    invoke-virtual {v0}, Ljava/io/InputStream;->close()V
-
-    const-string v0, "tflite_vakunov_multi-subject_2018-06-09.fb"
-
-    iput-object v0, v1, Lpwp;->b:Ljava/lang/String;
-    :try_end_fb
-    .catch Ljava/lang/Exception; {:try_start_fb .. :try_end_fb} :catch_fb
-
-    goto :goto_0
-
-    :catch_fb
-    move-exception v0
-
-    const/4 v0, 0x2
-
-    invoke-direct {v1, v0}, Lpwp;->c(I)V
-
-    :goto_0"""
-
-    if target_catch in content:
-        content = content.replace(target_catch, replacement_catch, 1)
-        print("    [+] pwp.smali patched: added fallback asset loading for portrait segmenter.")
-
-    # 3. Add CPU fallback retry in b()
-    init_target = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
+    # 3. In pwp.b(): If initial initSegmenter returns false (e.g. TPU failure), retry with CPU/GPU
+    target_init = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
-    if-eqz v0, :cond_5"""
+    if-eqz v0, :cond_5
 
-    init_repl = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
+    if-nez v13, :cond_5"""
+
+    repl_init = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
-    if-nez v0, :cond_init_ok
+    if-nez v0, :cond_check_mask_reasonable
 
-    const/4 v13, 0x1
+    invoke-interface {v6}, Lzrz;->release()V
+
+    invoke-virtual {v3}, Ljava/nio/ByteBuffer;->clear()Ljava/nio/Buffer;
+
+    invoke-virtual {v3, v5}, Ljava/nio/ByteBuffer;->put([B)Ljava/nio/ByteBuffer;
+
+    const/4 v0, 0x0
+
+    iput-boolean v0, v1, Lpwp;->n:Z
 
     const/16 v16, 0x0
 
     const/16 v17, 0x0
 
+    const/4 v13, 0x0
+
     invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
-    :cond_init_ok
-    if-eqz v0, :cond_5"""
+    goto :cond_5
 
-    if init_target in content:
-        content = content.replace(init_target, init_repl, 1)
-        print("    [+] pwp.smali: added CPU retry fallback in b().")
+    :cond_check_mask_reasonable
+    if-nez v13, :cond_5"""
 
-    # 4. Add initSegmenter result logging in b()
-    if "initSegmenter finished: success=" not in content:
-        log_target = """    iput-boolean v0, v1, Lpwp;->e:Z"""
-        log_repl = """    iput-boolean v0, v1, Lpwp;->e:Z
+    if target_init in content:
+        content = content.replace(target_init, repl_init, 1)
+        print("    [+] pwp.smali: Added CPU/GPU fallback retry in b().")
 
-    const-string v3, "PortraitSegmenterManager"
-
-    new-instance v4, Ljava/lang/StringBuilder;
-
-    const-string v5, "initSegmenter finished: success="
-
-    invoke-direct {v4, v5}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
-
-    invoke-virtual {v4, v0}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
-
-    const-string v5, ", model="
-
-    invoke-virtual {v4, v5}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    iget-object v5, v1, Lpwp;->b:Ljava/lang/String;
-
-    invoke-virtual {v4, v5}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v4}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-    move-result-object v4
-
-    invoke-static {v3, v4}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I"""
-        content = content.replace(log_target, log_repl, 1)
-        print("    [+] pwp.smali: added initSegmenter result logging.")
-
-    with open(pwp_path, "w", encoding="utf-8") as f:
+    with open(dest_pwp, "w", encoding="utf-8") as f:
         f.write(content)
+    print("    [+] pwp.smali: Hardened PortraitSegmenterManager applied.")
 
 def patch_pwo_smali():
-    print("[*] Patching pwo.smali (PortraitRelighting logging)...")
-    pwo_path = os.path.join(APKTOOL_DIR, "smali", "pwo.smali")
-    if not os.path.exists(pwo_path):
-        print("    [!] Warning: pwo.smali not found.")
-        return
-    with open(pwo_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    a_start = content.find(".method public final a()J")
-    if a_start != -1:
-        a_end = content.find(".end method", a_start) + len(".end method")
-        new_a = """.method public final a()J
-    .locals 5
-
-    iget-object v0, p0, Lpwo;->i:Ljava/util/concurrent/locks/ReentrantLock;
-
-    invoke-virtual {v0}, Ljava/util/concurrent/locks/ReentrantLock;->tryLock()Z
-
-    move-result v0
-
-    if-eqz v0, :cond_0
-
-    :try_start_0
-    iget-object v0, p0, Lpwo;->g:Lcom/google/googlex/gcam/creativecamera/portraitmode/PortraitRelightingProcessorInterface;
-
-    invoke-virtual {v0}, Lcom/google/googlex/gcam/creativecamera/portraitmode/PortraitRelightingProcessorInterface;->getPortraitRelightingProcessorHandle()J
-
-    move-result-wide v0
-    :try_end_0
-    .catchall {:try_start_0 .. :try_end_0} :catchall_0
-
-    iget-object p0, p0, Lpwo;->i:Ljava/util/concurrent/locks/ReentrantLock;
-
-    invoke-virtual {p0}, Ljava/util/concurrent/locks/ReentrantLock;->unlock()V
-
-    const-string v2, "PortraitRelighting"
-
-    new-instance v3, Ljava/lang/StringBuilder;
-
-    const-string v4, "getPortraitRelightingProcessorHandle: "
-
-    invoke-direct {v3, v4}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
-
-    invoke-virtual {v3, v0, v1}, Ljava/lang/StringBuilder;->append(J)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v3}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-    move-result-object v3
-
-    invoke-static {v2, v3}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
-
-    return-wide v0
-
-    :catchall_0
-    move-exception v0
-
-    iget-object p0, p0, Lpwo;->i:Ljava/util/concurrent/locks/ReentrantLock;
-
-    invoke-virtual {p0}, Ljava/util/concurrent/locks/ReentrantLock;->unlock()V
-
-    throw v0
-
-    :cond_0
-    const-string p0, "PortraitRelighting"
-
-    const-string v0, "getPortraitRelightingProcessorHandle: lock busy, returning 0"
-
-    invoke-static {p0, v0}, Landroid/util/Log;->w(Ljava/lang/String;Ljava/lang/String;)I
-
-    const-wide/16 v0, 0x0
-
-    return-wide v0
-.end method"""
-        content = content[:a_start] + new_a + content[a_end:]
-        with open(pwo_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] pwo.smali: a()J patched with handle logging.")
+    print("[*] Restoring pwo.smali (Stock PortraitRelighting)...")
+    clean_pwo = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pwo.smali")
+    dest_pwo = os.path.join(APKTOOL_DIR, "smali", "pwo.smali")
+    if os.path.exists(clean_pwo):
+        shutil.copy2(clean_pwo, dest_pwo)
+        print("    [+] pwo.smali: Restored 100% clean stock.")
+    else:
+        print("    [!] Warning: clean pwo.smali not found in scratch/clean_apktool.")
 
 def patch_kgy_smali():
     print("[*] Patching kgy.smali (Pixel 8 Pro: 10x button across Photo, Night Sight, Video)...")
@@ -3701,63 +3524,14 @@ def patch_kgs_smali():
     print("    [+] kgs.smali: 10x button added for Pixel 9 Pro Fold across all modes.")
 
 def patch_kha_smali():
-    print("[*] Patching kha.smali (5x Portrait presets in kha)...")
-    kha_path = os.path.join(APKTOOL_DIR, "smali", "kha.smali")
-    if not os.path.exists(kha_path):
-        return
-    with open(kha_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    p1_target = """    invoke-static {v8, v9}, Lyeh;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
-
-    move-result-object v2
-
-    invoke-virtual {v4, v2}, Laaxk;->v(Ljava/lang/Iterable;)V
-
-    invoke-static {v4}, Lejn;->l(Laaxk;)Labae;
-
-    invoke-static {v8, v9, v14}, Lyeh;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
-
-    p1_repl = """    invoke-static {v8, v9, v10}, Lyeh;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
-
-    move-result-object v2
-
-    invoke-virtual {v4, v2}, Laaxk;->v(Ljava/lang/Iterable;)V
-
-    invoke-static {v4}, Lejn;->l(Laaxk;)Labae;
-
-    invoke-static {v8, v9, v14, v10}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
-
-    if p1_target in content:
-        content = content.replace(p1_target, p1_repl)
-        print("    [+] kha.smali: 5x button added to Portrait branch 1.")
-
-    p2_target = """    invoke-static {v4, v9}, Lyeh;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
-
-    move-result-object v6
-
-    invoke-virtual {v2, v6}, Laaxk;->v(Ljava/lang/Iterable;)V
-
-    invoke-static {v2}, Lejn;->l(Laaxk;)Labae;
-
-    invoke-static {v4, v9, v14}, Lyeh;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
-
-    p2_repl = """    invoke-static {v4, v9, v10}, Lyeh;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;
-
-    move-result-object v6
-
-    invoke-virtual {v2, v6}, Laaxk;->v(Ljava/lang/Iterable;)V
-
-    invoke-static {v2}, Lejn;->l(Laaxk;)Labae;
-
-    invoke-static {v4, v9, v14, v10}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
-
-    if p2_target in content:
-        content = content.replace(p2_target, p2_repl)
-        print("    [+] kha.smali: 5x button added to Portrait branch 2.")
-
-    with open(kha_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    print("[*] Restoring kha.smali (Stock zoom stops, no 5x Portrait)...")
+    clean_kha = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "kha.smali")
+    dest_kha = os.path.join(APKTOOL_DIR, "smali", "kha.smali")
+    if os.path.exists(clean_kha):
+        shutil.copy2(clean_kha, dest_kha)
+        print("    [+] kha.smali: Restored 100% clean stock (stock 1.5x / 2x stops).")
+    else:
+        print("    [!] Warning: clean kha.smali not found in scratch/clean_apktool.")
 
 def patch_kfl_smali():
     print("[*] Patching kfl.smali (Dynamically ensuring 10x Quick Zoom button in button list)...")
@@ -6224,6 +5998,11 @@ def main():
     patch_qkj_smali()
     patch_mla_smali()
     patch_pwh_smali()
+    patch_pwm_smali()
+    patch_pwp_smali()
+    patch_pvz_smali()
+    patch_pwo_smali()
+    patch_kha_smali()
     patch_kgy_smali()
     patch_kgx_smali()
     patch_khk_smali()
