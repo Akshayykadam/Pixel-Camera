@@ -48,8 +48,8 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
-   * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=akshaykadam/Patch-Pixel-Camera) on your phone.
-   * **Or Manually**: Open Morphe Manager → **Settings** → **Sources** → Add custom source: `akshaykadam/Patch-Pixel-Camera` (or import the downloaded `.mpp` file).
+   * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera) on your phone.
+   * **Or Manually**: Open Morphe Manager → **Settings** → **Sources** → Add custom source: `Akshayykadam/Pixel-Camera` (or import the downloaded `.mpp` file).
 3. **Get the Base Camera APK**:
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
@@ -67,7 +67,7 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 ### Option 2: On Your PC / Mac (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download the latest `pixelcamera-patches.mpp` from [Releases](https://github.com/akshayykadam/Patch-Pixel-Camera/releases).
+2. Download the latest `patches-1.0.2.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases).
 3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop.
 4. Select the patches and click **Start Patching**.
 5. Transfer the generated `PixelCamera_signed.apk` to your phone or install via ADB:
