@@ -6168,6 +6168,12 @@ def copy_to_desktop(signed_apk):
         shutil.copy2(signed_apk, dest_apk)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
         print(f"    [+] Successfully copied APK to Desktop: {dest_apk} ({size_mb:.2f} MB)")
+        
+        pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
+        if os.path.isdir(pixelcam_dir):
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera_signed2.apk"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera_signed.apk and PixelCamera_signed2.apk")
         return dest_apk
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
