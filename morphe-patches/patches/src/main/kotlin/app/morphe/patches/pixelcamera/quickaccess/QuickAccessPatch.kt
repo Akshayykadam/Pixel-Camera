@@ -1,10 +1,8 @@
 package app.morphe.patches.pixelcamera.quickaccess
 
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
-import com.android.tools.smali.dexlib2.Opcode
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
 
 val quickAccessPatch = bytecodePatch(
     name = "Viewfinder Quick Access Controls",
@@ -17,85 +15,63 @@ val quickAccessPatch = bytecodePatch(
         "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
     )
     execute {
-        // ── 1. Hook nqj.G(nqp)Z → always return true ────────────────────────────────────
-        // nqj.G(nqp) is the Quick Access item eligibility gate for the viewfinder:
-        //   - nqp.a = DUAL_EXPOSURE  (Brightness + Shadow dual tick slider)
-        //   - nqp.b = SINGLE_EXPOSURE (single EV knob)
-        // Forcing true ensures Dual Exposure (Brightness & Shadow) and other items
-        // are allowed in the viewfinder quick-access controls.
+        // ── 1. Hook nqj.G(nqp)Z → allow DUAL_EXPOSURE / SINGLE_EXPOSURE, preserve Pro controls ──
         mutableClassDefByOrNull("Lnqj;")?.let { clazz ->
-            clazz.methods.firstOrNull {
-                it.name == "G" &&
-                it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == "Lnqp;" &&
-                it.returnType == "Z"
-            }?.let { method ->
-                method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) impl.removeInstruction(0)
-                    impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                    impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                }
-            }
-
-            // ── 2. Hook nqj.I(nqp)Z → always return true ────────────────────────────────
-            // nqj.I(nqp) is the static gate for Looks-type QA items:
-            //   - nqp.j = TOMTE_AURA      (Looks: Aura)
-            //   - nqp.k = TOMTE_CAPS      (Looks: Caps)
-            //   - nqp.l = TOMTE_CAPS_LIMA (Looks: Caps Lima)
-            //   - nqp.m = TOMTE_EXTRA     (Looks: Extra)
-            //   - nqp.n = TOMTE_SELECTION (Looks: Selection / carousel slot)
-            // Forcing true ensures all Looks items are allowed as QA shortcuts.
-            clazz.methods.firstOrNull {
-                it.name == "I" &&
-                it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == "Lnqp;" &&
-                it.returnType == "Z"
-            }?.let { method ->
-                method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) impl.removeInstruction(0)
-                    impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                    impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                }
-            }
+            val smaliG = """
+                sget-object v0, Lnqp;->a:Lnqp;
+                if-eq p1, v0, :cond_ret_true
+                sget-object v0, Lnqp;->b:Lnqp;
+                if-ne p1, v0, :cond_check_orig
+                :cond_ret_true
+                const/4 v0, 0x1
+                return v0
+                :cond_check_orig
+                iget-object v0, p0, Lnqj;->k:Lnrs;
+                invoke-virtual {v0, p1}, Lnrs;->l(Lnqp;)Z
+                move-result v0
+                return v0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "G", "Z", smaliG)
         }
 
-        // ── 3. Hook nqp.a()Z → always return true ───────────────────────────────────────
-        // nqp.a() marks which item types are supported as exposure sliders on the device.
-        // Returning true enables DUAL_EXPOSURE and SINGLE_EXPOSURE.
+        // ── 2. Hook nqp.a()Z → true for Pro controls, Dual Exposure & Single Exposure ────
         mutableClassDefByOrNull("Lnqp;")?.let { clazz ->
-            clazz.methods.firstOrNull {
-                it.name == "a" &&
-                it.parameterTypes.isEmpty() &&
-                it.returnType == "Z"
-            }?.let { method ->
-                method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) impl.removeInstruction(0)
-                    impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                    impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                }
-            }
+            val smaliA = """
+                sget-object v0, Lnqp;->d:Lnqp;
+                invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
+                move-result v0
+                if-nez v0, :cond_1
+                sget-object v0, Lnqp;->e:Lnqp;
+                invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
+                move-result v0
+                if-nez v0, :cond_1
+                sget-object v0, Lnqp;->a:Lnqp;
+                invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
+                move-result v0
+                if-nez v0, :cond_1
+                sget-object v0, Lnqp;->b:Lnqp;
+                invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
+                move-result p0
+                if-eqz p0, :cond_0
+                goto :goto_0
+                :cond_0
+                const/4 p0, 0x0
+                return p0
+                :cond_1
+                :goto_0
+                const/4 p0, 0x1
+                return p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "a", "Z", smaliA)
         }
 
-        // ── 4. Hook qhm.h(nqq)Z → always return true ────────────────────────────────────
-        // qhm.h(nqq) determines whether a slider widget should be displayed upon tap:
-        //   - nqq.h = BRIGHTNESS
-        //   - nqq.b = SHADOWS
-        //   - nqq.i = DUAL_EXPOSURE / EV
-        //   - nqq.j = WHITE_BALANCE
-        // Forcing true ensures the tick-slider UI is activated on viewfinder tap.
-        mutableClassDefByOrNull("Lqhm;")?.let { clazz ->
-            clazz.methods.firstOrNull {
-                it.name == "h" &&
-                it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == "Lnqq;" &&
-                it.returnType == "Z"
-            }?.let { method ->
-                method.implementation?.let { impl ->
-                    while (impl.instructions.isNotEmpty()) impl.removeInstruction(0)
-                    impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                    impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                }
-            }
-        }
+        // ── 3. Replace quick-access controllers & dispatchers with verified implementations ──
+        // Replaces:
+        // - nrd: Brightness slider controller (extends qhr, Dual-EV hardware compensation, reset smq)
+        // - nrm: Shadows slider controller (extends qhr, Dual-EV hardware compensation, reset smq)
+        // - mzc: Binds nqq.h/b to nrd/nrm (and nqq.j/i to nrd/nrm)
+        // - qhm: Configures default quick-access to [nqq.h, nqq.b], bypasses eligibility checks
+        // - nrc: Dispatches :pswitch_8 to nrd.s(...) and :pswitch_3 to nrm.s(...)
+        PixelCameraPatchUtils.replaceClassesFromDexResource(this, "QuickAccessControllers.dex")
     }
 }

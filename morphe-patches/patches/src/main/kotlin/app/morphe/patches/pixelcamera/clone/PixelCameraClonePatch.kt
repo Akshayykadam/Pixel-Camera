@@ -112,5 +112,20 @@ val pixelCameraClonePatch = resourcePatch(
                 stringsFile.writeText(content, Charsets.UTF_8)
             }
         } catch (_: Throwable) {}
+
+        // Align SpecialTypesProvider authority in klh.smali
+        try {
+            for (dir in listOf("smali", "smali_classes2")) {
+                val klhFile = get("$dir/klh.smali", false)
+                if (klhFile.exists()) {
+                    var c = klhFile.readText(Charsets.UTF_8)
+                    c = c.replace(
+                        "com.google.android.apps.camera.specialtypes.SpecialTypesProvider",
+                        "$targetPkg.specialtypes.SpecialTypesProvider"
+                    )
+                    klhFile.writeText(c, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
     }
 }

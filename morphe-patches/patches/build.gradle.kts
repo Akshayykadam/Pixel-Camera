@@ -21,4 +21,9 @@ dependencies {
     compileOnly(libs.smali)
     compileOnly("com.github.REAndroid:arsclib:a28c6fb2a7")
     patchListGeneratorClasspath(libs.gson)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.morphe.patcher)
+    testImplementation(libs.smali)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 }

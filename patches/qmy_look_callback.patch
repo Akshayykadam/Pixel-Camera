@@ -1,0 +1,14 @@
+--- a/smali_classes2/qmy.smali
++++ b/smali_classes2/qmy.smali
+@@ -298,6 +298,11 @@
+ .method private final g(Lqlh;)V
+     .locals 2
+ 
++    if-eqz p1, :cond_skip_notify
++
++    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqlh;)V
++
++    :cond_skip_notify
+     iget v0, p1, Lqlh;->d:I
+ 
+     iget-object v1, p0, Lqmy;->d:Lrex;

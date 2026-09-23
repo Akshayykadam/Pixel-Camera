@@ -1,0 +1,29 @@
+--- a/smali/klh.smali
++++ b/smali/klh.smali
+@@ -29,7 +29,7 @@
+ 
+     const/4 v2, 0x0
+ 
+-    const-string v3, "com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng"
++    const-string v3, "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider"
+ 
+     invoke-direct {v0, v1, v2, v3}, Lklh;-><init>(Ljava/lang/String;ILjava/lang/String;)V
+ 
+@@ -41,7 +41,7 @@
+ 
+     const/4 v3, 0x1
+ 
+-    const-string v4, "com.google.android.apps.camera.specialtypes.SpecialTypesProviderNext"
++    const-string v4, "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider"
+ 
+     invoke-direct {v1, v2, v3, v4}, Lklh;-><init>(Ljava/lang/String;ILjava/lang/String;)V
+ 
+@@ -53,7 +53,7 @@
+ 
+     const/4 v4, 0x2
+ 
+-    const-string v5, "com.google.android.apps.camera.specialtypes.SpecialTypesProvider"
++    const-string v5, "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider"
+ 
+     invoke-direct {v2, v3, v4, v5}, Lklh;-><init>(Ljava/lang/String;ILjava/lang/String;)V
+ 

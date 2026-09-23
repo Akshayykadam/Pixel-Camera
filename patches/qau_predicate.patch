@@ -1,0 +1,30 @@
+--- a/smali/qau.smali
++++ b/smali/qau.smali
+@@ -67,25 +67,8 @@
+ 
+     invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+ 
+-    sget-object v0, Lkjq;->bm:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_0
+-
+-    sget-object v0, Lkjq;->bl:Lkiz;
+-
+-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+-
+-    move-result p0
+-
+-    if-eqz p0, :cond_0
+-
+-    move v2, v3
+-
+-    :cond_0
++    const/4 v2, 0x1
++
+     invoke-static {v2}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+ 
+     move-result-object p0

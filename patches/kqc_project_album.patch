@@ -1,5 +1,5 @@
---- a/smali/kqc.smali	2026-09-21 21:16:16
-+++ b/smali/kqc.smali	2026-09-21 21:04:11
+--- a/smali/kqc.smali
++++ b/smali/kqc.smali
 @@ -292,243 +292,24 @@
  .end method
  
@@ -9,20 +9,15 @@
 -    invoke-interface {p1}, Lpfr;->J()Luep;
 -
 -    move-result-object v0
-+    .locals 0
- 
+-
 -    invoke-interface {p1}, Lpfr;->e()Lsql;
-+    return-void
-+.end method
- 
+-
 -    move-result-object v1
 -
 -    sget-object v2, Lsql;->c:Lsql;
 -
 -    const/4 v3, 0x1
-+.method public final q(Lpfr;)Z
-+    .locals 1
- 
+-
 -    const/4 v4, 0x0
 -
 -    if-ne v1, v2, :cond_0
@@ -36,12 +31,9 @@
 -    if-eqz v1, :cond_0
 -
 -    iget-object v1, p0, Lkqc;->g:Lugh;
-+    const/4 v0, 0x0
- 
+-
 -    check-cast v1, Lufn;
-+    return v0
-+.end method
- 
+-
 -    iget-object v1, v1, Lufn;->c:Ljava/lang/Object;
 -
 -    check-cast v1, Ljava/lang/Boolean;
@@ -69,12 +61,9 @@
 -    invoke-interface {v2, v1}, Lugh;->a(Ljava/lang/Object;)V
 -
 -    iget-object v1, p0, Lkqc;->d:Lugh;
-+.method public final u(Lpfr;)Z
-+    .locals 1
- 
+-
 -    new-instance v5, Lkfa;
-+    const/4 v0, 0x0
- 
+-
 -    const/4 v6, 0x7
 -
 -    invoke-direct {v5, v6}, Lkfa;-><init>(I)V
@@ -162,12 +151,12 @@
 -    move-result-object p0
 -
 -    invoke-virtual {v0, p0}, Luep;->e(Lula;)V
--
--    return-void
-+    return v0
++    .locals 0
+ 
+     return-void
  .end method
  
--.method public final q(Lpfr;)Z
+ .method public final q(Lpfr;)Z
 -    .locals 2
 -
 -    invoke-interface {p1}, Lpfr;->e()Lsql;
@@ -237,9 +226,14 @@
 -    move-result p0
 -
 -    return p0
--.end method
--
--.method public final u(Lpfr;)Z
++    .locals 1
++
++    const/4 v0, 0x0
++
++    return v0
+ .end method
+ 
+ .method public final u(Lpfr;)Z
 -    .locals 0
 -
 -    iget-object p0, p0, Lkqc;->a:Lugh;
@@ -256,3 +250,10 @@
 -
 -    return p0
 -.end method
++    .locals 1
++
++    const/4 v0, 0x0
++
++    return v0
++.end method
++

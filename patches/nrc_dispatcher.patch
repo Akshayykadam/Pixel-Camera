@@ -1,6 +1,6 @@
---- a/smali_classes2/nrc.smali	2026-09-21 21:16:17
-+++ b/smali_classes2/nrc.smali	2026-09-21 21:04:11
-@@ -131,101 +131,10 @@
+--- a/smali_classes2/nrc.smali
++++ b/smali_classes2/nrc.smali
+@@ -131,100 +131,9 @@
      :pswitch_3
      iget-object p0, p0, Lnrc;->a:Lnqu;
  
@@ -92,18 +92,17 @@
 -    invoke-interface {p2, v2}, Lugh;->a(Ljava/lang/Object;)V
 -
 -    iget-object p0, p0, Lnrm;->t:Lrex;
-+    invoke-virtual {p0, p1, p2, p3}, Lnrm;->s(FZLsnw;)V
- 
+-
 -    const/4 p2, 0x3
 -
 -    float-to-double v0, p1
 -
 -    invoke-virtual {p0, p3, p2, v0, v1}, Lrex;->E(Lsnw;ID)V
--
++    invoke-virtual {p0, p1, p2, p3}, Lnrm;->s(FZLsnw;)V
+ 
      return-void
  
-     :pswitch_4
-@@ -373,89 +282,12 @@
+@@ -373,88 +282,11 @@
      return-void
  
      :pswitch_8
@@ -148,8 +147,7 @@
 -    if-nez v2, :cond_7
 -
 -    iget v2, p0, Lnrd;->l:F
-+    invoke-virtual {p0, p1, p2, p3}, Lnrd;->s(FZLsnw;)V
- 
+-
 -    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 -
 -    move-result-object v2
@@ -190,7 +188,7 @@
 -    float-to-double v0, p1
 -
 -    invoke-virtual {p0, p3, p2, v0, v1}, Lrex;->E(Lsnw;ID)V
--
++    invoke-virtual {p0, p1, p2, p3}, Lnrd;->s(FZLsnw;)V
+ 
      return-void
  
-     :cond_8

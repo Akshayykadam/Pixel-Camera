@@ -1,0 +1,68 @@
+--- a/smali/isu.smali
++++ b/smali/isu.smali
+@@ -114,6 +114,43 @@
+     return-void
+ 
+     :pswitch_2
++    iget-object p1, p0, Lisu;->a:Ljava/lang/Object;
++
++    instance-of v0, p1, Lbe;
++
++    if-eqz v0, :cond_orig_tips
++
++    check-cast p1, Lbe;
++
++    invoke-virtual {p1}, Lbe;->gt()Lbx;
++
++    move-result-object v0
++
++    if-eqz v0, :cond_orig_tips
++
++    new-instance p1, Lqls;
++
++    invoke-direct {p1}, Lqls;-><init>()V
++
++    new-instance v1, Landroid/os/Bundle;
++
++    invoke-direct {v1}, Landroid/os/Bundle;-><init>()V
++
++    const-string v2, "initial_sauce_type"
++
++    const/4 v3, 0x0
++
++    invoke-virtual {v1, v2, v3}, Landroid/os/Bundle;->putInt(Ljava/lang/String;I)V
++
++    invoke-virtual {p1, v1}, Lbb;->X(Landroid/os/Bundle;)V
++
++    const-string v1, "SauceOnboarding"
++
++    invoke-virtual {p1, v0, v1}, Lar;->m(Lbx;Ljava/lang/String;)V
++
++    return-void
++
++    :cond_orig_tips
+     new-instance p1, Landroid/content/Intent;
+ 
+     const-string v0, "https://g.co/pixeltips/tips_camera_looks"
+--- a/smali/qlr.smali
++++ b/smali/qlr.smali
+@@ -27,6 +27,8 @@
+ 
+     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+ 
++    const/4 p1, 0x1
++
+     iput-boolean p1, p0, Lqlr;->a:Z
+ 
+     iput-object p2, p0, Lqlr;->f:Lklm;
+--- a/smali/rmn.smali
++++ b/smali/rmn.smali
+@@ -120,6 +120,8 @@
+ 
+     move-result p1
+ 
++    const/4 p1, 0x1
++
+     iput-boolean p1, p0, Lrmn;->p:Z
+ 
+     new-instance p1, Lqzr;

@@ -1,0 +1,16 @@
+--- a/smali/qkj.smali
++++ b/smali/qkj.smali
+@@ -6268,6 +6268,13 @@
+ 
+     check-cast v0, Lqlh;
+ 
++    if-nez v0, :cond_check_fallback
++
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getLastSelectedLook()Lqlh;
++
++    move-result-object v0
++
++    :cond_check_fallback
+     const/4 v1, 0x0
+ 
+     if-nez v0, :cond_0

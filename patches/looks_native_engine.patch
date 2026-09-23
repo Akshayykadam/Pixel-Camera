@@ -1,0 +1,494 @@
+--- a/smali/mia.smali
++++ b/smali/mia.smali
+@@ -80,11 +80,11 @@
+ .method public final run()V
+     .locals 12
+ 
+-    iget-boolean v0, p0, Lmia;->f:Z
+-
+-    if-nez v0, :cond_0
+-
+-    goto/16 :goto_4
++    const-string v0, "PATCH_LOOKS"
++
++    const-string v1, "mia.run: Unconditionally initializing TomteGrain..."
++
++    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+ 
+     :cond_0
+     iget-object v0, p0, Lmia;->g:Lklm;
+--- a/smali/muh.smali
++++ b/smali/muh.smali
+@@ -53,27 +53,11 @@
+ .method public final a(Lcom/google/googlex/gcam/InterleavedWriteViewU8;Lcom/google/googlex/gcam/ShotMetadata;)V
+     .locals 9
+ 
+-    iget-object v0, p0, Lmuh;->d:Lj$/util/Optional;
++    const-string v0, "PATCH_LOOKS"
+ 
+-    const/4 v1, 0x0
++    const-string v1, "muh.a: Executing TomteImageFinalizer..."
+ 
+-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+-
+-    move-result-object v1
+-
+-    invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+-
+-    move-result-object v0
+-
+-    check-cast v0, Ljava/lang/Boolean;
+-
+-    invoke-virtual {v0}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result v0
+-
+-    if-nez v0, :cond_0
+-
+-    return-void
++    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+ 
+     :cond_0
+     iget-object v0, p0, Lmuh;->e:Lulx;
+@@ -103,6 +87,8 @@
+     invoke-static {p0}, Lcom/google/googlex/gcam/Gcam;->a(Lcom/google/googlex/gcam/Gcam;)J
+ 
+     move-result-wide v3
++
++    invoke-static {v3, v4}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
+ 
+     invoke-static {p1}, Lcom/google/googlex/gcam/InterleavedWriteViewU8;->a(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)J
+ 
+--- a/smali/mjy.smali
++++ b/smali/mjy.smali
+@@ -511,7 +511,13 @@
+ 
+     move-result-object v7
+ 
+-    invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;
++    const/16 v8, 0x5dc
++
++    invoke-static {v8}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v8
++
++    invoke-virtual {v7, v8}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v7
+ 
+@@ -538,7 +544,13 @@
+ 
+     move-result-object v7
+ 
+-    invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;
++    const/16 v8, 0x5e8
++
++    invoke-static {v8}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v8
++
++    invoke-virtual {v7, v8}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v7
+ 
+@@ -566,7 +578,13 @@
+ 
+     move-result-object v7
+ 
+-    invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;
++    const/16 v8, 0x7f0
++
++    invoke-static {v8}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v8
++
++    invoke-virtual {v7, v8}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v7
+ 
+@@ -584,7 +602,17 @@
+ 
+     move-result-object v28
+ 
+-    invoke-virtual/range {v28 .. v28}, Lj$/util/Optional;->get()Ljava/lang/Object;
++    const/16 v29, 0x600
++
++    invoke-static/range {v29 .. v29}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v29
++
++    move-object/from16 v0, v28
++
++    move-object/from16 v1, v29
++
++    invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v28
+ 
+@@ -630,7 +658,13 @@
+ 
+     move-result-object v7
+ 
+-    invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;
++    const/16 v8, 0x600
++
++    invoke-static {v8}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v8
++
++    invoke-virtual {v7, v8}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+     move-result-object v7
+ 
+@@ -709,6 +743,15 @@
+ 
+     move-result-object v5
+ 
++    invoke-virtual {v5}, Lj$/util/Optional;->isPresent()Z
++
++    move-result v7
++
++    if-nez v7, :cond_c_c_has_val
++
++    goto :cond_f
++
++    :cond_c_c_has_val
+     invoke-virtual {v5}, Lj$/util/Optional;->get()Ljava/lang/Object;
+ 
+     move-result-object v5
+@@ -722,6 +765,15 @@
+ 
+     move-result-object v5
+ 
++    invoke-virtual {v5}, Lj$/util/Optional;->isPresent()Z
++
++    move-result v7
++
++    if-nez v7, :cond_c_has_val
++
++    goto :cond_f
++
++    :cond_c_has_val
+     invoke-virtual {v5}, Lj$/util/Optional;->get()Ljava/lang/Object;
+ 
+     move-result-object v5
+@@ -765,6 +817,15 @@
+ 
+     move-result-object v5
+ 
++    invoke-virtual {v5}, Lj$/util/Optional;->isPresent()Z
++
++    move-result v7
++
++    if-nez v7, :cond_d_has_val
++
++    goto :cond_e
++
++    :cond_d_has_val
+     invoke-virtual {v5}, Lj$/util/Optional;->get()Ljava/lang/Object;
+ 
+     move-result-object v5
+@@ -1633,13 +1694,13 @@
+ 
+     move-result v2
+ 
+-    if-eqz v2, :cond_2c
+-
+     iget-wide v2, v1, Lcom/google/googlex/gcam/InitParams;->a:J
+ 
++    const/4 v12, 0x1
++
+     invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set(JLcom/google/googlex/gcam/InitParams;Z)V
+ 
+-    :cond_2c
++    # Bypassed initialize_on_gcam_creation to avoid Embedded models compiled out error
+     sget-object v2, Lznp;->a:Lznp;
+ 
+     iget-wide v7, v1, Lcom/google/googlex/gcam/InitParams;->a:J
+@@ -1732,6 +1793,8 @@
+ 
+     invoke-direct {v5, v0, v1}, Lcom/google/googlex/gcam/Gcam;-><init>(J)V
+ 
++    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
++
+     :goto_17
+     invoke-virtual {v5}, Lcom/google/googlex/gcam/Gcam;->g()Z
+ 
+--- a/smali_classes2/mwg.smali
++++ b/smali_classes2/mwg.smali
+@@ -233,7 +233,7 @@
+ 
+     invoke-virtual {v6, v7}, Lklm;->q(Lkiz;)Z
+ 
+-    move-result v19
++    const/16 v19, 0x0
+ 
+     invoke-virtual {v2}, Landroid/content/res/AssetFileDescriptor;->getParcelFileDescriptor()Landroid/os/ParcelFileDescriptor;
+ 
+@@ -291,31 +291,15 @@
+ 
+     check-cast v6, Lnhx;
+ 
+-    iget-object v6, v6, Lnhx;->k:Lxwg;
+-
+-    invoke-virtual {v6}, Lxwg;->h()Z
+-
+-    move-result v7
+-
+-    if-eqz v7, :cond_3
+-
+-    invoke-virtual {v6}, Lxwg;->c()Ljava/lang/Object;
++    iget-object v6, v6, Lnhx;->j:Landroid/content/Context;
++
++    invoke-virtual {v6}, Landroid/content/Context;->getCacheDir()Ljava/io/File;
+ 
+     move-result-object v6
+ 
+-    check-cast v6, Ljava/io/File;
+-
+     invoke-virtual {v6}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
+ 
+-    move-result-object v6
+-
+-    goto :goto_1
+-
+-    :cond_3
+-    const-string v6, ""
+-
+-    :goto_1
+-    move-object v13, v6
++    move-result-object v13
+ 
+     move-object v6, v1
+ 
+--- a/smali_classes2/kic.smali
++++ b/smali_classes2/kic.smali
+@@ -679,7 +679,7 @@
+ 
+     sget-object v3, Lkkb;->j:Lkiz;
+ 
+-    invoke-virtual {p0, v3, v1}, Lklm;->n(Lkiz;Z)V
++    invoke-virtual {p0, v3, v4}, Lklm;->n(Lkiz;Z)V
+ 
+     sget-object v3, Lkkb;->d:Lkiz;
+ 
+@@ -960,20 +960,20 @@
+     goto :goto_8
+ 
+     :cond_8
+-    const-string v3, "c757a03ae8d64d1b9375002b75dcdbbc/c757a03ae8d64d1b9375002b75dcdbbc.uncompressed"
++    const-string v3, ""
+ 
+     :goto_8
+     invoke-virtual {p0, p1, v3}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p1, Lkkn;->l:Lkiz;
+ 
+-    const-string v3, "4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed"
++    const-string v3, ""
+ 
+     invoke-virtual {p0, p1, v3}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+     sget-object p1, Lkkn;->p:Lkiz;
+ 
+-    const-string v3, "5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed"
++    const-string v3, ""
+ 
+     invoke-virtual {p0, p1, v3}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+ 
+@@ -988,7 +988,7 @@
+     goto :goto_9
+ 
+     :cond_9
+-    const-string v9, "0ea471704af14008b0483bc9b630a85c/0ea471704af14008b0483bc9b630a85c.uncompressed"
++    const-string v9, ""
+ 
+     :goto_9
+     invoke-virtual {p0, p1, v9}, Lklm;->i(Lkiz;Ljava/lang/String;)V
+--- a/smali/aaog.smali
++++ b/smali/aaog.smali
+@@ -826,7 +826,28 @@
+ .end method
+ 
+ .method public final l(Ljava/lang/String;)Landroid/content/res/AssetFileDescriptor;
+-    .locals 0
++    .locals 2
++
++    # Log what model is being requested
++    const-string v0, "CAM_LASAGNA"
++
++    new-instance v1, Ljava/lang/StringBuilder;
++
++    invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
++
++    const-string v0, "openAsset: "
++
++    invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++
++    invoke-virtual {v1, p1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++
++    invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
++
++    move-result-object v1
++
++    const-string v0, "CAM_LASAGNA"
++
++    invoke-static {v0, v1}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;)I
+ 
+     iget-object p0, p0, Laaog;->a:Ljava/lang/Object;
+ 
+--- /dev/null
++++ b/smali_classes2/app/morphe/patches/pixelcamera/LasagnaModelLoader.smali
+@@ -0,0 +1,125 @@
++.class public Lapp/morphe/patches/pixelcamera/LasagnaModelLoader;
++.super Ljava/lang/Object;
++.source "LasagnaModelLoader.java"
++
++
++# direct methods
++.method public constructor <init>()V
++    .locals 0
++
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++
++    return-void
++.end method
++
++.method public static openAsset(Landroid/content/Context;Ljava/lang/String;)Landroid/content/res/AssetFileDescriptor;
++    .locals 8
++
++    :try_start_0
++    invoke-virtual {p0}, Landroid/content/Context;->getCacheDir()Ljava/io/File;
++
++    move-result-object v0
++
++    new-instance v1, Ljava/io/File;
++
++    invoke-direct {v1, v0, p1}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
++
++    invoke-virtual {v1}, Ljava/io/File;->exists()Z
++
++    move-result v0
++
++    if-eqz v0, :cond_0
++
++    invoke-virtual {v1}, Ljava/io/File;->length()J
++
++    move-result-wide v2
++
++    const-wide/16 v4, 0x0
++
++    cmp-long v0, v2, v4
++
++    if-nez v0, :cond_2
++
++    :cond_0
++    invoke-virtual {p0}, Landroid/content/Context;->getAssets()Landroid/content/res/AssetManager;
++
++    move-result-object v0
++
++    invoke-virtual {v0, p1}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
++
++    move-result-object v0
++
++    new-instance v2, Ljava/io/FileOutputStream;
++
++    invoke-direct {v2, v1}, Ljava/io/FileOutputStream;-><init>(Ljava/io/File;)V
++
++    const/high16 v3, 0x10000
++
++    new-array v3, v3, [B
++
++    :goto_0
++    invoke-virtual {v0, v3}, Ljava/io/InputStream;->read([B)I
++
++    move-result v4
++
++    const/4 v5, -0x1
++
++    if-eq v4, v5, :cond_1
++
++    const/4 v5, 0x0
++
++    invoke-virtual {v2, v3, v5, v4}, Ljava/io/FileOutputStream;->write([BII)V
++
++    goto :goto_0
++
++    :cond_1
++    invoke-virtual {v2}, Ljava/io/FileOutputStream;->flush()V
++
++    invoke-virtual {v2}, Ljava/io/FileOutputStream;->close()V
++
++    invoke-virtual {v0}, Ljava/io/InputStream;->close()V
++
++    :cond_2
++    const/high16 v0, 0x10000000
++
++    invoke-static {v1, v0}, Landroid/os/ParcelFileDescriptor;->open(Ljava/io/File;I)Landroid/os/ParcelFileDescriptor;
++
++    move-result-object v3
++
++    new-instance v2, Landroid/content/res/AssetFileDescriptor;
++
++    invoke-virtual {v1}, Ljava/io/File;->length()J
++
++    move-result-wide v6
++
++    const-wide/16 v4, 0x0
++
++    invoke-direct/range {v2 .. v7}, Landroid/content/res/AssetFileDescriptor;-><init>(Landroid/os/ParcelFileDescriptor;JJ)V
++    :try_end_0
++    .catchall {:try_start_0 .. :try_end_0} :catchall_0
++
++    return-object v2
++
++    :catchall_0
++    move-exception v0
++
++    :try_start_1
++    invoke-virtual {p0}, Landroid/content/Context;->getAssets()Landroid/content/res/AssetManager;
++
++    move-result-object p0
++
++    invoke-virtual {p0, p1}, Landroid/content/res/AssetManager;->openFd(Ljava/lang/String;)Landroid/content/res/AssetFileDescriptor;
++
++    move-result-object p0
++    :try_end_1
++    .catchall {:try_start_1 .. :try_end_1} :catchall_1
++
++    return-object p0
++
++    :catchall_1
++    move-exception v0
++
++    const/4 p0, 0x0
++
++    return-object p0
++.end method
+--- a/smali/pzs.smali
++++ b/smali/pzs.smali
+@@ -748,24 +748,11 @@
+ 
+     check-cast v0, Ljava/lang/Boolean;
+ 
+-    if-eqz v0, :cond_3
+-
+-    invoke-virtual {v0}, Ljava/lang/Boolean;->booleanValue()Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_3
+-
+     check-cast p0, Lqnw;
+ 
+     invoke-virtual {p0}, Lqnw;->b()Lqnv;
+ 
+     move-result-object p0
+-
+-    return-object p0
+-
+-    :cond_3
+-    sget-object p0, Lspg;->s:Lspg;
+ 
+     return-object p0
+ 

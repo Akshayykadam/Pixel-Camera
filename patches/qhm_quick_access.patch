@@ -1,5 +1,5 @@
---- a/smali_classes2/qhm.smali	2026-09-21 21:16:17
-+++ b/smali_classes2/qhm.smali	2026-09-21 21:04:11
+--- a/smali_classes2/qhm.smali
++++ b/smali_classes2/qhm.smali
 @@ -90,13 +90,13 @@
  
      const/4 v1, 0x0
@@ -30,6 +30,7 @@
  
  .method public final h(Lnqq;)Z
 -    .locals 0
+-
 +    .locals 1
 +
 +    sget-object v0, Lnqq;->h:Lnqq;
@@ -46,7 +47,7 @@
 +    if-ne p1, v0, :cond_qa_i
 +
 +    const/4 p0, 0x1
- 
++
 +    return p0
 +
 +    :cond_qa_i
@@ -71,3 +72,59 @@
      invoke-direct {p0}, Lqhm;->n()Ljava/util/Map;
  
      move-result-object p0
+--- a/smali/nqj.smali
++++ b/smali/nqj.smali
+@@ -1815,11 +1815,27 @@
+ .end method
+ 
+ .method public final declared-synchronized G(Lnqp;)Z
+-    .locals 1
++    .locals 2
+ 
+     monitor-enter p0
+ 
+     :try_start_0
++    sget-object v0, Lnqp;->a:Lnqp;
++
++    if-eq p1, v0, :cond_ret_true
++
++    sget-object v0, Lnqp;->b:Lnqp;
++
++    if-ne p1, v0, :cond_check_orig
++
++    :cond_ret_true
++    const/4 v0, 0x1
++
++    monitor-exit p0
++
++    return v0
++
++    :cond_check_orig
+     iget-object v0, p0, Lnqj;->k:Lnrs;
+ 
+     invoke-virtual {v0, p1}, Lnrs;->l(Lnqp;)Z
+--- a/smali/nqp.smali
++++ b/smali/nqp.smali
+@@ -219,6 +219,22 @@
+ 
+     invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
+ 
++    move-result v0
++
++    if-nez v0, :cond_1
++
++    sget-object v0, Lnqp;->a:Lnqp;
++
++    invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
++
++    move-result v0
++
++    if-nez v0, :cond_1
++
++    sget-object v0, Lnqp;->b:Lnqp;
++
++    invoke-virtual {p0, v0}, Lnqp;->equals(Ljava/lang/Object;)Z
++
+     move-result p0
+ 
+     if-eqz p0, :cond_0

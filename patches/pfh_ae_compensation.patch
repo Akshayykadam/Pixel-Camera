@@ -1,24 +1,24 @@
---- a/smali_classes2/pfh.smali	2026-09-21 21:16:17
-+++ b/smali_classes2/pfh.smali	2026-09-21 16:32:02
-@@ -292,20 +292,11 @@
-     iget-object p0, p0, Lpfh;->a:Ljava/lang/Object;
+--- a/smali_classes2/pfh.smali
++++ b/smali_classes2/pfh.smali
+@@ -293,19 +293,10 @@
  
      check-cast p0, Lpjo;
--
--    iget-object v0, p0, Lpjo;->d:Lppn;
  
-     check-cast p1, Ljava/lang/Integer;
+-    iget-object v0, p0, Lpjo;->d:Lppn;
 -
+     check-cast p1, Ljava/lang/Integer;
+ 
 -    invoke-virtual {v0}, Lppn;->i()Z
 -
 -    move-result v0
- 
+-
 -    if-eqz v0, :cond_5
-+    if-eqz p1, :cond_skip_pfh
- 
+-
 -    goto/16 :goto_3
 -
 -    :cond_5
++    if-eqz p1, :cond_skip_pfh
++
      iget-object p0, p0, Lpjo;->b:Luoi;
  
      invoke-virtual {p1}, Ljava/lang/Integer;->intValue()I

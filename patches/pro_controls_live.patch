@@ -1,0 +1,39 @@
+--- a/smali/qaa.smali
++++ b/smali/qaa.smali
+@@ -1096,10 +1096,6 @@
+ 
+ .method public final v(IZLsnw;)V
+     .locals 2
+-
+-    if-nez p2, :cond_0
+-
+-    return-void
+ 
+     :cond_0
+     iget-object p2, p0, Lqaa;->d:Lput;
+--- a/smali/qbb.smali
++++ b/smali/qbb.smali
+@@ -1078,10 +1078,6 @@
+ 
+ .method public final v(JZLsnw;)V
+     .locals 1
+-
+-    if-nez p3, :cond_0
+-
+-    return-void
+ 
+     :cond_0
+     iget-object p3, p0, Lqbb;->d:Lpus;
+--- a/smali/nrn.smali
++++ b/smali/nrn.smali
+@@ -886,10 +886,6 @@
+ .method public final t(FZLsnw;)V
+     .locals 4
+ 
+-    if-nez p2, :cond_0
+-
+-    goto :goto_0
+-
+     :cond_0
+     add-float/2addr p1, p1
+ 

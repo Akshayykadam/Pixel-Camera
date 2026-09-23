@@ -1,5 +1,5 @@
---- a/smali_classes2/klm.smali	2026-09-21 21:16:17
-+++ b/smali_classes2/klm.smali	2026-09-21 21:04:11
+--- a/smali_classes2/klm.smali
++++ b/smali_classes2/klm.smali
 @@ -447,7 +447,7 @@
  
      sget-object p2, Lkkb;->f:Lkiz;
@@ -130,7 +130,7 @@
  
      sget-object p5, Lkkn;->j:Lkiz;
  
-@@ -2884,18 +2884,210 @@
+@@ -2884,16 +2884,208 @@
  .method public final a(Lkiy;)Lj$/util/Optional;
      .locals 7
  
@@ -172,6 +172,7 @@
      check-cast v0, Lovu;
  
 -    invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+-
 +    iget-object v1, v0, Lovu;->a:Ljava/lang/Object;
 +
 +    if-nez v1, :cond_proceed_orig_a
@@ -295,7 +296,7 @@
 +    if-eqz v2, :cond_check_brs
 +
 +    const/16 v0, 0x5e8
- 
++
 +    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 +
 +    move-result-object v0
@@ -330,18 +331,16 @@
 +    :cond_return_empty_a
 +    if-nez v0, :cond_proceed_orig_a
 +
-     invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
- 
++    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
++
 +    move-result-object v0
 +
 +    return-object v0
 +
 +    :cond_proceed_orig_a
-+    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
-+
-     move-result-object v1
+     invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
  
-     invoke-virtual {p1}, Lkix;->a()Z
+     move-result-object v1
 @@ -3042,6 +3234,8 @@
      :goto_1
      if-nez v4, :cond_4
@@ -351,11 +350,10 @@
      iget-object p0, v0, Lovu;->a:Ljava/lang/Object;
  
      move-object v4, p0
-@@ -3209,7 +3403,104 @@
- 
+@@ -3210,6 +3404,103 @@
  .method public final h(Lkiz;)Ljava/lang/String;
      .locals 3
-+
+ 
 +    if-eqz p1, :cond_check_orig_h
 +
 +    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
@@ -438,7 +436,7 @@
 +    const-string v0, "motion-custom_op-p23.tflite.uncompressed"
 +
 +    return-object v0
- 
++
 +    :cond_check_lasagna_saliency_model
 +    const-string v1, "camera.lasagna.saliency_model"
 +
@@ -768,11 +766,10 @@
      iget-object v0, p0, Lklm;->b:Ljava/util/Map;
  
      invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
-@@ -3660,7 +4256,76 @@
- 
+@@ -3661,6 +4257,75 @@
  .method public final r(Lkiz;)Lj$/util/Optional;
      .locals 6
-+
+ 
 +    if-eqz p1, :cond_check_orig_r
 +
 +    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
@@ -828,7 +825,7 @@
 +    move-result v1
 +
 +    if-eqz v1, :cond_check_orig_r
- 
++
 +    const/high16 v0, 0x3f800000    # 1.0f
 +
 +    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
@@ -845,14 +842,15 @@
      iget-object v0, p0, Lklm;->b:Ljava/util/Map;
  
      invoke-interface {v0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
-@@ -3890,18 +4555,250 @@
+@@ -3890,9 +4555,236 @@
  .end method
  
  .method public final x(Lkiz;)Z
 -    .locals 0
-+    .locals 3
- 
+-
 -    iget-object p0, p0, Lklm;->b:Ljava/util/Map;
++    .locals 3
++
 +    if-eqz p1, :cond_check_orig_x
 +
 +    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
@@ -899,7 +897,7 @@
 +
 +    :cond_check_creator_x_0
 +    const-string v1, "camera.enable_granite"
- 
++
 +    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 +
 +    move-result v1
@@ -1081,16 +1079,17 @@
 +
 +    :cond_check_orig_x
 +iget-object p0, p0, Lklm;->b:Ljava/util/Map;
-+
+ 
      invoke-interface {p0, p1}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
  
-     move-result-object p0
+@@ -3900,8 +4792,13 @@
  
      check-cast p0, Lovu;
  
 -    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+-
 +    if-nez p0, :cond_not_null_x
- 
++
 +    const/4 v0, 0x1
 +
 +    return v0
