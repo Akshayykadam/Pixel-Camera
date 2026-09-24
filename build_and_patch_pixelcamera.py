@@ -225,6 +225,32 @@ def patch_klm_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_ceftazidime
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_ceftazidime
+    const-string v1, "camera.ceftazidime"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_decepticon
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_decepticon
+    const-string v1, "camera.decepticon"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_sauce
 
     const/4 v0, 0x0
@@ -571,6 +597,32 @@ def patch_klm_smali():
 
     :cond_check_milk_x
     const-string v1, "camera.milk"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_ceftazidime_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_ceftazidime_x
+    const-string v1, "camera.ceftazidime"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_decepticon_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_decepticon_x
+    const-string v1, "camera.decepticon"
 
     invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 
@@ -2430,7 +2482,9 @@ def patch_camera_app_smali():
 
 def inject_tomte_init_helper():
     print("[*] Injecting TomteInitHelper...")
-    helper_src = os.path.join(ROOT_DIR, "scratch", "smali_out", "smali", "com", "google", "android", "patch", "cameralooks", "TomteInitHelper.smali")
+    helper_src = os.path.join(ROOT_DIR, "smali_patches", "TomteInitHelper.smali")
+    if not os.path.exists(helper_src):
+        helper_src = os.path.join(ROOT_DIR, "scratch", "smali_out", "smali", "com", "google", "android", "patch", "cameralooks", "TomteInitHelper.smali")
     helper_dst_dir = os.path.join(APKTOOL_DIR, "smali_classes4", "com", "google", "android", "patch", "cameralooks")
     os.makedirs(helper_dst_dir, exist_ok=True)
     helper_dst = os.path.join(helper_dst_dir, "TomteInitHelper.smali")
@@ -2439,6 +2493,51 @@ def inject_tomte_init_helper():
         print(f"    [+] Injected {helper_dst}")
     else:
         print(f"    [!] Warning: {helper_src} not found!")
+
+def patch_mkm_smali():
+    print("[*] Patching mkm.smali (Make Flare Removal a safe no-op to prevent FinishShot crashes)...")
+    mkm_path = os.path.join(APKTOOL_DIR, "smali", "mkm.smali")
+    if not os.path.exists(mkm_path):
+        return
+    with open(mkm_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """.method private final j(Lmnz;Loui;)V
+    .locals 18
+
+    move-object/from16 v0, p0"""
+
+    replacement = """.method private final j(Lmnz;Loui;)V
+    .locals 18
+
+    return-void
+
+    move-object/from16 v0, p0"""
+
+    if target in content:
+        content = content.replace(target, replacement)
+        with open(mkm_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] mkm.smali: Added return-void to mkm.j.")
+    elif "return-void" in content[content.find(".method private final j("):content.find(".method private final j(")+120]:
+        print("    [+] mkm.smali: already patched with return-void.")
+    else:
+        print("    [!] Warning: mkm.smali target not found.")
+
+def patch_ejn_smali():
+    print("[*] Patching ejn.smali (Disable ceftazidime flags and remove missing asset paths on Pixel 10)...")
+    ejn_path = os.path.join(APKTOOL_DIR, "smali", "ejn.smali")
+    if not os.path.exists(ejn_path):
+        return
+    with open(ejn_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    content = content.replace("ceftazidime_035838eb4ec74fd1ba1dc562d3250bcb.uncompressed", "")
+    content = content.replace("ceftazidime_98a4b0297dce495183ba5c126c51eb6b.uncompressed", "")
+    content = content.replace("ceftazidime_e32cd107e5b1428b964fff0bedbab700.uncompressed", "")
+    with open(ejn_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] ejn.smali: removed missing ceftazidime models.")
 
 def patch_qkp_smali():
     print("[*] Patching qkp.smali (Force real qms Look Manager)...")
@@ -5981,6 +6080,8 @@ def main():
     patch_qmy_smali()
     patch_klm_smali()
     patch_hpq_smali()
+    patch_mkm_smali()
+    patch_ejn_smali()
     patch_kic_smali()
     patch_mwg_smali()
     patch_aaog_smali()

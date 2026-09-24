@@ -1,4 +1,4 @@
-# Pixel Camera Smali Unified Patches (Patch 1.0.2)
+# Pixel Camera Smali Unified Patches (Patch 1.0.3)
 
 This directory contains standalone standard Unified Diffs (`.patch` / `.diff`) capturing all modifications made to Google Pixel Camera (`11.0.073.972752740.32`).
 

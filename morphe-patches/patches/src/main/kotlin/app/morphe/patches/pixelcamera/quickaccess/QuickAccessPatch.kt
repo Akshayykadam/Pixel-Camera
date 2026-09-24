@@ -10,9 +10,7 @@ val quickAccessPatch = bytecodePatch(
 ) {
     dependsOn(cameraLooksPatch)
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCameraEng" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
     )
     execute {
         // ── 1. Hook nqj.G(nqp)Z → allow DUAL_EXPOSURE / SINGLE_EXPOSURE, preserve Pro controls ──

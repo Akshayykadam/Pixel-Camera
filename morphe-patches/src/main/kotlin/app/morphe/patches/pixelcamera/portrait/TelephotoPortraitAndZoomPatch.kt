@@ -8,9 +8,7 @@ val telephotoPortraitAndZoomPatch = bytecodePatch(
     description = "Unlocks the discrete 10x quick zoom button on viewfinder across Photo and Night Sight modes on Pro and telephoto Pixel devices."
 ) {
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCameraEng" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
     )
     execute {
         // Replaces zoom controller classes with exact verified implementations from standalone APK:

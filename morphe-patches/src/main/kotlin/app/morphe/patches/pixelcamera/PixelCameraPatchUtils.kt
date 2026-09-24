@@ -124,6 +124,7 @@ object PixelCameraPatchUtils {
      */
     fun hookKlmFlags(clazz: MutableClass?) {
         if (clazz == null) return
+        if (clazz.methods.any { it.name == "original_q" }) return
         val qMethod = clazz.methods.firstOrNull {
             it.name == "q" &&
             it.parameterTypes.size == 1 &&
@@ -185,6 +186,7 @@ object PixelCameraPatchUtils {
      */
     fun hookKlmFlagA(clazz: MutableClass?) {
         if (clazz == null) return
+        if (clazz.methods.any { it.name == "original_a" }) return
         val aMethod = clazz.methods.firstOrNull {
             it.name == "a" &&
             it.parameterTypes.size == 1 &&
@@ -212,6 +214,77 @@ object PixelCameraPatchUtils {
         }
 
         clazz.methods.add(newA)
+    }
+
+    /**
+     * Intercepts klm.h(Lkiz;)Ljava/lang/String; to route portrait segmenter, monocular, and matting
+     * models to verified pure-TFLite models (midasnet, portrait_matting_mask, 1c33c30c...).
+     * Renames original to original_h and injects delegation to TomteInitHelper.interceptFlagH.
+     */
+    fun hookKlmFlagH(clazz: MutableClass?) {
+        if (clazz == null) return
+        if (clazz.methods.any { it.name == "original_h" }) return
+        val hMethod = clazz.methods.firstOrNull {
+            it.name == "h" &&
+            it.parameterTypes.size == 1 &&
+            it.parameterTypes[0] == "Lkiz;" &&
+            it.returnType == "Ljava/lang/String;"
+        } ?: return
+
+        val newH = MutableMethod(hMethod)
+        hMethod.name = "original_h"
+
+        val smaliH = """
+            invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->interceptFlagH(Lklm;Lkiz;)Ljava/lang/String;
+            move-result-object v0
+            return-object v0
+        """.trimIndent()
+        val hInstructions = smaliH.toInstructions(newH)
+        val hImpl = newH.implementation ?: return
+        clearTryBlocks(hImpl)
+        while (hImpl.instructions.isNotEmpty()) {
+            hImpl.removeInstruction(0)
+        }
+        for (ins in hInstructions) {
+            hImpl.addInstruction(ins)
+        }
+
+        clazz.methods.add(newH)
+    }
+
+    /**
+     * Intercepts klm.r(Lkiz;)Lj$/util/Optional; to provide Boba Jelly thresholds (0.0f, 1.0f).
+     * Renames original to original_r and injects delegation to TomteInitHelper.interceptFlagR.
+     */
+    fun hookKlmFlagR(clazz: MutableClass?) {
+        if (clazz == null) return
+        if (clazz.methods.any { it.name == "original_r" }) return
+        val rMethod = clazz.methods.firstOrNull {
+            it.name == "r" &&
+            it.parameterTypes.size == 1 &&
+            it.parameterTypes[0] == "Lkiz;" &&
+            it.returnType == "Lj$/util/Optional;"
+        } ?: return
+
+        val newR = MutableMethod(rMethod)
+        rMethod.name = "original_r"
+
+        val smaliR = """
+            invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->interceptFlagR(Lklm;Lkiz;)Lj$/util/Optional;
+            move-result-object v0
+            return-object v0
+        """.trimIndent()
+        val rInstructions = smaliR.toInstructions(newR)
+        val rImpl = newR.implementation ?: return
+        clearTryBlocks(rImpl)
+        while (rImpl.instructions.isNotEmpty()) {
+            rImpl.removeInstruction(0)
+        }
+        for (ins in rInstructions) {
+            rImpl.addInstruction(ins)
+        }
+
+        clazz.methods.add(newR)
     }
 
     /**

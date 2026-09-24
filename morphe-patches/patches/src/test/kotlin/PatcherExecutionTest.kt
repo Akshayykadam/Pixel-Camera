@@ -2,8 +2,11 @@ package app.morphe.patches.pixelcamera
 
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
+import app.morphe.patches.pixelcamera.clone.pixelCameraClonePatch
 import app.morphe.patches.pixelcamera.creator.creatorSuitePatch
 import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
+import app.morphe.patches.pixelcamera.photosaving.photoSavingFixPatch
+import app.morphe.patches.pixelcamera.portrait.portraitModeFixPatch
 import app.morphe.patches.pixelcamera.portrait.telephotoPortraitAndZoomPatch
 import app.morphe.patches.pixelcamera.pro.proControlsPatch
 import app.morphe.patches.pixelcamera.quickaccess.quickAccessPatch
@@ -28,7 +31,16 @@ class PatcherExecutionTest {
             temporaryFilesPath = tmpDir
         )
         val patcher = Patcher(config)
-        patcher += setOf(cameraLooksPatch, quickAccessPatch, telephotoPortraitAndZoomPatch, proControlsPatch, creatorSuitePatch)
+        patcher += setOf(
+            cameraLooksPatch,
+            quickAccessPatch,
+            telephotoPortraitAndZoomPatch,
+            portraitModeFixPatch,
+            photoSavingFixPatch,
+            proControlsPatch,
+            creatorSuitePatch,
+            pixelCameraClonePatch
+        )
         patcher.invoke().collect { result ->
             println("Patch result: $result")
         }

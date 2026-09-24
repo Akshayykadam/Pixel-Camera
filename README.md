@@ -7,8 +7,8 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
-  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.2.mpp">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.2%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
+  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.3.mpp">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.3%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
   </a>
 </p>
 
@@ -71,6 +71,15 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Manual Shutter Speed & ISO**: Full manual exposure dials with dynamic sensor range negotiation (1/8000s up to hardware limit) and instant 1-tap "Reset to Auto".
 * **Live Viewfinder Readout Chips**: Real-time interactive badges over the camera feed displaying active manual exposure and focus metrics (`[1/250s]`, `[ISO 100]`, `[0.5m]`, `[Peaking active]`).
 * **Hardware Camera2 Compatibility**: Operates directly through standard Android Camera2 hardware interfaces (`SENSOR_EXPOSURE_TIME`, `SENSOR_SENSITIVITY`, `LENS_FOCUS_DISTANCE`), ensuring zero reliance on proprietary vendor HAL extensions.
+
+### 7. Permanent Portrait Mode Fix
+* **Universal Pure-TFLite Monocular Depth Pipeline**: Overrides hardware stereo disparity (`kStereoRgb` / `kRgbPd`) which crashes with EdgeTPU permission error `-8` on non-platform signed apps, preventing front camera subject-blur bug and flat rear camera portraits.
+* **Synchronous Model Init & Fallback**: Forces `PortraitSegmenterManager` fallback to stock `1c33c30c31a74d99b66f54c22014a27a...` segmenter model with automatic CPU/GPU retry.
+* *(See [`pixel-camera-looks-research/PORTRAIT_RESEARCH.md`](pixel-camera-looks-research/PORTRAIT_RESEARCH.md) for full teardown).*
+
+### 8. Pixel 10 12MP Photo Saving Fix
+* **Binned RAW Dimension Fallbacks**: Populates correct `khw.d, e, f, g` dimensions (`0x7f0`, `0x600`, `0x7e0`, `0x5e8`) in `hpq.aW` and `hpq.aX` for Pixel 10 and 10 Pro.
+* **Eclipse AE Neutralization**: Disables failing Eclipse AE (`camera.use_eclipse` / `kjq.bb = false`) and non-existent Milk hardware pipelines, restoring 100% reliable 12MP photo capture and saving.
 
 ---
 
@@ -152,8 +161,8 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Link |
 | :--- | :---: | :--- | :---: | :--- | :---: |
-| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.2`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.2 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
-| **Patch Source Code (Kotlin)** | **`v1.0.2`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
+| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.3`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.3 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
+| **Patch Source Code (Kotlin)** | **`v1.0.3`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
 
 ---
 
@@ -166,7 +175,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
    * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=akshayykadam/Pixel-Camera) on your phone.
-   * **Or Manual Import**: Download `patches-1.0.2.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
+   * **Or Manual Import**: Download `patches-1.0.3.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
 3. **Get Base Google Camera**:
    * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
@@ -188,7 +197,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 ### Method 2: On Your Computer (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download `morphe-patches-pixelcamera-1.0.2.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
+2. Download `morphe-patches-pixelcamera-1.0.3.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
 3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop and apply the patch package.
 4. Install the resulting `PixelCamera_signed.apk` to your phone via ADB:
    ```bash

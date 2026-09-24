@@ -6,14 +6,12 @@ import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 
 val cameraLooksPatch = bytecodePatch(
     name = "Camera Looks Backport",
-    description = "Enables Google Pixel 11's 10 signature Camera Looks (Sauce & Tomte) on Pixel 6 through Pixel 10."
+    description = "Enables Google Pixel 11's 10 signature Camera Looks (Sauce & Tomte) on Pixel 6 through Pixel 10, fixes Portrait Mode blur on all cameras, and resolves Pixel 10 photo saving."
 ) {
     extendWith("TomteInitHelper.dex")
 
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCameraEng" to setOf("11.0.073.972752740.32"),
-        "com.google.android.GoogleCamera.morphe" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
     )
     execute {
         // ── 1. Hook uyv (device eligibility) ────────────────────────────────────────────
@@ -142,11 +140,18 @@ val cameraLooksPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "gA", "Ladvz;", gASmali)
         }
 
-        // ── 10. Hook klm feature flags via TomteInitHelper (Lasagna, Ark, Creator, Looks) ─
+        // ── 9b. Portrait controllers & look routing ──────────────────────────────────
+        PixelCameraPatchUtils.replaceClassesFromDexResource(this, "PortraitControllers.dex")
+
+        // ── 10. Hook klm feature flags via TomteInitHelper (Lasagna, Ark, Creator, Looks, Models) ─
         mutableClassDefByOrNull("Lklm;")?.let { clazz ->
             PixelCameraPatchUtils.hookKlmFlags(clazz)
             // Hook klm.a(Lkiy;)Lj$/util/Optional; for binned RAW dimension fallbacks (12MP photo saving fix)
             PixelCameraPatchUtils.hookKlmFlagA(clazz)
+            // Hook klm.h(Lkiz;)Ljava/lang/String; for pure-TFLite portrait models
+            PixelCameraPatchUtils.hookKlmFlagH(clazz)
+            // Hook klm.r(Lkiz;)Lj$/util/Optional; for Boba Jelly ratios
+            PixelCameraPatchUtils.hookKlmFlagR(clazz)
         }
     }
 }

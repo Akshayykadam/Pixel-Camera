@@ -1,4 +1,4 @@
-# Pixel Camera Smali Patches Directory (Patch 1.0.2)
+# Pixel Camera Smali Patches Directory (Patch 1.0.3)
 
 This directory contains standalone, decompiled Smali bytecode reference implementations for all functional modifications made in the Pixel Camera backport for Google Pixel devices (Pixel 6 through Pixel 10).
 

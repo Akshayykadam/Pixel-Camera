@@ -22,7 +22,10 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 | **Camera Looks Backport** | `BytecodePatch` | Unlocks 10 hardware-gated Camera Looks (Sauce/Tomte) across Tensor G1–G5. |
 | **Viewfinder Quick Access** | `BytecodePatch` | Enables customizable Left/Right viewfinder quick-access slots and 10-tick slider. |
 | **10x Viewfinder Quick Zoom** | `BytecodePatch` | Exposes discrete 10x quick zoom button on viewfinder in Photo mode. |
+| **Permanent Portrait Mode Fix** | `BytecodePatch` | Resolves front camera blur and EdgeTPU permission crashes via pure-TFLite monocular depth pipeline. |
+| **Pixel 10 Photo Saving Fix** | `BytecodePatch` | Populates binned RAW dimension mappings and disables failing Eclipse AE, allowing 12MP photos to save properly. |
 | **Creator Suite** | `BytecodePatch` | Unlocks Teleprompter HUD (Biotite), Audio VU Meter (Mica), and Framing Guides (Slate). |
+| **Pro Manual Controls** | `BytecodePatch` | Precision manual focus slider, GPU focus peaking, manual shutter speed, and ISO controls. |
 | **Pixel Camera Clone** | `RawResourcePatch` | Renames package to `com.google.android.GoogleCamera.morphe` for side-by-side install without root. |
 
 ---
@@ -67,7 +70,7 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 ### Option 2: On Your PC / Mac (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download the latest `patches-1.0.2.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases).
+2. Download the latest `patches-1.0.3.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases).
 3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop.
 4. Select the patches and click **Start Patching**.
 5. Transfer the generated `PixelCamera_signed.apk` to your phone or install via ADB:

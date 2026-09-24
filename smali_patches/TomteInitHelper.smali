@@ -224,6 +224,12 @@
     .line 25
     if-nez v0, :cond_2
 
+    invoke-static {}, Landroid/app/ActivityThread;->currentApplication()Landroid/app/Application;
+
+    move-result-object v0
+
+    if-nez v0, :cond_2
+
     .line 26
     const-string p0, "PATCH_LOOKS"
 
@@ -791,6 +797,32 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_ceftazidime
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_ceftazidime
+    const-string v0, "camera.ceftazidime"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_decepticon
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_decepticon
+    const-string v0, "camera.decepticon"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_check_use_eclipse
 
     const/4 v0, 0x0
@@ -804,8 +836,60 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_milk
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_milk
+    const-string v0, "camera.milk"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_generic_tpu
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_generic_tpu
+    const-string v0, "use_tpu"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_generic_darwinn
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_generic_darwinn
+    const-string v0, "darwinn"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_not_found
 
+    const-string v0, "camera.lasagna.use_darwinn"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_darwinn_false
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_darwinn_false
     const/4 v0, 0x0
 
     return v0
@@ -952,51 +1036,7 @@
 
     if-eqz v1, :cond_return_result
 
-    # wide_binned_raw_width → 0x7f0 (2032)
-    const-string v2, "camera.wide_binned_raw_width"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_wbrh
-
-    const/16 v2, 0x7f0
-
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    invoke-static {v2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v2
-
-    return-object v2
-
-    # wide_binned_raw_height → 0x600 (1536)
-    :cond_check_wbrh
-    const-string v2, "camera.wide_binned_raw_height"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_tbrw
-
-    const/16 v2, 0x600
-
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    invoke-static {v2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v2
-
-    return-object v2
-
-    # tele_binned_raw_width → 0x7e0 (2016)
-    :cond_check_tbrw
+    # Check tele_binned_raw_width fallback
     const-string v2, "camera.tele_binned_raw_width"
 
     invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
@@ -1025,50 +1065,6 @@
 
     move-result v2
 
-    if-eqz v2, :cond_check_ubrw
-
-    const/16 v2, 0x5e8
-
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    invoke-static {v2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v2
-
-    return-object v2
-
-    # uw_binned_raw_width → 0x7e0 (2016)
-    :cond_check_ubrw
-    const-string v2, "camera.uw_binned_raw_width"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
-    if-eqz v2, :cond_check_ubrh
-
-    const/16 v2, 0x7e0
-
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    invoke-static {v2}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v2
-
-    return-object v2
-
-    # uw_binned_raw_height → 0x5e8 (1512)
-    :cond_check_ubrh
-    const-string v2, "camera.uw_binned_raw_height"
-
-    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v2
-
     if-eqz v2, :cond_check_brs
 
     const/16 v2, 0x5e8
@@ -1083,7 +1079,7 @@
 
     return-object v2
 
-    # binned_row_start → 0
+    # Check binned_row_start
     :cond_check_brs
     const-string v2, "camera.binned_row_start"
 
@@ -1119,6 +1115,223 @@
     .catch Ljava/lang/Throwable; {:try_start_orig_a2 .. :try_end_orig_a2} :catch_orig_a
 
     :catch_orig_a
+    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
+
+    move-result-object p0
+
+    return-object p0
+.end method
+
+.method public static interceptFlagH(Lklm;Lkiz;)Ljava/lang/String;
+    .locals 3
+
+    if-eqz p1, :cond_check_orig_h
+
+    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+
+    if-eqz v0, :cond_check_orig_h
+
+    const-string v1, "camera.lasagna.motion_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_lasagna_saliency_model
+
+    const-string v0, "motion-custom_op-p23.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_lasagna_saliency_model
+    const-string v1, "camera.lasagna.saliency_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_segmenter_model
+
+    const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_segmenter_model
+    const-string v1, "camera.gouda.portrait_segmenter_model_name"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_monocular_model
+
+    const-string v0, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_monocular_model
+    const-string v1, "camera.gouda.monocular_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_rear_pdlearned_model
+
+    const-string v0, "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_rear_pdlearned_model
+    const-string v1, "camera.gouda.rear_pdlearned_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_pdstereo_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_pdstereo_model
+    const-string v1, "camera.gouda.pdstereo_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_depth_postprocessor_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_depth_postprocessor_model
+    const-string v1, "camera.gouda.depth_postprocessor_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_portrait_matting_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_portrait_matting_model
+    const-string v1, "camera.gouda.portrait_matting_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_h
+
+    const-string v0, "portrait_matting_mask_1024_768.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_orig_h
+    :try_start_orig_h
+    invoke-virtual {p0, p1}, Lklm;->original_h(Lkiz;)Ljava/lang/String;
+
+    move-result-object p0
+
+    return-object p0
+    :try_end_orig_h
+    .catch Ljava/lang/Throwable; {:try_start_orig_h .. :try_end_orig_h} :catch_orig_h
+
+    :catch_orig_h
+    const-string p0, ""
+
+    return-object p0
+.end method
+
+.method public static interceptFlagR(Lklm;Lkiz;)Lj$/util/Optional;
+    .locals 2
+
+    if-eqz p1, :cond_check_orig_r
+
+    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+
+    if-eqz v0, :cond_check_orig_r
+
+    const-string v1, "camera.boba_jelly_min_active_area_ratio"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_boba_thresh
+
+    const/4 v0, 0x0
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_boba_thresh
+    const-string v1, "camera.boba_jelly_threshold"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_boba_ext
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_boba_ext
+    const-string v1, "camera.boba_jelly_ext_threshold"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_r
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_orig_r
+    :try_start_orig_r
+    invoke-virtual {p0, p1}, Lklm;->original_r(Lkiz;)Lj$/util/Optional;
+
+    move-result-object p0
+
+    return-object p0
+    :try_end_orig_r
+    .catch Ljava/lang/Throwable; {:try_start_orig_r .. :try_end_orig_r} :catch_orig_r
+
+    :catch_orig_r
     invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
 
     move-result-object p0

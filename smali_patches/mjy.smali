@@ -1796,6 +1796,17 @@
     invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
 
     :goto_17
+    if-nez v5, :cond_check_gcam
+
+    new-instance v0, Ljava/lang/IllegalArgumentException;
+
+    const-string v1, "Gcam_Create returned null pointer"
+
+    invoke-direct {v0, v1}, Ljava/lang/IllegalArgumentException;-><init>(Ljava/lang/String;)V
+
+    throw v0
+
+    :cond_check_gcam
     invoke-virtual {v5}, Lcom/google/googlex/gcam/Gcam;->g()Z
 
     move-result v0
