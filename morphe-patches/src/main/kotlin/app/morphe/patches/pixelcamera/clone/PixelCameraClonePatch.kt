@@ -19,7 +19,7 @@ val pixelCameraClonePatch = resourcePatch(
     )
 
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
 
     execute {

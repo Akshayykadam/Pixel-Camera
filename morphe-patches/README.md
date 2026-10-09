@@ -54,7 +54,7 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
    * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera) on your phone.
    * **Or Manually**: Open Morphe Manager → **Settings** → **Sources** → Add custom source: `Akshayykadam/Pixel-Camera` (or import the downloaded `.mpp` file).
 3. **Get the Base Camera APK**:
-   * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
+   * Download `Pixel Camera 11.1.040.982810059.19` (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In Morphe Manager, select the downloaded APKM file.
    * Select your desired patches (e.g. **Camera Looks Backport**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
@@ -70,13 +70,28 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 ### Option 2: On Your PC / Mac (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download the latest `patches-1.0.3.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases).
-3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop.
+2. Download the latest `patches-1.0.4.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases).
+3. Drop the `Pixel Camera 11.1.040` APKM into Morphe Desktop.
 4. Select the patches and click **Start Patching**.
 5. Transfer the generated `PixelCamera_signed.apk` to your phone or install via ADB:
    ```bash
    adb install -r PixelCamera_signed.apk
    ```
+
+---
+
+## 🔧 Troubleshooting & Known Tips
+
+### 1. `ZipException: invalid stored block lengths` during Patching (Issue #21)
+* **Cause**: This error occurs when the downloaded `.apkm` file is corrupt, truncated during mobile browser download, or has malformed compression headers for stored split entries.
+* **Solution**:
+  1. Re-download clean `Pixel Camera 11.1.040.982810059.19` (or `11.0.073.972752740.32`) APKM using a PC browser or dedicated download manager.
+  2. Verify that the file size matches the APKMirror listing (~650 MB to 1.1 GB depending on split bundle).
+  3. Alternatively, rename the file to `.zip`, extract `base.apk` using ZArchiver or 7-Zip, and feed `base.apk` directly to Morphe Manager.
+
+### 2. Viewfinder Live Looks Preview vs Capture Processing (Issue #28 Part 2)
+* Live 60 fps viewfinder Looks preview requires Google's proprietary Camera HAL vendor tag `REQUEST_TOMTE_TYPE` (Pixel 11 hardware ISP).
+* On Pixel 6 through Pixel 10 (Tensor G1–G5), the viewfinder renders the standard preview stream, and full 3D LUT + Halide look styling is rendered seamlessly during HDR+ post-capture processing (`tomte_tonemap.cc`).
 
 ---
 

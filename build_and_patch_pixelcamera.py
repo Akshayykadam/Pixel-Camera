@@ -126,9 +126,33 @@ def patch_manifest():
             yml_content = f.read()
         yml_content = re.sub(r'minSdkVersion:\s*\d+', 'minSdkVersion: 34', yml_content)
         yml_content = re.sub(r'targetSdkVersion:\s*\d+', 'targetSdkVersion: 36', yml_content)
+        if "- uncompressed" not in yml_content:
+            yml_content = yml_content.replace("doNotCompress:\n", "doNotCompress:\n- uncompressed\n- tflite\n")
+
+        # CRITICAL FIX: Apktool 3.0.3 has a bug where extension-based doNotCompress
+        # entries (e.g. "- uncompressed", "- tflite") are NOT honored during ZIP
+        # creation. Only explicit full-path entries work. We must enumerate ALL
+        # .uncompressed and .tflite asset files by their full relative path so that
+        # AssetManager.openFd() can provide file descriptors (requires ZIP_STORED).
+        # Without this, TomteGrain, PortraitSegmenter, and MidasNet models all fail.
+        assets_dir = os.path.join(APKTOOL_DIR, "assets")
+        added_count = 0
+        if os.path.isdir(assets_dir):
+            for dirpath, dirnames, filenames in os.walk(assets_dir):
+                for fname in filenames:
+                    if fname.endswith('.uncompressed') or fname.endswith('.tflite'):
+                        full_path = os.path.join(dirpath, fname)
+                        rel_path = os.path.relpath(full_path, APKTOOL_DIR)
+                        entry = f"- {rel_path}"
+                        if entry not in yml_content:
+                            yml_content += f"{entry}\n"
+                            added_count += 1
+
         with open(apktool_yml_path, "w", encoding="utf-8") as f:
             f.write(yml_content)
-        print("    [+] apktool.yml minSdkVersion set to 34 (supports Android 14, 15, 16).")
+        print(f"    [+] apktool.yml: minSdkVersion=34, targetSdkVersion=36.")
+        if added_count:
+            print(f"    [+] apktool.yml: Added {added_count} explicit asset paths to doNotCompress (apktool 3.0.3 bug workaround).")
 
 def patch_app_name():
     print("[*] Setting app label to 'PixelCamera'...")
@@ -143,16 +167,19 @@ def patch_app_name():
         f.write(content)
     print("    [+] App label set to 'PixelCamera'.")
 
-def patch_uyv_smali():
-    print("[*] Patching uyv.smali (Device Eligibility Checks)...")
-    uyv_path = os.path.join(APKTOOL_DIR, "smali", "uyv.smali")
-    with open(uyv_path, "r", encoding="utf-8") as f:
+def patch_vku_smali():
+    print("[*] Patching vku.smali (Device Eligibility Checks, was uyv)...")
+    vku_path = os.path.join(APKTOOL_DIR, "smali", "vku.smali")
+    if not os.path.exists(vku_path):
+        print("    [!] Warning: vku.smali not found.")
+        return
+    with open(vku_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     def replace_method(src, name, ret_code):
         m_start = src.find(f".method public final {name}")
         if m_start == -1:
-            print(f"    [!] Warning: Method {name} not found in uyv.smali")
+            print(f"    [!] Warning: Method {name} not found in vku.smali")
             return src
         m_end = src.find(".end method", m_start) + len(".end method")
         new_m = f""".method public final {name}
@@ -164,32 +191,32 @@ def patch_uyv_smali():
 
     content = replace_method(content, "l()Z", "const/4 v0, 0x1\n\n    return v0")
 
-    with open(uyv_path, "w", encoding="utf-8") as f:
+    with open(vku_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] uyv.smali patched: l() returns true (sauce eligible). g() and f() preserved.")
+    print("    [+] vku.smali patched: l() returns true (sauce eligible). g() and f() preserved.")
 
-def patch_klm_smali():
-    print("[*] Patching klm.smali (Gouda flags, Mantis, Looks, Segmenter model interception)...")
-    klm_path = os.path.join(APKTOOL_DIR, "smali_classes2", "klm.smali")
-    if not os.path.exists(klm_path):
-        print("    [!] Warning: klm.smali not found.")
+def patch_ksf_smali():
+    print("[*] Patching ksf.smali (Gouda flags, Mantis, Looks, Segmenter model interception, was klm)...")
+    ksf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ksf.smali")
+    if not os.path.exists(ksf_path):
+        print("    [!] Warning: ksf.smali not found.")
         return
-    with open(klm_path, "r", encoding="utf-8") as f:
+    with open(ksf_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 1. Patch q(Lkiz;)Z
-    q_start = content.find(".method public final q(Lkiz;)Z")
+    # 1. Patch q(Lkps;)Z
+    q_start = content.find(".method public final q(Lkps;)Z")
     if q_start != -1:
         q_end = content.find(".end method", q_start)
-        target_marker = "iget-object v0, p0, Lklm;->b:Ljava/util/Map;"
+        target_marker = "iget-object v0, p0, Lksf;->b:Ljava/util/Map;"
         map_idx = content.find(target_marker, q_start)
         if map_idx != -1 and map_idx < q_end:
-            new_q = """.method public final q(Lkiz;)Z
+            new_q = """.method public final q(Lkps;)Z
     .locals 3
 
     if-eqz p1, :cond_check_orig
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig
 
@@ -264,6 +291,45 @@ def patch_klm_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_twilight
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_twilight
+    const-string v1, "camera.enable_twilight"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_single_knob
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_single_knob
+    const-string v1, "camera.dualev.singleKnob"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_dualev
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_dualev
+    const-string v1, "camera.dualev"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_qa
 
     const/4 v0, 0x1
@@ -287,6 +353,71 @@ def patch_klm_smali():
     const-string v1, "camera.getting_started_enabled"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_chameleon
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_chameleon
+    const-string v1, "camera.chameleon"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_cct
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_cct
+    const-string v1, "camera.enable_show_cct"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_freesia
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_freesia
+    const-string v1, "camera.enable_freesia"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_peony
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_peony
+    const-string v1, "camera.enable_peony"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_basil
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_basil
+    const-string v1, "camera.enable_basil"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 
     move-result v1
 
@@ -521,11 +652,11 @@ def patch_klm_smali():
     """
             content = content[:q_start] + new_q + content[map_idx:]
 
-    # 1b. Patch x(Lkiz;)Z
-    x_start = content.find(".method public final x(Lkiz;)Z")
+    # 1b. Patch x(Lkps;)Z
+    x_start = content.find(".method public final x(Lkps;)Z")
     if x_start != -1:
         x_end = content.find(".end method", x_start)
-        target_marker_x = "iget-object p0, p0, Lklm;->b:Ljava/util/Map;"
+        target_marker_x = "iget-object p0, p0, Lksf;->b:Ljava/util/Map;"
         map_idx_x = content.find(target_marker_x, x_start)
         if map_idx_x != -1 and map_idx_x < x_end:
             flags_x = [
@@ -538,6 +669,11 @@ def patch_klm_smali():
                 "camera.enable_macro_focus_badging",
                 "camera.enable_boba_jelly",
                 "camera.boba_jelly_eligible",
+                "camera.chameleon",
+                "camera.enable_show_cct",
+                "camera.enable_freesia",
+                "camera.enable_peony",
+                "camera.enable_basil",
                 "camera.ark_enabled",
                 "camera.ark_focus_available",
                 "camera.ark_edge_hex",
@@ -561,12 +697,12 @@ def patch_klm_smali():
 
     :{next_label}
 """
-            new_x = f""".method public final x(Lkiz;)Z
+            new_x = f""".method public final x(Lkps;)Z
     .locals 3
 
     if-eqz p1, :cond_check_orig_x
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_x
 
@@ -689,21 +825,21 @@ def patch_klm_smali():
     :cond_check_creator_x_0
 {chain_x}"""
             content = content[:x_start] + new_x + content[map_idx_x:]
-            print("    [+] klm.smali: x(Lkiz;) patched (lasagna disabled, creator flags enabled, ark pro controls enabled).")
+            print("    [+] klm.smali: x(Lkps;) patched (lasagna disabled, creator flags enabled, ark pro controls enabled).")
 
-    # 2. Patch h(Lkiz;)Ljava/lang/String;
-    h_start = content.find(".method public final h(Lkiz;)Ljava/lang/String;")
+    # 2. Patch h(Lkps;)Ljava/lang/String;
+    h_start = content.find(".method public final h(Lkps;)Ljava/lang/String;")
     if h_start != -1:
         h_end = content.find(".end method", h_start)
-        target_marker = "iget-object v0, p0, Lklm;->b:Ljava/util/Map;"
+        target_marker = "iget-object v0, p0, Lksf;->b:Ljava/util/Map;"
         map_idx = content.find(target_marker, h_start)
         if map_idx != -1 and map_idx < h_end:
-            new_h = """.method public final h(Lkiz;)Ljava/lang/String;
+            new_h = """.method public final h(Lkps;)Ljava/lang/String;
     .locals 3
 
     if-eqz p1, :cond_check_orig_h
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_h
 
@@ -765,6 +901,45 @@ def patch_klm_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_gouda_rear_pdlearned_remosaic_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_rear_pdlearned_remosaic_model
+    const-string v1, "camera.gouda.rear_pdlearned_remosaic_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_front_pdlearned_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_front_pdlearned_model
+    const-string v1, "camera.gouda.front_pdlearned_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_front_rgbpd_v2_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_front_rgbpd_v2_model
+    const-string v1, "camera.gouda.front_rgbpd_v2_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_gouda_pdstereo_model
 
     const-string v0, ""
@@ -773,6 +948,58 @@ def patch_klm_smali():
 
     :cond_check_gouda_pdstereo_model
     const-string v1, "camera.gouda.pdstereo_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_pdstereo_remosaic_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_pdstereo_remosaic_model
+    const-string v1, "camera.gouda.pdstereo_remosaic_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_model
+    const-string v1, "camera.gouda.physeter_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_v2_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_v2_model
+    const-string v1, "camera.gouda.physeter_v2_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_v3_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_v3_model
+    const-string v1, "camera.gouda.physeter_v3_model"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
@@ -804,30 +1031,43 @@ def patch_klm_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig_h
+    if-eqz v1, :cond_check_sauce_grain_model
 
     const-string v0, "portrait_matting_mask_1024_768.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_sauce_grain_model
+    const-string v1, "camera.sauce_grain_model_asset_name"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_h
+
+    const-string v0, "3cdbac706c98421a96e16fdbfd97a35f.tflite.uncompressed"
 
     return-object v0
 
     :cond_check_orig_h
     """
             content = content[:h_start] + new_h + content[map_idx:]
-            print("    [+] klm.smali: h(Lkiz;) patched for segmenter model fallback.")
+            print("    [+] klm.smali: h(Lkps;) patched for segmenter model fallback.")
 
-    # 3. Patch r(Lkiz;)Lj$/util/Optional;
-    r_start = content.find(".method public final r(Lkiz;)Lj$/util/Optional;")
+    # 3. Patch r(Lkps;)Lj$/util/Optional;
+    r_start = content.find(".method public final r(Lkps;)Lj$/util/Optional;")
     if r_start != -1:
         r_end = content.find(".end method", r_start)
-        target_marker = "iget-object v0, p0, Lklm;->b:Ljava/util/Map;"
+        target_marker = "iget-object v0, p0, Lksf;->b:Ljava/util/Map;"
         map_idx2 = content.find(target_marker, r_start)
         if map_idx2 != -1 and map_idx2 < r_end:
-            new_r = """.method public final r(Lkiz;)Lj$/util/Optional;
+            new_r = """.method public final r(Lkps;)Lj$/util/Optional;
     .locals 6
 
     if-eqz p1, :cond_check_orig_r
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_r
 
@@ -896,7 +1136,7 @@ def patch_klm_smali():
     :cond_check_orig_r
     """
             content = content[:r_start] + new_r + content[map_idx2:]
-            print("    [+] klm.smali: r(Lkiz;) patched for Gouda max_zoom, mantis, and Boba Jelly flags.")
+            print("    [+] klm.smali: r(Lkps;) patched for Gouda max_zoom, mantis, and Boba Jelly flags.")
 
     # 4. Replace missing Lasagna models in klm.smali
     content = content.replace("4af512f87afd43af81a4bbd160034804/4af512f87afd43af81a4bbd160034804.uncompressed", "")
@@ -913,34 +1153,36 @@ def patch_klm_smali():
     content = content.replace("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
 
     # 5. Disable darwinn offline compilation kkn.Q in klm.smali
-    target_kkn_q = """    sget-object p5, Lkkn;->Q:Lkiz;
+    target_kkn_q = """    sget-object p5, Lkrg;->Q:Lkps;
 
-    invoke-virtual {p0, p5, v7}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, p5, v7}, Lksf;->n(Lkps;Z)V"""
 
-    repl_kkn_q = """    sget-object p5, Lkkn;->Q:Lkiz;
+    repl_kkn_q = """    sget-object p5, Lkrg;->Q:Lkps;
 
-    invoke-virtual {p0, p5, v6}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, p5, v6}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_kkn_q, repl_kkn_q)
 
     # 6. Disable all camera.lasagna flags in klm.smali initialization (f=lasagna, g=action, h=long_exposure, i=bottom_layer, j=use_darwinn)
     for fld in ["f", "g", "h", "i", "j"]:
         for reg in ["p2", "p5"]:
-            old_str = f"""    sget-object {reg}, Lkkb;->{fld}:Lkiz;
+            old_str = f"""    sget-object {reg}, Lkqt;->{fld}:Lkps;
 
-    invoke-virtual {{p0, {reg}, v7}}, Lklm;->n(Lkiz;Z)V"""
-            new_str = f"""    sget-object {reg}, Lkkb;->{fld}:Lkiz;
+    invoke-virtual {{p0, {reg}, v7}}, Lksf;->n(Lkps;Z)V"""
+            new_str = f"""    sget-object {reg}, Lkqt;->{fld}:Lkps;
 
-    invoke-virtual {{p0, {reg}, v6}}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {{p0, {reg}, v6}}, Lksf;->n(Lkps;Z)V"""
             content = content.replace(old_str, new_str)
 
-    with open(klm_path, "w", encoding="utf-8") as f:
+    with open(ksf_path, "w", encoding="utf-8") as f:
         f.write(content)
 
 def patch_hpq_smali():
-    print("[*] Patching hpq.smali (Device portrait configuration)...")
-    hpq_path = os.path.join(APKTOOL_DIR, "smali", "hpq.smali")
+    print("[*] Patching fue.smali / hpq.smali (Device portrait configuration)...")
+    hpq_path = os.path.join(APKTOOL_DIR, "smali", "fue.smali")
     if not os.path.exists(hpq_path):
-        print("    [!] Warning: hpq.smali not found.")
+        hpq_path = os.path.join(APKTOOL_DIR, "smali", "hpq.smali")
+    if not os.path.exists(hpq_path):
+        print("    [!] Warning: fue.smali / hpq.smali not found.")
         return
     with open(hpq_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -1027,33 +1269,33 @@ def patch_hpq_smali():
 
 
     # 3. Disable use_darwinn_offline_compilation (kkn.Q)
-    target_q = """    sget-object v4, Lkkn;->Q:Lkiz;
+    target_q = """    sget-object v4, Lkrg;->Q:Lkps;
 
-    invoke-virtual {v0, v4, v5}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {v0, v4, v5}, Lksf;->n(Lkps;Z)V"""
 
-    repl_q = """    sget-object v4, Lkkn;->Q:Lkiz;
+    repl_q = """    sget-object v4, Lkrg;->Q:Lkps;
 
-    invoke-virtual {v0, v4, v7}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {v0, v4, v7}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_q, repl_q)
 
     # 4. Populate missing khw binned RAW dimensions in Pixel 10 Pro (hpq.aW) and Pixel 10 (hpq.aX)
-    target_aw_khw = """    sget-object p1, Lkhw;->a:Lkiy;
+    target_aw_khw = """    sget-object p1, Lkhw;->a:Lkpr;
 
     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V"""
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V"""
 
-    repl_aw_khw = """    sget-object p1, Lkhw;->a:Lkiy;
+    repl_aw_khw = """    sget-object p1, Lkhw;->a:Lkpr;
 
     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->d:Lkiy;
+    sget-object p1, Lkhw;->d:Lkpr;
 
     const/16 v0, 0x7f0
 
@@ -1061,9 +1303,9 @@ def patch_hpq_smali():
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->e:Lkiy;
+    sget-object p1, Lkhw;->e:Lkpr;
 
     const/16 v0, 0x600
 
@@ -1071,9 +1313,9 @@ def patch_hpq_smali():
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->f:Lkiy;
+    sget-object p1, Lkhw;->f:Lkpr;
 
     const/16 v0, 0x7e0
 
@@ -1081,9 +1323,9 @@ def patch_hpq_smali():
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->g:Lkiy;
+    sget-object p1, Lkhw;->g:Lkpr;
 
     const/16 v0, 0x5e8
 
@@ -1091,27 +1333,27 @@ def patch_hpq_smali():
 
     move-result-object v0
 
-    invoke-virtual {p0, p1, v0}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V"""
+    invoke-virtual {p0, p1, v0}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V"""
     if target_aw_khw in content:
         content = content.replace(target_aw_khw, repl_aw_khw)
 
-    target_ax_khw = """    sget-object p1, Lkhw;->a:Lkiy;
+    target_ax_khw = """    sget-object p1, Lkhw;->a:Lkpr;
 
     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V"""
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V"""
 
-    repl_ax_khw = """    sget-object p1, Lkhw;->a:Lkiy;
+    repl_ax_khw = """    sget-object p1, Lkhw;->a:Lkpr;
 
     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->d:Lkiy;
+    sget-object p1, Lkhw;->d:Lkpr;
 
     const/16 v4, 0x7f0
 
@@ -1119,9 +1361,9 @@ def patch_hpq_smali():
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->e:Lkiy;
+    sget-object p1, Lkhw;->e:Lkpr;
 
     const/16 v4, 0x600
 
@@ -1129,9 +1371,9 @@ def patch_hpq_smali():
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->f:Lkiy;
+    sget-object p1, Lkhw;->f:Lkpr;
 
     const/16 v4, 0x7e0
 
@@ -1139,9 +1381,9 @@ def patch_hpq_smali():
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V
 
-    sget-object p1, Lkhw;->g:Lkiy;
+    sget-object p1, Lkhw;->g:Lkpr;
 
     const/16 v4, 0x5e8
 
@@ -1149,31 +1391,63 @@ def patch_hpq_smali():
 
     move-result-object v4
 
-    invoke-virtual {p0, p1, v4}, Lklm;->c(Lkiy;Ljava/lang/Integer;)V"""
+    invoke-virtual {p0, p1, v4}, Lksf;->c(Lkpr;Ljava/lang/Integer;)V"""
     if target_ax_khw in content:
         content = content.replace(target_ax_khw, repl_ax_khw)
 
     # 5. Disable failing Eclipse AE on Pixel 10 (hpq.aX)
-    target_ax_bb = """    sget-object v4, Lkjq;->bb:Lkiz;
+    target_ax_bb = """    sget-object v4, Lkqi;->bb:Lkps;
 
-    invoke-virtual {p0, v4, v1}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, v4, v1}, Lksf;->n(Lkps;Z)V"""
 
-    repl_ax_bb = """    sget-object v4, Lkjq;->bb:Lkiz;
+    repl_ax_bb = """    sget-object v4, Lkqi;->bb:Lkps;
 
-    invoke-virtual {p0, v4, v2}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, v4, v2}, Lksf;->n(Lkps;Z)V"""
 
     if target_ax_bb in content:
         content = content.replace(target_ax_bb, repl_ax_bb)
+
+    # 6. Unblock Custom / Default Gallery Target (hpq.cD)
+    target_gallery = """    const-string p1, "com.google.android.apps.photos"
+
+    invoke-virtual {p0, p1}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    invoke-virtual {p0, v2}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    return-object p0"""
+
+    repl_gallery = """    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->configureGalleryIntent(Landroid/content/Intent;)Landroid/content/Intent;
+
+    move-result-object p0
+
+    return-object p0"""
+
+    if target_gallery in content:
+        content = content.replace(target_gallery, repl_gallery)
+        print("    [+] hpq.smali: patched hpq.cD for custom/default gallery targets.")
 
     with open(hpq_path, "w", encoding="utf-8") as f:
         f.write(content)
     print("    [+] hpq.smali: segmenter model replaced, missing/TPU models nulled, binned RAW dimensions added, camera.use_eclipse disabled on Pixel 10.")
 
+    # Also check hwb.smali (11.1 equivalent of hpq)
+    hwb_path = os.path.join(APKTOOL_DIR, "smali", "hwb.smali")
+    if os.path.exists(hwb_path):
+        with open(hwb_path, "r", encoding="utf-8") as f:
+            hwb_content = f.read()
+        if target_gallery in hwb_content:
+            hwb_content = hwb_content.replace(target_gallery, repl_gallery)
+            with open(hwb_path, "w", encoding="utf-8") as f:
+                f.write(hwb_content)
+            print("    [+] hwb.smali: patched hwb.w for custom/default gallery targets.")
+
 def patch_kic_smali():
-    print("[*] Patching kic.smali (Nulling failing TPU PD models)...")
-    kic_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kic.smali")
+    print("[*] Patching kov.smali / kic.smali (Nulling failing TPU PD models)...")
+    kic_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kov.smali")
     if not os.path.exists(kic_path):
-        print("    [!] Warning: kic.smali not found.")
+        kic_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kic.smali")
+    if not os.path.exists(kic_path):
+        print("    [!] Warning: kov.smali / kic.smali not found.")
         return
     with open(kic_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -1187,29 +1461,29 @@ def patch_kic_smali():
     content = content.replace("saliency-custom_op-p23.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed")
 
     # Disable camera.lasagna.use_darwinn in kic.smali
-    target_darwinn = """    sget-object v3, Lkkb;->j:Lkiz;
+    target_darwinn = """    sget-object v3, Lkqt;->j:Lkps;
 
-    invoke-virtual {p0, v3, v1}, Lklm;->n(Lkiz;Z)V"""
-    repl_darwinn = """    sget-object v3, Lkkb;->j:Lkiz;
+    invoke-virtual {p0, v3, v1}, Lksf;->n(Lkps;Z)V"""
+    repl_darwinn = """    sget-object v3, Lkqt;->j:Lkps;
 
-    invoke-virtual {p0, v3, v4}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, v3, v4}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_darwinn, repl_darwinn)
 
     # Disable portrait_depth_use_tpu (kkn.aj) and portrait_matting_use_tpu (kkn.ak) in kic.smali
-    target_kic_tpu = """    sget-object p1, Lkkn;->aj:Lkiz;
+    target_kic_tpu = """    sget-object p1, Lkrg;->aj:Lkps;
 
-    invoke-virtual {p0, p1, v1}, Lklm;->n(Lkiz;Z)V
+    invoke-virtual {p0, p1, v1}, Lksf;->n(Lkps;Z)V
 
-    sget-object p1, Lkkn;->ak:Lkiz;
+    sget-object p1, Lkrg;->ak:Lkps;
 
-    invoke-virtual {p0, p1, v1}, Lklm;->n(Lkiz;Z)V"""
-    repl_kic_tpu = """    sget-object p1, Lkkn;->aj:Lkiz;
+    invoke-virtual {p0, p1, v1}, Lksf;->n(Lkps;Z)V"""
+    repl_kic_tpu = """    sget-object p1, Lkrg;->aj:Lkps;
 
-    invoke-virtual {p0, p1, v4}, Lklm;->n(Lkiz;Z)V
+    invoke-virtual {p0, p1, v4}, Lksf;->n(Lkps;Z)V
 
-    sget-object p1, Lkkn;->ak:Lkiz;
+    sget-object p1, Lkrg;->ak:Lkps;
 
-    invoke-virtual {p0, p1, v4}, Lklm;->n(Lkiz;Z)V"""
+    invoke-virtual {p0, p1, v4}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_kic_tpu, repl_kic_tpu)
 
     with open(kic_path, "w", encoding="utf-8") as f:
@@ -1225,15 +1499,15 @@ def patch_mwg_smali():
     with open(mwg_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    sget-object v7, Lkkb;->j:Lkiz;
+    target = """    sget-object v7, Lkqt;->j:Lkps;
 
-    invoke-virtual {v6, v7}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {v6, v7}, Lksf;->q(Lkps;)Z
 
     move-result v19"""
 
-    repl = """    sget-object v7, Lkkb;->j:Lkiz;
+    repl = """    sget-object v7, Lkqt;->j:Lkps;
 
-    invoke-virtual {v6, v7}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {v6, v7}, Lksf;->q(Lkps;)Z
 
     const/16 v19, 0x0"""
 
@@ -1533,10 +1807,13 @@ def patch_libgcastartup():
             print("    [+] 0x2420880 already patched.")
 
 
-def patch_mjy_smali():
-    print("[*] Patching mjy.smali (Enabling native Tomte model in InitParams and Gcam creation)...")
-    mjy_path = os.path.join(APKTOOL_DIR, "smali", "mjy.smali")
-    with open(mjy_path, "r", encoding="utf-8") as f:
+def patch_msr_smali():
+    print("[*] Patching msr.smali (Enabling native Tomte model in InitParams and Gcam creation, was mjy)...")
+    msr_path = os.path.join(APKTOOL_DIR, "smali", "msr.smali")
+    if not os.path.exists(msr_path):
+        print("    [!] Warning: msr.smali not found.")
+        return
+    with open(msr_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     target = """    if-eqz v2, :cond_2c
@@ -1549,13 +1826,19 @@ def patch_mjy_smali():
 
     replacement = """    iget-wide v2, v1, Lcom/google/googlex/gcam/InitParams;->a:J
 
-    const/4 v12, 0x1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
+
+    move-result v12
 
     invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set(JLcom/google/googlex/gcam/InitParams;Z)V"""
 
     if target in content:
         content = content.replace(target, replacement)
-        print("    [+] mjy.smali: finish_tomte_grain_enabled unconditionally true.")
+        print("    [+] mjy.smali: finish_tomte_grain_enabled set to TomteInitHelper.isGrainEnabled().")
+    elif "const/4 v12, 0x1\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set" in content:
+        content = content.replace("const/4 v12, 0x1\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set",
+                                  "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z\n\n    move-result v12\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set")
+        print("    [+] mjy.smali: updated finish_tomte_grain_enabled to TomteInitHelper.isGrainEnabled().")
 
     gcam_create_target = """    :cond_2e
     new-instance v5, Lcom/google/googlex/gcam/Gcam;
@@ -1578,9 +1861,9 @@ def patch_mjy_smali():
         print("    [+] mjy.smali: TomteInitHelper.initTomteGrain hooked on Gcam creation.")
 
     # Guard khw.c and khw.g in binned static metadata setup
-    opt_cg_target = """    sget-object v7, Lkhw;->c:Lkiy;
+    opt_cg_target = """    sget-object v7, Lkhw;->c:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1605,17 +1888,17 @@ def patch_mjy_smali():
 
     if-ltz v7, :cond_9
 
-    sget-object v7, Lkhw;->g:Lkiy;
+    sget-object v7, Lkhw;->g:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
     invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    opt_cg_repl = """    sget-object v7, Lkhw;->c:Lkiy;
+    opt_cg_repl = """    sget-object v7, Lkhw;->c:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1646,9 +1929,9 @@ def patch_mjy_smali():
 
     if-ltz v7, :cond_9
 
-    sget-object v7, Lkhw;->g:Lkiy;
+    sget-object v7, Lkhw;->g:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1664,9 +1947,9 @@ def patch_mjy_smali():
         print("    [+] mjy.smali: khw.c and khw.g guarded with orElse().")
 
     # Guard khw.d and khw.e in binned static metadata setup
-    opt_de_target = """    sget-object v7, Lkhw;->d:Lkiy;
+    opt_de_target = """    sget-object v7, Lkhw;->d:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1682,9 +1965,9 @@ def patch_mjy_smali():
 
     add-int/2addr v7, v7
 
-    sget-object v8, Lkhw;->e:Lkiy;
+    sget-object v8, Lkhw;->e:Lkpr;
 
-    invoke-virtual {v6, v8}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v8}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v28
 
@@ -1730,15 +2013,15 @@ def patch_mjy_smali():
 
     invoke-virtual {v5, v12}, Lcom/google/googlex/gcam/StaticMetadata;->l(I)V
 
-    invoke-virtual {v6, v8}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v8}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
     invoke-virtual {v7}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    opt_de_repl = """    sget-object v7, Lkhw;->d:Lkiy;
+    opt_de_repl = """    sget-object v7, Lkhw;->d:Lkpr;
 
-    invoke-virtual {v6, v7}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v7}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1760,9 +2043,9 @@ def patch_mjy_smali():
 
     add-int/2addr v7, v7
 
-    sget-object v8, Lkhw;->e:Lkiy;
+    sget-object v8, Lkhw;->e:Lkpr;
 
-    invoke-virtual {v6, v8}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v8}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v28
 
@@ -1818,7 +2101,7 @@ def patch_mjy_smali():
 
     invoke-virtual {v5, v12}, Lcom/google/googlex/gcam/StaticMetadata;->l(I)V
 
-    invoke-virtual {v6, v8}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v8}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v7
 
@@ -1836,9 +2119,9 @@ def patch_mjy_smali():
     # Guard khw.c Optional.get() in ultrawide check
     opt_c_target = """    if-ne v5, v1, :cond_c
 
-    sget-object v5, Lkhw;->c:Lkiy;
+    sget-object v5, Lkhw;->c:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
@@ -1850,9 +2133,9 @@ def patch_mjy_smali():
 
     opt_c_repl = """    if-ne v5, v1, :cond_c
 
-    sget-object v5, Lkhw;->c:Lkiy;
+    sget-object v5, Lkhw;->c:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
@@ -1876,18 +2159,18 @@ def patch_mjy_smali():
 
     # Guard khw.e Optional.get() against NoSuchElementException on dual-camera devices (Pixel 10 base)
     opt_e_target = """    :cond_c
-    sget-object v5, Lkhw;->e:Lkiy;
+    sget-object v5, Lkhw;->e:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
     invoke-virtual {v5}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
     opt_e_repl = """    :cond_c
-    sget-object v5, Lkhw;->e:Lkiy;
+    sget-object v5, Lkhw;->e:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
@@ -1907,17 +2190,17 @@ def patch_mjy_smali():
         print("    [+] mjy.smali: khw.e guarded with isPresent().")
 
     # Guard khw.d Optional.get()
-    opt_d_target = """    sget-object v5, Lkhw;->d:Lkiy;
+    opt_d_target = """    sget-object v5, Lkhw;->d:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
     invoke-virtual {v5}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    opt_d_repl = """    sget-object v5, Lkhw;->d:Lkiy;
+    opt_d_repl = """    sget-object v5, Lkhw;->d:Lkpr;
 
-    invoke-virtual {v6, v5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {v6, v5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v5
 
@@ -1936,7 +2219,7 @@ def patch_mjy_smali():
         content = content.replace(opt_d_target, opt_d_repl)
         print("    [+] mjy.smali: khw.d guarded with isPresent().")
 
-    with open(mjy_path, "w", encoding="utf-8") as f:
+    with open(msr_path, "w", encoding="utf-8") as f:
         f.write(content)
 
 def patch_psk_smali():
@@ -1953,7 +2236,7 @@ def patch_psk_smali():
 
     move-result-object v0
 
-    check-cast v0, Ladbv;
+    check-cast v0, Laeea;
 
     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;"""
 
@@ -1961,7 +2244,7 @@ def patch_psk_smali():
 
     move-result-object v0
 
-    check-cast v0, Ladbv;
+    check-cast v0, Laeea;
 
     if-eqz v0, :cond_8"""
 
@@ -1974,7 +2257,7 @@ def patch_psk_smali():
 
     move-result-object v0
 
-    check-cast v0, Ladbv;
+    check-cast v0, Laeea;
 
     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;"""
 
@@ -1982,7 +2265,7 @@ def patch_psk_smali():
 
     move-result-object v0
 
-    check-cast v0, Ladbv;
+    check-cast v0, Laeea;
 
     if-eqz v0, :cond_b"""
 
@@ -2004,9 +2287,9 @@ def patch_psh_smali():
 
     target_psh = """    if-eqz p5, :cond_2
 
-    sget-object p5, Lkhw;->f:Lkiy;
+    sget-object p5, Lkhw;->f:Lkpr;
 
-    invoke-virtual {p4, p5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p5
 
@@ -2017,9 +2300,9 @@ def patch_psh_smali():
     goto :goto_1
 
     :cond_2
-    sget-object p5, Lkhw;->b:Lkiy;
+    sget-object p5, Lkhw;->b:Lkpr;
 
-    invoke-virtual {p4, p5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p5
 
@@ -2040,9 +2323,9 @@ def patch_psh_smali():
 
     if-eqz p3, :cond_3
 
-    sget-object p3, Lkhw;->g:Lkiy;
+    sget-object p3, Lkhw;->g:Lkpr;
 
-    invoke-virtual {p4, p3}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p3}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p3
 
@@ -2053,9 +2336,9 @@ def patch_psh_smali():
     goto :goto_2
 
     :cond_3
-    sget-object p3, Lkhw;->c:Lkiy;
+    sget-object p3, Lkhw;->c:Lkpr;
 
-    invoke-virtual {p4, p3}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p3}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p3
 
@@ -2068,9 +2351,9 @@ def patch_psh_smali():
 
     repl_psh = """    if-eqz p5, :cond_2
 
-    sget-object p5, Lkhw;->f:Lkiy;
+    sget-object p5, Lkhw;->f:Lkpr;
 
-    invoke-virtual {p4, p5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p5
 
@@ -2087,9 +2370,9 @@ def patch_psh_smali():
     goto :goto_1
 
     :cond_2
-    sget-object p5, Lkhw;->b:Lkiy;
+    sget-object p5, Lkhw;->b:Lkpr;
 
-    invoke-virtual {p4, p5}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p5}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p5
 
@@ -2116,9 +2399,9 @@ def patch_psh_smali():
 
     if-eqz p3, :cond_3
 
-    sget-object p3, Lkhw;->g:Lkiy;
+    sget-object p3, Lkhw;->g:Lkpr;
 
-    invoke-virtual {p4, p3}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p3}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p3
 
@@ -2135,9 +2418,9 @@ def patch_psh_smali():
     goto :goto_2
 
     :cond_3
-    sget-object p3, Lkhw;->c:Lkiy;
+    sget-object p3, Lkhw;->c:Lkpr;
 
-    invoke-virtual {p4, p3}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p4, p3}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p3
 
@@ -2232,21 +2515,21 @@ def patch_tba_smali():
         content = f.read()
 
     # Increase locals from 1 to 2
-    content = content.replace(".method public constructor <init>(Lklm;)V\n    .locals 1",
-                              ".method public constructor <init>(Lklm;)V\n    .locals 2")
+    content = content.replace(".method public constructor <init>(Lksf;)V\n    .locals 1",
+                              ".method public constructor <init>(Lksf;)V\n    .locals 2")
 
     # Guard klf.f
-    target_f = """    sget-object v0, Lklf;->f:Lkiz;
+    target_f = """    sget-object v0, Lklf;->f:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
     invoke-virtual {v0}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    repl_f = """    sget-object v0, Lklf;->f:Lkiz;
+    repl_f = """    sget-object v0, Lklf;->f:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
@@ -2259,17 +2542,17 @@ def patch_tba_smali():
     invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"""
 
     # Guard klf.g
-    target_g = """    sget-object v0, Lklf;->g:Lkiz;
+    target_g = """    sget-object v0, Lklf;->g:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
     invoke-virtual {v0}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    repl_g = """    sget-object v0, Lklf;->g:Lkiz;
+    repl_g = """    sget-object v0, Lklf;->g:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
@@ -2282,17 +2565,17 @@ def patch_tba_smali():
     invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"""
 
     # Guard klf.e
-    target_e = """    sget-object v0, Lklf;->e:Lkiz;
+    target_e = """    sget-object v0, Lklf;->e:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
     invoke-virtual {v0}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    repl_e = """    sget-object v0, Lklf;->e:Lkiz;
+    repl_e = """    sget-object v0, Lklf;->e:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->r(Lkps;)Lj$/util/Optional;
 
     move-result-object v0
 
@@ -2305,17 +2588,17 @@ def patch_tba_smali():
     invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"""
 
     # Guard klf.b
-    target_b = """    sget-object v0, Lklf;->b:Lkiy;
+    target_b = """    sget-object v0, Lklf;->b:Lkpr;
 
-    invoke-virtual {p1, v0}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v0
 
     invoke-virtual {v0}, Lj$/util/Optional;->get()Ljava/lang/Object;"""
 
-    repl_b = """    sget-object v0, Lklf;->b:Lkiy;
+    repl_b = """    sget-object v0, Lklf;->b:Lkpr;
 
-    invoke-virtual {p1, v0}, Lklm;->a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p1, v0}, Lksf;->a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v0
 
@@ -2345,6 +2628,9 @@ def patch_tba_smali():
 def patch_pzs_smali():
     print("[*] Patching pzs.smali (Force Sauce overlay instantiation)...")
     pzs_path = os.path.join(APKTOOL_DIR, "smali", "pzs.smali")
+    if not os.path.exists(pzs_path):
+        print("    [!] Warning: pzs.smali not found.")
+        return
     with open(pzs_path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -2385,31 +2671,39 @@ def patch_pzs_smali():
     else:
         print("    [!] Warning: pzs.smali target not found.")
 
-def patch_qau_smali():
-    print("[*] Patching qau.smali (Sauce Eligibility Predicate)...")
-    qau_path = os.path.join(APKTOOL_DIR, "smali", "qau.smali")
-    with open(qau_path, "r", encoding="utf-8") as f:
+def patch_qko_smali():
+    print("[*] Patching qko.smali (Sauce Eligibility Predicate, was qau)...")
+    qko_path = os.path.join(APKTOOL_DIR, "smali", "qko.smali")
+    if not os.path.exists(qko_path):
+        print("    [!] Warning: qko.smali not found.")
+        return
+    with open(qko_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    sget-object v0, Lkjq;->bm:Lkiz;
+    target = """    sget-object v0, Lkqi;->aW:Lkps;
 
-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {p0, v0}, Lksf;->q(Lkps;)Z
 
     move-result v0
 
+    const/4 v1, 0x0
+
     if-eqz v0, :cond_0
 
-    sget-object v0, Lkjq;->bl:Lkiz;
+    sget-object v0, Lkqi;->aV:Lkps;
 
-    invoke-virtual {p0, v0}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {p0, v0}, Lksf;->q(Lkps;)Z
 
     move-result p0
 
     if-eqz p0, :cond_0
 
-    move v2, v3
+    goto :goto_0
 
     :cond_0
+    move v2, v1
+
+    :goto_0
     invoke-static {v2}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
 
     move-result-object p0
@@ -2426,53 +2720,33 @@ def patch_qau_smali():
 
     if target in content:
         content = content.replace(target, replacement)
-        with open(qau_path, "w", encoding="utf-8") as f:
+        with open(qko_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] qau.smali patched: predicate unconditionally returns Boolean.TRUE.")
+        print("    [+] qko.smali patched: predicate unconditionally returns Boolean.TRUE.")
+    elif "const/4 v2, 0x1\n\n    invoke-static {v2}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;" in content:
+        print("    [+] qko.smali: already patched with Boolean.TRUE.")
     else:
-        print("    [!] Warning: Exact target block not found in qau.smali, skipping replacement.")
+        print("    [!] Warning: Exact target block not found in qko.smali, skipping replacement.")
 
 def patch_camera_app_smali():
-    print("[*] Patching CameraApp.smali (Bypassing split check and saving static context)...")
+    print("[*] Patching CameraApp.smali (Saving static context for TomteInitHelper)...")
     camera_app_path = os.path.join(APKTOOL_DIR, "smali", "com", "google", "android", "apps", "camera", "app", "CameraApp.smali")
     with open(camera_app_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    m_start = content.find(".method public final gA()Ladvz;")
-    if m_start == -1:
-        raise RuntimeError("Method gA()Ladvz; not found in CameraApp.smali!")
-    m_end = content.find(".end method", m_start) + len(".end method")
-
-    new_method = """.method public final gA()Ladvz;
-    .locals 1
-
-    iget-object v0, p0, Lcom/google/android/apps/camera/app/CameraApp;->q:Linm;
-
-    invoke-virtual {v0, p0}, Linm;->b(Landroid/content/Context;)V
-
-    invoke-direct {p0}, Lcom/google/android/apps/camera/app/CameraApp;->i()Limi;
-
-    move-result-object p0
-
-    invoke-virtual {p0}, Limi;->gA()Ladvz;
-
-    move-result-object p0
-
-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-
-    return-object p0
-.end method"""
-
-    content = content[:m_start] + new_method + content[m_end:]
+    # In 11.1, gA() is removed — DI component accessed via i()Litb; directly.
+    # We only need:
+    #   1. Add sAppContext static field
+    #   2. Hook onCreate to save sAppContext
 
     # Add sAppContext field if missing
     if ".field public static sAppContext:Landroid/content/Context;" not in content:
-        f_target = ".field private static final p:Ljava/util/concurrent/atomic/AtomicBoolean;"
+        f_target = ".field private static final q:Ljava/util/concurrent/atomic/AtomicBoolean;"
         content = content.replace(f_target, f_target + "\n\n.field public static sAppContext:Landroid/content/Context;")
 
-    # Hook onCreate to save sAppContext
-    on_create_target = ".method public final onCreate()V\n    .locals 19\n\n    move-object/from16 v0, p0"
-    on_create_repl = ".method public final onCreate()V\n    .locals 19\n\n    sput-object p0, Lcom/google/android/apps/camera/app/CameraApp;->sAppContext:Landroid/content/Context;\n\n    move-object/from16 v0, p0"
+    # Hook onCreate to save sAppContext (locals 20 in 11.1)
+    on_create_target = ".method public final onCreate()V\n    .locals 20\n\n    move-object/from16 v0, p0"
+    on_create_repl = ".method public final onCreate()V\n    .locals 20\n\n    sput-object p0, Lcom/google/android/apps/camera/app/CameraApp;->sAppContext:Landroid/content/Context;\n\n    move-object/from16 v0, p0"
     if on_create_target in content:
         content = content.replace(on_create_target, on_create_repl)
 
@@ -2539,149 +2813,361 @@ def patch_ejn_smali():
         f.write(content)
     print("    [+] ejn.smali: removed missing ceftazidime models.")
 
-def patch_qkp_smali():
-    print("[*] Patching qkp.smali (Force real qms Look Manager)...")
-    qkp_path = os.path.join(APKTOOL_DIR, "smali", "qkp.smali")
-    with open(qkp_path, "r", encoding="utf-8") as f:
+def patch_qur_smali():
+    print("[*] Patching qur.smali (Force real qxb Look Manager, was qkp)...")
+    qur_path = os.path.join(APKTOOL_DIR, "smali", "qur.smali")
+    if not os.path.exists(qur_path):
+        print("    [!] Warning: qur.smali not found.")
+        return
+    with open(qur_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    b_start = content.find(".method public final b()Lqms;")
+    b_start = content.find(".method public final b()Lqxb;")
     if b_start != -1:
         b_end = content.find(".end method", b_start) + len(".end method")
-        new_b = """.method public final b()Lqms;
+        new_b = """.method public final b()Lqxb;
     .locals 1
 
-    iget-object p0, p0, Lqkp;->b:Laccg;
+    iget-object p0, p0, Lqur;->b:Lacnw;
 
-    invoke-interface {p0}, Ladbv;->a()Ljava/lang/Object;
+    invoke-interface {p0}, Lacnw;->a()Ljava/lang/Object;
 
     move-result-object p0
 
-    check-cast p0, Lqms;
+    check-cast p0, Lqxb;
 
     return-object p0
 .end method"""
         content = content[:b_start] + new_b + content[b_end:]
-        with open(qkp_path, "w", encoding="utf-8") as f:
+        with open(qur_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] qkp.smali: b() returns real qms Look Manager unconditionally.")
+        print("    [+] qur.smali: b() returns real qxb Look Manager unconditionally.")
 
-def patch_qkq_smali():
-    print("[*] Patching qkq.smali (Force real qmb Look State Provider)...")
-    qkq_path = os.path.join(APKTOOL_DIR, "smali", "qkq.smali")
-    with open(qkq_path, "r", encoding="utf-8") as f:
+def patch_qus_smali():
+    print("[*] Patching qus.smali (Force real qwj Look State Provider, was qkq)...")
+    qus_path = os.path.join(APKTOOL_DIR, "smali", "qus.smali")
+    if not os.path.exists(qus_path):
+        print("    [!] Warning: qus.smali not found.")
+        return
+    with open(qus_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    b_start = content.find(".method public final b()Lqmb;")
+    b_start = content.find(".method public final b()Lqwj;")
     if b_start != -1:
         b_end = content.find(".end method", b_start) + len(".end method")
-        new_b = """.method public final b()Lqmb;
+        new_b = """.method public final b()Lqwj;
     .locals 1
 
-    iget-object p0, p0, Lqkq;->b:Laccg;
+    iget-object p0, p0, Lqus;->b:Lacnw;
 
-    invoke-interface {p0}, Ladbv;->a()Ljava/lang/Object;
+    invoke-interface {p0}, Lacnw;->a()Ljava/lang/Object;
 
     move-result-object p0
 
-    check-cast p0, Lqmb;
+    check-cast p0, Lqwj;
 
     return-object p0
 .end method"""
         content = content[:b_start] + new_b + content[b_end:]
-        with open(qkq_path, "w", encoding="utf-8") as f:
+        with open(qus_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] qkq.smali: b() returns real qmb Look State Provider unconditionally.")
+        print("    [+] qus.smali: b() returns real qwj Look State Provider unconditionally.")
 
-def patch_qmy_smali():
-    print("[*] Patching qmy.smali (Notifying TomteInitHelper when Look is selected)...")
-    qmy_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qmy.smali")
-    with open(qmy_path, "r", encoding="utf-8") as f:
+def patch_qxg_smali():
+    print("[*] Patching qxg.smali (Notifying TomteInitHelper and unlocking all 13 Looks)...")
+    qxg_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qxg.smali")
+    if not os.path.exists(qxg_path):
+        print("    [!] Warning: qxg.smali not found.")
+        return
+    with open(qxg_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """.method private final g(Lqlh;)V
+    # 1. Unlock all 9 Presets (Editorial, Velvet, Classic, Digi, Black Tie, Minimal, Flat, Buffalo, Dijon)
+    preset_nine_builder = """    new-instance p2, Ladpp;
+
+    const/16 p4, 0x10
+
+    invoke-direct {p2, p4}, Ladpp;-><init>(I)V
+
+    sget-object p4, Lquz;->a:Lquz;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqvh;->a:Lqvh;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqve;->a:Lqve;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lquy;->a:Lquy;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lquw;->a:Lquw;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqva;->a:Lqva;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqvd;->a:Lqvd;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqvg;->a:Lqvg;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqvi;->a:Lqvi;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lkqi;->a:Lkpr;
+
+    invoke-virtual {p2}, Ladpp;->f()Ljava/util/List;
+
+    move-result-object p2
+
+    iput-object p2, p0, Lqxg;->h:Ljava/util/List;"""
+
+    old_bad_replacement = """    invoke-static {}, Lqtk;->h()Lyqc;
+
+    move-result-object p2
+
+    iput-object p2, p0, Lqxg;->h:Ljava/util/List;"""
+
+    preset_target = """    new-instance p2, Ladpp;
+
+    const/16 p4, 0xa
+
+    invoke-direct {p2, p4}, Ladpp;-><init>(I)V
+
+    sget-object p4, Lquz;->a:Lquz;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqvh;->a:Lqvh;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqve;->a:Lqve;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lquy;->a:Lquy;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lquw;->a:Lquw;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lqva;->a:Lqva;
+
+    invoke-interface {p2, p4}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    sget-object p4, Lkqi;->a:Lkpr;
+
+    invoke-virtual {p2}, Ladpp;->f()Ljava/util/List;
+
+    move-result-object p2
+
+    iput-object p2, p0, Lqxg;->h:Ljava/util/List;"""
+
+    if old_bad_replacement in content:
+        content = content.replace(old_bad_replacement, preset_nine_builder)
+        print("    [+] qxg.smali: replaced erroneous qtk.h() with full 9-preset builder.")
+    elif preset_target in content:
+        content = content.replace(preset_target, preset_nine_builder)
+        print("    [+] qxg.smali: unlocked all 9 Looks presets (including Flat, Buffalo, Dijon).")
+    elif "sget-object p4, Lqvd;->a:Lqvd;" in content:
+        print("    [+] qxg.smali: already unlocked with all 9 Looks presets.")
+
+    # 2. Force j(Ltbp;)Z and k(Ltbp;)Z to always return 1 so Looks styles and presets are always active
+    j_target = """.method private static final j(Ltbp;)Z
     .locals 2
 
-    iget v0, p1, Lqlh;->d:I"""
+    sget-object v0, Ltbp;->a:Ltbp;
 
-    replacement = """.method private final g(Lqlh;)V
+    invoke-virtual {p0}, Ltbp;->ordinal()I
+
+    move-result p0
+
+    const/4 v0, 0x1
+
+    if-eq p0, v0, :cond_0
+
+    const/4 v1, 0x6
+
+    if-eq p0, v1, :cond_0
+
+    const/16 v1, 0x9
+
+    if-eq p0, v1, :cond_0
+
+    const/16 v1, 0x13
+
+    if-eq p0, v1, :cond_0
+
+    packed-switch p0, :pswitch_data_0
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_0
+    :pswitch_0
+    return v0
+
+    :pswitch_data_0
+    .packed-switch 0xe
+        :pswitch_0
+        :pswitch_0
+        :pswitch_0
+        :pswitch_0
+    .end packed-switch
+.end method"""
+
+    j_replacement = """.method private static final j(Ltbp;)Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+
+    if j_target in content:
+        content = content.replace(j_target, j_replacement)
+        print("    [+] qxg.smali: patched j(Ltbp;)Z to return 1 unconditionally.")
+
+    k_target = """.method private static final k(Ltbp;)Z
+    .locals 2
+
+    invoke-static {p0}, Lqxg;->j(Ltbp;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_1
+
+    sget-object v0, Ltbp;->a:Ltbp;
+
+    invoke-virtual {p0}, Ltbp;->ordinal()I
+
+    move-result p0
+
+    const/4 v0, 0x1
+
+    if-eq p0, v0, :cond_0
+
+    const/4 v1, 0x6
+
+    if-eq p0, v1, :cond_0
+
+    const/16 v1, 0x9
+
+    if-eq p0, v1, :cond_0
+
+    packed-switch p0, :pswitch_data_0
+
+    goto :goto_0
+
+    :cond_0
+    :pswitch_0
+    return v0
+
+    :cond_1
+    :goto_0
+    const/4 p0, 0x0
+
+    return p0
+
+    nop
+
+    :pswitch_data_0
+    .packed-switch 0xe
+        :pswitch_0
+        :pswitch_0
+        :pswitch_0
+        :pswitch_0
+    .end packed-switch
+.end method"""
+
+    k_replacement = """.method private static final k(Ltbp;)Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+
+    if k_target in content:
+        content = content.replace(k_target, k_replacement)
+        print("    [+] qxg.smali: patched k(Ltbp;)Z to return 1 unconditionally.")
+
+    # 3. Notify TomteInitHelper on Look change
+    target = """.method private final g(Lqvj;)V
+    .locals 2
+
+    iget v0, p1, Lqvj;->d:I"""
+
+    replacement = """.method private final g(Lqvj;)V
     .locals 2
 
     if-eqz p1, :cond_skip_notify
 
-    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqlh;)V
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqvj;)V
 
     :cond_skip_notify
-    iget v0, p1, Lqlh;->d:I"""
+    iget v0, p1, Lqvj;->d:I"""
 
     if target in content:
         content = content.replace(target, replacement)
-        with open(qmy_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] qmy.smali: TomteInitHelper.onLookObjectSelected notified on look change.")
+        print("    [+] qxg.smali: TomteInitHelper.onLookObjectSelected notified on look change.")
     elif "onLookObjectSelected" in content:
-        print("    [+] qmy.smali: already patched with onLookObjectSelected.")
-    elif "onLookSelected" in content:
-        content = content.replace("invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V",
-                                "invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqlh;)V")
-        with open(qmy_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] qmy.smali: updated to TomteInitHelper.onLookObjectSelected.")
+        print("    [+] qxg.smali: already patched with onLookObjectSelected.")
     else:
-        print("    [!] Warning: target in qmy.smali not found or already patched.")
+        print("    [!] Warning: target in qxg.smali not found or already patched.")
 
-def patch_qkj_smali():
-    print("[*] Patching qkj.smali (Sauce EXIF metadata fallback via TomteInitHelper)...")
-    qkj_path = os.path.join(APKTOOL_DIR, "smali", "qkj.smali")
-    if not os.path.exists(qkj_path):
+    with open(qxg_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_rfx_smali():
+    print("[*] Patching rfx.smali (Sauce EXIF metadata fallback via TomteInitHelper, was qkj)...")
+    rfx_path = os.path.join(APKTOOL_DIR, "smali", "rfx.smali")
+    if not os.path.exists(rfx_path):
         return
-    with open(qkj_path, "r", encoding="utf-8") as f:
+    with open(rfx_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    iget-object v0, p0, Lost;->p:Lxwg;
+    target = """    :goto_4
+    sget-object v12, Lcau;->c:Lcau;"""
 
-    invoke-virtual {v0}, Lxwg;->f()Ljava/lang/Object;
+    replacement = """    :goto_4
+    invoke-static {v11}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookOrFallback(Lqvj;)Lqvj;
 
-    move-result-object v0
+    move-result-object v11
 
-    check-cast v0, Lqlh;
-
-    const/4 v1, 0x0
-
-    if-nez v0, :cond_0"""
-
-    replacement = """    iget-object v0, p0, Lost;->p:Lxwg;
-
-    invoke-virtual {v0}, Lxwg;->f()Ljava/lang/Object;
-
-    move-result-object v0
-
-    check-cast v0, Lqlh;
-
-    if-nez v0, :cond_check_fallback
-
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getLastSelectedLook()Lqlh;
-
-    move-result-object v0
-
-    :cond_check_fallback
-    const/4 v1, 0x0
-
-    if-nez v0, :cond_0"""
+    sget-object v12, Lcau;->c:Lcau;"""
 
     if target in content:
-        content = content.replace(target, replacement)
-        with open(qkj_path, "w", encoding="utf-8") as f:
+        content = content.replace(target, replacement, 1)
+        with open(rfx_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] qkj.smali: Added TomteInitHelper fallback to qkj.Z Sauce EXIF builder.")
-    elif ":cond_check_fallback" in content:
-        print("    [+] qkj.smali: already patched with TomteInitHelper fallback.")
+        print("    [+] rfx.smali: Added TomteInitHelper fallback to Sauce EXIF builder.")
+    elif "getEffectiveLookOrFallback" in content:
+        print("    [+] rfx.smali: already patched with TomteInitHelper fallback.")
     else:
-        print("    [!] Warning: qkj.smali target not found.")
+        print("    [!] Warning: rfx.smali target not found.")
 
 def patch_mia_smali():
     print("[*] Patching mia.smali (Force TomteGrain#initialize at app startup)...")
     mia_path = os.path.join(APKTOOL_DIR, "smali", "mia.smali")
+    if not os.path.exists(mia_path):
+        print("    [!] Warning: mia.smali not found, skipping.")
+        return
     with open(mia_path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -2709,47 +3195,14 @@ def patch_mia_smali():
     else:
         print("    [!] Warning: mia.smali target not found.")
 
-def patch_muh_smali():
-    print("[*] Patching muh.smali (Force TomteImageFinalizer and ensure TomteGrain initialized)...")
-    muh_path = os.path.join(APKTOOL_DIR, "smali", "muh.smali")
-    with open(muh_path, "r", encoding="utf-8") as f:
+def patch_ndf_smali():
+    print("[*] Patching ndf.smali (Force TomteImageFinalizer and ensure TomteGrain initialized, was muh)...")
+    ndf_path = os.path.join(APKTOOL_DIR, "smali", "ndf.smali")
+    if not os.path.exists(ndf_path):
+        print("    [!] Warning: ndf.smali not found, skipping.")
+        return
+    with open(ndf_path, "r", encoding="utf-8") as f:
         content = f.read()
-
-    target = """    iget-object v0, p0, Lmuh;->d:Lj$/util/Optional;
-
-    const/4 v1, 0x0
-
-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v1
-
-    invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
-
-    move-result-object v0
-
-    check-cast v0, Ljava/lang/Boolean;
-
-    invoke-virtual {v0}, Ljava/lang/Boolean;->booleanValue()Z
-
-    move-result v0
-
-    if-nez v0, :cond_0
-
-    return-void
-
-    :cond_0"""
-
-    replacement = """    const-string v0, "PATCH_LOOKS"
-
-    const-string v1, "muh.a: Executing TomteImageFinalizer..."
-
-    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
-
-    :cond_0"""
-
-    if target in content:
-        content = content.replace(target, replacement)
-        print("    [+] muh.smali: TomteImageFinalizer executes unconditionally.")
 
     # Hook initTomteGrain before applyTomteImageFinalizer
     finalizer_call_target = """    invoke-static {p0}, Lcom/google/googlex/gcam/Gcam;->a(Lcom/google/googlex/gcam/Gcam;)J
@@ -2768,36 +3221,38 @@ def patch_muh_smali():
 
     if finalizer_call_target in content:
         content = content.replace(finalizer_call_target, finalizer_call_repl)
-        print("    [+] muh.smali: TomteInitHelper.initTomteGrain hooked before applyTomteImageFinalizer.")
+        with open(ndf_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] ndf.smali: TomteInitHelper.initTomteGrain hooked before applyTomteImageFinalizer.")
 
-    with open(muh_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-def patch_ioy_smali():
-    print("[*] Patching ioy.smali (Bypass catshark check to provide selected Look to Lost.p)...")
-    ioy_path = os.path.join(APKTOOL_DIR, "smali", "ioy.smali")
-    with open(ioy_path, "r", encoding="utf-8") as f:
+def patch_jex_smali():
+    print("[*] Patching jex.smali (Bypass catshark check to provide selected Look to Lost.p, was ioy)...")
+    jex_path = os.path.join(APKTOOL_DIR, "smali_classes2", "jex.smali")
+    if not os.path.exists(jex_path):
+        print("    [!] Warning: jex.smali not found, skipping.")
+        return
+    with open(jex_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     # Case 14 (:pswitch_5 - Night Sight mode)
     target_5 = """    :pswitch_5
-    iget-object v0, p0, Lioy;->a:Laccg;
+    iget-object v0, p0, Ljex;->a:Lacnw;
 
-    invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
+    invoke-interface {v0}, Lacnw;->a()Ljava/lang/Object;
 
     move-result-object v0
 
-    check-cast v0, Lisk;
+    check-cast v0, Lizk;
 
-    sget-object v1, Lsql;->g:Lsql;
+    sget-object v1, Ltbp;->g:Ltbp;
 
-    invoke-virtual {v0, v1}, Lisk;->a(Lsql;)Z
+    invoke-virtual {v0, v1}, Lizk;->a(Ltbp;)Z
 
     move-result v0
 
     if-eqz v0, :cond_a
 
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2813,7 +3268,7 @@ def patch_ioy_smali():
     return-object p0"""
 
     replacement_5 = """    :pswitch_5
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2825,23 +3280,23 @@ def patch_ioy_smali():
 
     # Case 13 (:pswitch_6 - 12MP Photo mode)
     target_6 = """    :pswitch_6
-    iget-object v0, p0, Lioy;->a:Laccg;
+    iget-object v0, p0, Ljex;->a:Lacnw;
 
-    invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
+    invoke-interface {v0}, Lacnw;->a()Ljava/lang/Object;
 
     move-result-object v0
 
-    check-cast v0, Lisk;
+    check-cast v0, Lizk;
 
-    sget-object v1, Lsql;->b:Lsql;
+    sget-object v1, Ltbp;->b:Ltbp;
 
-    invoke-virtual {v0, v1}, Lisk;->a(Lsql;)Z
+    invoke-virtual {v0, v1}, Lizk;->a(Ltbp;)Z
 
     move-result v0
 
     if-eqz v0, :cond_b
 
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2857,7 +3312,7 @@ def patch_ioy_smali():
     return-object p0"""
 
     replacement_6 = """    :pswitch_6
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2869,19 +3324,19 @@ def patch_ioy_smali():
 
     # Case 12 (:pswitch_7 - Portrait / Other mode)
     target_7 = """    :pswitch_7
-    iget-object v0, p0, Lioy;->a:Laccg;
+    iget-object v0, p0, Ljex;->a:Lacnw;
 
-    invoke-interface {v0}, Laccg;->a()Ljava/lang/Object;
+    invoke-interface {v0}, Lacnw;->a()Ljava/lang/Object;
 
     move-result-object v0
 
-    check-cast v0, Lisk;
+    check-cast v0, Lizk;
 
-    iget-boolean v0, v0, Lisk;->a:Z
+    iget-boolean v0, v0, Lizk;->a:Z
 
     if-eqz v0, :cond_c
 
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2897,7 +3352,7 @@ def patch_ioy_smali():
     return-object p0"""
 
     replacement_7 = """    :pswitch_7
-    iget-object p0, p0, Lioy;->b:Laccg;
+    iget-object p0, p0, Ljex;->b:Lacnw;
 
     check-cast p0, Ling;
 
@@ -2918,178 +3373,180 @@ def patch_ioy_smali():
         content = content.replace(target_7, replacement_7)
         patched = True
 
-    with open(ioy_path, "w", encoding="utf-8") as f:
+    with open(jex_path, "w", encoding="utf-8") as f:
         f.write(content)
     if patched or (replacement_5 in content and replacement_6 in content and replacement_7 in content):
-        print("    [+] ioy.smali patched: selected look always provided to Lost.p for Photo (12MP), Night Sight, and Portrait.")
+        print("    [+] jex.smali patched: selected look always provided to Lost.p for Photo (12MP), Night Sight, and Portrait.")
     else:
-        print("    [!] Warning: ioy.smali targets not found.")
+        print("    [!] Warning: jex.smali targets not found.")
 
-def patch_mla_smali():
-    print("[*] Patching mla.smali (Applying effective Look ID to ShotParams_tomte_type)...")
-    mla_path = os.path.join(APKTOOL_DIR, "smali", "mla.smali")
-    with open(mla_path, "r", encoding="utf-8") as f:
+def patch_mtt_smali():
+    print("[*] Patching mtt.smali (Applying effective Look ID to ShotParams_tomte_type, was mla)...")
+    mtt_path = os.path.join(APKTOOL_DIR, "smali", "mtt.smali")
+    if not os.path.exists(mtt_path):
+        print("    [!] Warning: mtt.smali not found.")
+        return
+    with open(mtt_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    if "cond_skip_tomte_log" not in content:
-        pattern = r"(check-cast v7, Ljava/lang/Integer;\s+invoke-virtual \{v7\}, Ljava/lang/Integer;->intValue\(\)I\s+move-result v7\s+)(?:invoke-static \{v7\}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId\(I\)I\s+move-result v7\s+)?(iget-wide v11, v9, Lcom/google/googlex/gcam/ShotParams;->a:J\s+invoke-static \{v11, v12, v9, v7\}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_tomte_type_set\(JLcom/google/googlex/gcam/ShotParams;I\)V)"
-        repl = r"""\1invoke-static {v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
+    # Hook ShotParams_tomte_type_set with effective look ID
+    target_tomte_set = """    check-cast v7, Ljava/lang/Integer;
 
-    move-result v7
+    invoke-virtual {v7}, Ljava/lang/Integer;->intValue()I
 
-    \2
+    move-result v15
 
-    if-eqz v7, :cond_skip_tomte_log
+    iget-wide v7, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
 
-    const-string v11, "PATCH_LOOKS"
+    invoke-static {v7, v8, v9, v15}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_tomte_type_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
 
-    new-instance v12, Ljava/lang/StringBuilder;
+    repl_tomte_set = """    check-cast v7, Ljava/lang/Integer;
 
-    const-string v15, "ShotParams_tomte_type_set successfully applied type="
+    invoke-virtual {v7}, Ljava/lang/Integer;->intValue()I
 
-    invoke-direct {v12, v15}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
+    move-result v15
 
-    invoke-virtual {v12, v7}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+    invoke-static {v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
 
-    invoke-virtual {v12}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result v15
 
-    move-result-object v12
+    iget-wide v7, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
 
-    invoke-static {v11, v12}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+    invoke-static {v7, v8, v9, v15}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_tomte_type_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
 
-    :cond_skip_tomte_log"""
-        content, _ = re.subn(pattern, repl, content, count=1)
+    if target_tomte_set in content:
+        content = content.replace(target_tomte_set, repl_tomte_set, 1)
 
-    # Also patch mla->q (TomteMetadata)
-    if "TomteMetadata" not in content or "getEffectiveLookId" not in content[content.find("iget v10, v9, Lqlh;->d:I"):content.find("iget v10, v9, Lqlh;->d:I")+150]:
-        q_pattern = r"(check-cast v9, Lqlh;\s+iget v10, v9, Lqlh;->d:I\s+)(?:invoke-static \{v10\}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId\(I\)I\s+move-result v10\s+)?(new-instance v11, Lqmc;)"
-        q_repl = r"""\1invoke-static {v10}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
+    # Hook TomteMetadata with effective look ID
+    target_metadata = """    check-cast v9, Lqvj;
+
+    iget v10, v9, Lqvj;->d:I
+
+    new-instance v11, Lqwk;"""
+
+    repl_metadata = """    check-cast v9, Lqvj;
+
+    iget v10, v9, Lqvj;->d:I
+
+    invoke-static {v10}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
 
     move-result v10
 
-    \2"""
-        content, _ = re.subn(q_pattern, q_repl, content, count=1)
+    new-instance v11, Lqwk;"""
 
-    with open(mla_path, "w", encoding="utf-8") as f:
+    if target_metadata in content:
+        content = content.replace(target_metadata, repl_metadata, 1)
+
+    with open(mtt_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] mla.smali patched: getEffectiveLookId hooked for ShotParams and TomteMetadata.")
+    print("    [+] mtt.smali patched: getEffectiveLookId hooked for ShotParams and TomteMetadata.")
 
 
-def patch_pvz_smali():
-    print("[*] Restoring and configuring pvz.smali (Stock Gouda configuration)...")
-    clean_pvz = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pvz.smali")
-    dest_pvz = os.path.join(APKTOOL_DIR, "smali", "pvz.smali")
-    if os.path.exists(clean_pvz):
-        shutil.copy2(clean_pvz, dest_pvz)
-        print("    [+] pvz.smali: Restored clean stock file.")
-    else:
-        print("    [!] Warning: clean pvz.smali not found in scratch/clean_apktool.")
+def patch_qfr_smali():
+    print("[*] Patching qfr.smali (Gouda TPU configuration, was pvz)...")
+    qfr_path = os.path.join(APKTOOL_DIR, "smali", "qfr.smali")
+    if not os.path.exists(qfr_path):
+        print("    [!] Warning: qfr.smali not found.")
         return
-
-    with open(dest_pvz, "r", encoding="utf-8") as f:
+    with open(qfr_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Force all TPU flags (n, o, p, q, r) to false so PortraitProcessorInterface runs on CPU/GPU without EdgeTPU access error
-    target_tpu_pvz = """    sget-object v0, Lkkn;->aj:Lkiz;
+    target_tpu = """    sget-object v0, Lkrg;->aj:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
-
-    move-result v0
-
-    iput-boolean v0, p0, Lpvz;->n:Z
-
-    sget-object v0, Lkkn;->ak:Lkiz;
-
-    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
 
     move-result v0
 
-    iput-boolean v0, p0, Lpvz;->o:Z
+    iput-boolean v0, p0, Lqfr;->n:Z
 
-    sget-object v0, Lkkn;->am:Lkiz;
+    sget-object v0, Lkrg;->ak:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
-
-    move-result v0
-
-    iput-boolean v0, p0, Lpvz;->p:Z
-
-    sget-object v0, Lkkn;->al:Lkiz;
-
-    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
 
     move-result v0
 
-    iput-boolean v0, p0, Lpvz;->q:Z
+    iput-boolean v0, p0, Lqfr;->o:Z
 
-    sget-object v0, Lkkn;->ar:Lkiz;
+    sget-object v0, Lkrg;->am:Lkps;
 
-    invoke-virtual {p1, v0}, Lklm;->q(Lkiz;)Z
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
 
     move-result v0
 
-    iput-boolean v0, p0, Lpvz;->r:Z"""
+    iput-boolean v0, p0, Lqfr;->p:Z
 
-    repl_tpu_pvz = """    const/4 v0, 0x0
+    sget-object v0, Lkrg;->al:Lkps;
 
-    iput-boolean v0, p0, Lpvz;->n:Z
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
 
-    iput-boolean v0, p0, Lpvz;->o:Z
+    move-result v0
 
-    iput-boolean v0, p0, Lpvz;->p:Z
+    iput-boolean v0, p0, Lqfr;->q:Z
 
-    iput-boolean v0, p0, Lpvz;->q:Z
+    sget-object v0, Lkrg;->ar:Lkps;
 
-    iput-boolean v0, p0, Lpvz;->r:Z"""
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
 
-    if target_tpu_pvz in content:
-        content = content.replace(target_tpu_pvz, repl_tpu_pvz, 1)
-        print("    [+] pvz.smali: Disabled TPU flags (n, o, p, q, r = false).")
+    move-result v0
+
+    iput-boolean v0, p0, Lqfr;->r:Z"""
+
+    repl_tpu = """    const/4 v0, 0x0
+
+    iput-boolean v0, p0, Lqfr;->n:Z
+
+    iput-boolean v0, p0, Lqfr;->o:Z
+
+    iput-boolean v0, p0, Lqfr;->p:Z
+
+    iput-boolean v0, p0, Lqfr;->q:Z
+
+    iput-boolean v0, p0, Lqfr;->r:Z"""
+
+    if target_tpu in content:
+        content = content.replace(target_tpu, repl_tpu, 1)
+        with open(qfr_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] qfr.smali: Disabled TPU flags (n, o, p, q, r = false).")
+    elif "const/4 v0, 0x0\n\n    iput-boolean v0, p0, Lqfr;->n:Z" in content:
+        print("    [+] qfr.smali: TPU flags already disabled.")
     else:
-        print("    [!] Warning: pvz.smali TPU target block not found.")
+        print("    [!] Warning: qfr.smali TPU target block not found.")
 
-    with open(dest_pvz, "w", encoding="utf-8") as f:
-        f.write(content)
 
-def patch_pwh_smali():
-    print("[*] Restoring and configuring pwh.smali (Portrait capture task)...")
-    clean_pwh = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali_classes2", "pwh.smali")
-    dest_pwh = os.path.join(APKTOOL_DIR, "smali_classes2", "pwh.smali")
-    if os.path.exists(clean_pwh):
-        shutil.copy2(clean_pwh, dest_pwh)
-        print("    [+] pwh.smali: Restored clean stock file.")
-    else:
-        print("    [!] Warning: clean pwh.smali not found in scratch/clean_apktool.")
+def patch_qfz_smali():
+    print("[*] Patching qfz.smali (Portrait monocular depth loader, was pwh)...")
+    qfz_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qfz.smali")
+    if not os.path.exists(qfz_path):
+        print("    [!] Warning: qfz.smali not found.")
         return
-
-    with open(dest_pwh, "r", encoding="utf-8") as f:
+    with open(qfz_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Allow monocular depth model to load unconditionally for all cameras
-    target_mono_check = """    if-eqz v14, :cond_2
+    target_mono = """    if-eqz v14, :cond_2
 
     :try_start_3
-    invoke-virtual {v5}, Luvf;->l()Luve;
+    invoke-virtual {v5}, Lvhe;->m()Lvhd;
 
     move-result-object v14
 
     move-object/from16 v16, v5
 
-    sget-object v5, Luve;->a:Luve;
+    sget-object v5, Lvhd;->a:Lvhd;
 
-    invoke-virtual {v14, v5}, Luve;->equals(Ljava/lang/Object;)Z
+    invoke-virtual {v14, v5}, Lvhd;->equals(Ljava/lang/Object;)Z
 
     move-result v5
 
     if-eqz v5, :cond_3
 
-    sget-object v5, Lkkn;->u:Lkiz;
+    sget-object v5, Lkrg;->u:Lkps;
 
-    invoke-virtual {v13, v5}, Lklm;->h(Lkiz;)Ljava/lang/String;
+    invoke-virtual {v13, v5}, Lksf;->h(Lkps;)Ljava/lang/String;
 
     move-result-object v5
 
-    invoke-static {v5}, Lxiw;->E(Ljava/lang/String;)Ljava/lang/String;
+    invoke-static {v5}, Lxum;->ag(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v5
 
@@ -3101,74 +3558,116 @@ def patch_pwh_smali():
     :cond_3
     const-string v5, \"\""""
 
-    repl_mono_check = """    move-object/from16 v16, v5
+    repl_mono = """    move-object/from16 v16, v5
 
     :try_start_3
-    sget-object v5, Lkkn;->u:Lkiz;
+    sget-object v5, Lkrg;->u:Lkps;
 
-    invoke-virtual {v13, v5}, Lklm;->h(Lkiz;)Ljava/lang/String;
+    invoke-virtual {v13, v5}, Lksf;->h(Lkps;)Ljava/lang/String;
 
     move-result-object v5
 
-    invoke-static {v5}, Lxiw;->E(Ljava/lang/String;)Ljava/lang/String;
+    invoke-static {v5}, Lxum;->ag(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v5"""
 
-    if target_mono_check in content:
-        content = content.replace(target_mono_check, repl_mono_check, 1)
-        print("    [+] pwh.smali: Enabled monocular depth model loading for all cameras.")
+    if target_mono in content:
+        content = content.replace(target_mono, repl_mono, 1)
+        with open(qfz_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] qfz.smali: Monocular depth model loading enabled for all cameras.")
+    elif "sget-object v5, Lkrg;->u:Lkps;\n\n    invoke-virtual {v13, v5}, Lksf;->h(Lkps;)Ljava/lang/String;" in content:
+        print("    [+] qfz.smali: Monocular model loading already enabled.")
     else:
-        print("    [!] Warning: pwh.smali monocular target block not found.")
+        print("    [!] Warning: qfz.smali monocular target block not found.")
 
-    with open(dest_pwh, "w", encoding="utf-8") as f:
-        f.write(content)
 
-def patch_pwm_smali():
-    print("[*] Restoring and configuring pwm.smali (PortraitRequest dispatch)...")
-    clean_pwm = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali_classes2", "pwm.smali")
-    dest_pwm = os.path.join(APKTOOL_DIR, "smali_classes2", "pwm.smali")
-    if os.path.exists(clean_pwm):
-        shutil.copy2(clean_pwm, dest_pwm)
-        print("    [+] pwm.smali: Restored clean stock file.")
-    else:
-        print("    [!] Warning: clean pwm.smali not found in scratch/clean_apktool.")
+def patch_qge_smali():
+    print("[*] Patching qge.smali (PortraitRequest dispatch, was pwm)...")
+    qge_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qge.smali")
+    if not os.path.exists(qge_path):
+        print("    [!] Warning: qge.smali not found.")
         return
-
-    with open(dest_pwm, "r", encoding="utf-8") as f:
+    with open(qge_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Route ALL portrait captures (front and rear cameras) to znc.e (kMonocular)
-    start_marker = "    if-eqz v8, :cond_3"
-    end_marker = "    :cond_b\n    :goto_2"
+    start_marker = "    if-eqz v6, :cond_3"
+    end_marker = "    :cond_c\n    :goto_2"
 
     idx1 = content.find(start_marker)
     idx2 = content.find(end_marker)
 
     if idx1 != -1 and idx2 != -1 and idx1 < idx2:
-        end_idx = idx2 + len("    :cond_b\n")
-        repl = """    sget-object v6, Lznc;->e:Lznc;
+        end_idx = idx2 + len("    :cond_c\n")
+        repl = """    sget-object v6, Lzzd;->e:Lzzd;
 
-    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lznc;)V\n\n"""
+    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V\n\n"""
         content = content[:idx1] + repl + content[end_idx:]
-        print("    [+] pwm.smali: Successfully routed all portrait captures to znc.e (kMonocular).")
+        print("    [+] qge.smali: Successfully routed all portrait captures to zzd.e (kMonocular).")
+    elif "sget-object v6, Lzzd;->e:Lzzd;" in content and "invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V" in content:
+        print("    [+] qge.smali: Already routed to zzd.e (kMonocular).")
     else:
-        print("    [!] Warning: pwm.smali dispatch target block not found.")
+        print("    [!] Warning: qge.smali dispatch target block not found.")
 
-    with open(dest_pwm, "w", encoding="utf-8") as f:
+    # Force apply_portrait_matting_set = true for both front and rear captures
+    target_matting = """    :cond_11
+    :goto_7
+    const/4 v6, 0x1
+
+    goto :goto_8
+
+    :cond_12
+    const/4 v6, 0x0"""
+
+    repl_matting = """    :cond_11
+    :goto_7
+    :cond_12
+    const/4 v6, 0x1"""
+
+    if target_matting in content:
+        content = content.replace(target_matting, repl_matting, 1)
+        print("    [+] qge.smali: Forced apply_portrait_matting_set = true for all cameras.")
+    elif ":cond_12\n    const/4 v6, 0x1" in content:
+        print("    [+] qge.smali: Matting already forced to true.")
+    else:
+        print("    [!] Warning: qge.smali matting target block not found.")
+
+    # Disable Lancet upscaler (enable_lancet_upscaler_set = false)
+    target_lancet = """    iget-boolean v6, v8, Lqfr;->A:Z
+
+    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
+
+    repl_lancet = """    const/4 v6, 0x0
+
+    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
+
+    if target_lancet in content:
+        content = content.replace(target_lancet, repl_lancet, 1)
+        print("    [+] qge.smali: Disabled TPU Lancet upscaler.")
+    elif "const/4 v6, 0x0\n\n    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J\n\n    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set" in content:
+        print("    [+] qge.smali: Lancet upscaler already disabled.")
+    else:
+        print("    [!] Warning: qge.smali lancet target block not found.")
+
+    with open(qge_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-def patch_pwp_smali():
-    print("[*] Restoring and hardening pwp.smali (PortraitSegmenterManager)...")
-    clean_pwp = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pwp.smali")
-    dest_pwp = os.path.join(APKTOOL_DIR, "smali", "pwp.smali")
-    if not os.path.exists(clean_pwp):
-        print("    [!] Warning: clean pwp.smali not found in scratch/clean_apktool.")
+
+def patch_qgh_smali():
+    print("[*] Patching qgh.smali (PortraitSegmenterManager, was pwp)...")
+    qgh_path = os.path.join(APKTOOL_DIR, "smali", "qgh.smali")
+    if not os.path.exists(qgh_path):
+        print("    [!] Warning: qgh.smali not found.")
         return
-    with open(clean_pwp, "r", encoding="utf-8") as f:
+    with open(qgh_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 1. In pwp.a(): If !this.e, invoke this.b() synchronously before returning handle
-    target_a = """    iget-boolean v1, p0, Lpwp;->e:Z
+    # 1. In qgh.a(): If !this.e, invoke this.b() synchronously before returning handle
+    target_a = """    iget-boolean v1, p0, Lqgh;->e:Z
 
     if-nez v1, :cond_0
 
@@ -3178,13 +3677,13 @@ def patch_pwp_smali():
 
     return-wide v0"""
 
-    repl_a = """    iget-boolean v1, p0, Lpwp;->e:Z
+    repl_a = """    iget-boolean v1, p0, Lqgh;->e:Z
 
     if-nez v1, :cond_0
 
-    invoke-virtual {p0}, Lpwp;->b()V
+    invoke-virtual {p0}, Lqgh;->b()V
 
-    iget-boolean v1, p0, Lpwp;->e:Z
+    iget-boolean v1, p0, Lqgh;->e:Z
 
     if-nez v1, :cond_0
 
@@ -3196,40 +3695,44 @@ def patch_pwp_smali():
 
     if target_a in content:
         content = content.replace(target_a, repl_a, 1)
-        print("    [+] pwp.smali: Added synchronous b() initialization in a().")
+        print("    [+] qgh.smali: Added synchronous b() initialization in a().")
 
-    # 2. In pwp.b(): Default model name to 1c33 stock model if null or empty
-    target_b_model = """    iget-object v0, v1, Lpwp;->g:Landroid/content/Context;
+    # 2. In qgh.b(): Default model name to 1c33 stock model if null or empty
+    target_b_model = """    iget-object v0, v1, Lqgh;->g:Landroid/content/Context;
 
-    iget-object v3, v1, Lpwp;->b:Ljava/lang/String;"""
+    iget-object v3, v1, Lqgh;->b:Ljava/lang/String;
 
-    repl_b_model = """    iget-object v0, v1, Lpwp;->g:Landroid/content/Context;
+    iget-object v4, v1, Lqgh;->f:Luxt;"""
 
-    iget-object v3, v1, Lpwp;->b:Ljava/lang/String;
+    repl_b_model = """    iget-object v0, v1, Lqgh;->g:Landroid/content/Context;
 
-    if-eqz v3, :cond_pwp_default_model
+    iget-object v3, v1, Lqgh;->b:Ljava/lang/String;
+
+    if-eqz v3, :cond_qgh_default_model
 
     invoke-virtual {v3}, Ljava/lang/String;->isEmpty()Z
 
     move-result v4
 
-    if-nez v4, :cond_pwp_default_model
+    if-nez v4, :cond_qgh_default_model
 
-    goto :cond_pwp_model_ok
+    goto :cond_qgh_model_ok
 
-    :cond_pwp_default_model
+    :cond_qgh_default_model
     const-string v3, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
 
-    iput-object v3, v1, Lpwp;->b:Ljava/lang/String;
+    iput-object v3, v1, Lqgh;->b:Ljava/lang/String;
 
-    :cond_pwp_model_ok"""
+    :cond_qgh_model_ok
+
+    iget-object v4, v1, Lqgh;->f:Luxt;"""
 
     if target_b_model in content:
         content = content.replace(target_b_model, repl_b_model, 1)
-        print("    [+] pwp.smali: Added 1c33 stock model fallback in b().")
+        print("    [+] qgh.smali: Added 1c33 stock model fallback in b().")
 
-    # 3. In pwp.b(): If initial initSegmenter returns false (e.g. TPU failure), retry with CPU/GPU
-    target_init = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
+    # 3. In qgh.b(): CPU/GPU retry
+    target_init = """    invoke-interface/range {v6 .. v17}, Laadw;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
@@ -3237,13 +3740,13 @@ def patch_pwp_smali():
 
     if-nez v13, :cond_5"""
 
-    repl_init = """    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
+    repl_init = """    invoke-interface/range {v6 .. v17}, Laadw;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
     if-nez v0, :cond_check_mask_reasonable
 
-    invoke-interface {v6}, Lzrz;->release()V
+    invoke-interface {v6}, Laadw;->release()V
 
     invoke-virtual {v3}, Ljava/nio/ByteBuffer;->clear()Ljava/nio/Buffer;
 
@@ -3251,7 +3754,7 @@ def patch_pwp_smali():
 
     const/4 v0, 0x0
 
-    iput-boolean v0, v1, Lpwp;->n:Z
+    iput-boolean v0, v1, Lqgh;->n:Z
 
     const/16 v16, 0x0
 
@@ -3259,7 +3762,7 @@ def patch_pwp_smali():
 
     const/4 v13, 0x0
 
-    invoke-interface/range {v6 .. v17}, Lzrz;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
+    invoke-interface/range {v6 .. v17}, Laadw;->initSegmenter(JJLjava/lang/String;Ljava/lang/String;ZZZZZ)Z
 
     move-result v0
 
@@ -3270,21 +3773,189 @@ def patch_pwp_smali():
 
     if target_init in content:
         content = content.replace(target_init, repl_init, 1)
-        print("    [+] pwp.smali: Added CPU/GPU fallback retry in b().")
+        print("    [+] qgh.smali: Added CPU/GPU fallback retry in b().")
 
-    with open(dest_pwp, "w", encoding="utf-8") as f:
+    with open(qgh_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] pwp.smali: Hardened PortraitSegmenterManager applied.")
+    print("    [+] qgh.smali: Hardened PortraitSegmenterManager applied.")
 
-def patch_pwo_smali():
-    print("[*] Restoring pwo.smali (Stock PortraitRelighting)...")
-    clean_pwo = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "pwo.smali")
-    dest_pwo = os.path.join(APKTOOL_DIR, "smali", "pwo.smali")
-    if os.path.exists(clean_pwo):
-        shutil.copy2(clean_pwo, dest_pwo)
-        print("    [+] pwo.smali: Restored 100% clean stock.")
-    else:
-        print("    [!] Warning: clean pwo.smali not found in scratch/clean_apktool.")
+
+def patch_mqs_smali():
+    print("[*] Patching mqs.smali (TomteGrain startup initialization, was mia)...")
+    mqs_path = os.path.join(APKTOOL_DIR, "smali", "mqs.smali")
+    if not os.path.exists(mqs_path):
+        print("    [!] Warning: mqs.smali not found.")
+        return
+    with open(mqs_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """    iget-boolean v0, p0, Lmqs;->f:Z
+
+    if-nez v0, :cond_0
+
+    goto/16 :goto_2"""
+
+    if target in content:
+        content = content.replace(target, "    goto :cond_0", 1)
+        with open(mqs_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] mqs.smali: TomteGrain#initialize enabled unconditionally at startup.")
+    elif "goto :cond_0\n\n    :cond_0\n    iget-object v0, p0, Lmqs;->g:Lksf;" in content:
+        print("    [+] mqs.smali: Already patched for startup initialization.")
+
+
+def patch_nzr_and_mpd_smali():
+    print("[*] Patching nzr.smali and mpd.smali (Fine-Tuning sliders visibility)...")
+    nzr_path = os.path.join(APKTOOL_DIR, "smali", "nzr.smali")
+    if os.path.exists(nzr_path):
+        with open(nzr_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Update I(Lnzx;)Z to recognize nzx.n
+        target_i = """    sget-object v0, Lnzx;->m:Lnzx;
+
+    if-ne p0, v0, :cond_0
+
+    goto :goto_0"""
+        repl_i = """    sget-object v0, Lnzx;->m:Lnzx;
+
+    if-eq p0, v0, :cond_1
+
+    sget-object v0, Lnzx;->n:Lnzx;
+
+    if-ne p0, v0, :cond_0
+
+    goto :goto_0"""
+        if target_i in content:
+            content = content.replace(target_i, repl_i, 1)
+
+        # Remove suppression in v(Lnzx;Z)V
+        target_v = """.method public final declared-synchronized v(Lnzx;Z)V
+    .locals 2
+
+    monitor-enter p0
+
+    const/4 v0, 0x0
+
+    if-eqz p2, :cond_0
+
+    :try_start_0
+    iget-object p2, p0, Lnzr;->n:Lusf;
+
+    invoke-interface {p2}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p2
+
+    check-cast p2, Ljava/lang/Boolean;
+
+    invoke-virtual {p2}, Ljava/lang/Boolean;->booleanValue()Z
+
+    move-result p2
+
+    invoke-static {p1}, Lnzr;->I(Lnzx;)Z
+
+    move-result v1
+
+    if-ne p2, v1, :cond_0
+
+    const/4 v0, 0x1
+
+    goto :goto_0
+
+    :catchall_0
+    move-exception p1
+
+    goto :goto_1
+
+    :cond_0
+    :goto_0
+    iget-object p2, p0, Lnzr;->k:Loba;
+
+    invoke-virtual {p2, p1, v0}, Loba;->g(Lnzx;Z)V
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    monitor-exit p0
+
+    return-void
+
+    :goto_1
+    :try_start_1
+    monitor-exit p0
+    :try_end_1
+    .catchall {:try_start_1 .. :try_end_1} :catchall_0
+
+    throw p1
+.end method"""
+
+        repl_v = """.method public final declared-synchronized v(Lnzx;Z)V
+    .locals 1
+
+    monitor-enter p0
+
+    :try_start_0
+    iget-object v0, p0, Lnzr;->k:Loba;
+
+    invoke-virtual {v0, p1, p2}, Loba;->g(Lnzx;Z)V
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    monitor-exit p0
+
+    return-void
+
+    :catchall_0
+    move-exception p1
+
+    monitor-exit p0
+
+    throw p1
+.end method"""
+
+        if target_v in content:
+            content = content.replace(target_v, repl_v, 1)
+
+        with open(nzr_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] nzr.smali: Fine-tuning sliders visibility unsuppressed.")
+
+    # mpd.smali
+    mpd_path = os.path.join(APKTOOL_DIR, "smali", "mpd.smali")
+    if os.path.exists(mpd_path):
+        with open(mpd_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_mpd = """    iget-object p1, p0, Lnzr;->n:Lusf;
+
+    invoke-interface {p1}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p1
+
+    check-cast p1, Ljava/lang/Boolean;
+
+    invoke-virtual {p1}, Ljava/lang/Boolean;->booleanValue()Z
+
+    move-result p1
+
+    if-eqz p1, :cond_e
+
+    invoke-virtual {p0}, Lnzr;->m()V
+
+    invoke-virtual {p0}, Lnzr;->C()V
+
+    return-void"""
+
+        repl_mpd = """    invoke-virtual {p0}, Lnzr;->m()V
+
+    invoke-virtual {p0}, Lnzr;->C()V
+
+    return-void"""
+
+        if target_mpd in content:
+            content = content.replace(target_mpd, repl_mpd, 1)
+            with open(mpd_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] mpd.smali: Controls tray refresh hooked on Look selection.")
 
 def patch_kgy_smali():
     print("[*] Patching kgy.smali (Pixel 8 Pro: 10x button across Photo, Night Sight, Video)...")
@@ -3308,7 +3979,7 @@ def patch_kgy_smali():
 
     invoke-virtual {v3, v10}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v10, 0x41200000    # 10.0f
 
@@ -3342,7 +4013,7 @@ def patch_kgy_smali():
 
     invoke-virtual {v3, v11}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v11, 0x41f00000    # 30.0f
 
@@ -3359,17 +4030,17 @@ def patch_kgy_smali():
     # 2. Night Sight & Video mode buttons
     ns_target = """    sget-object v5, Lyri;->g:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
     ns_repl = """    sget-object v5, Lyri;->g:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
@@ -3379,17 +4050,17 @@ def patch_kgy_smali():
 
     v_target1 = """    sget-object v5, Lyri;->K:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
     v_repl1 = """    sget-object v5, Lyri;->K:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
@@ -3398,17 +4069,17 @@ def patch_kgy_smali():
 
     v_target2 = """    sget-object v5, Lyri;->i:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
     v_repl2 = """    sget-object v5, Lyri;->i:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""
 
@@ -3429,61 +4100,61 @@ def patch_kgx_smali():
     replacements = [
         ("""    sget-object v5, Lyri;->g:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
          """    sget-object v5, Lyri;->g:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
 
         ("""    sget-object v5, Lyri;->R:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
          """    sget-object v5, Lyri;->R:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
 
         ("""    sget-object v5, Lyri;->K:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
          """    sget-object v5, Lyri;->K:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;"""),
 
         ("""    sget-object v5, Lyri;->i:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static {v6, v7, v8, v9}, Lyeh;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""",
          """    sget-object v5, Lyri;->i:Lyri;
 
-    invoke-static {v5, v3}, Lejn;->n(Lyri;Laaxk;)V
+    invoke-static {v5, v3}, Letp;->n(Lyri;Laaxk;)V
 
-    invoke-static {v3}, Lejn;->m(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->m(Laaxk;)Labae;
 
     invoke-static/range {v6 .. v10}, Lyeh;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyeh;""")
     ]
@@ -3510,7 +4181,7 @@ def patch_khk_smali():
 
     invoke-virtual {v3, v10}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v10, 0x41200000    # 10.0f
 
@@ -3538,7 +4209,7 @@ def patch_khk_smali():
 
     invoke-virtual {v3, v11}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v11, 0x41f00000    # 30.0f
 
@@ -3573,7 +4244,7 @@ def patch_kgs_smali():
 
     invoke-virtual {v3, v10}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v10, 0x41200000    # 10.0f
 
@@ -3601,7 +4272,7 @@ def patch_kgs_smali():
 
     invoke-virtual {v3, v11}, Laaxk;->v(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lejn;->l(Laaxk;)Labae;
+    invoke-static {v3}, Letp;->l(Laaxk;)Labae;
 
     const/high16 v11, 0x41f00000    # 30.0f
 
@@ -3622,95 +4293,161 @@ def patch_kgs_smali():
         f.write(content)
     print("    [+] kgs.smali: 10x button added for Pixel 9 Pro Fold across all modes.")
 
-def patch_kha_smali():
-    print("[*] Restoring kha.smali (Stock zoom stops, no 5x Portrait)...")
-    clean_kha = os.path.join(ROOT_DIR, "scratch", "clean_apktool", "smali", "kha.smali")
-    dest_kha = os.path.join(APKTOOL_DIR, "smali", "kha.smali")
-    if os.path.exists(clean_kha):
-        shutil.copy2(clean_kha, dest_kha)
-        print("    [+] kha.smali: Restored 100% clean stock (stock 1.5x / 2x stops).")
-    else:
-        print("    [!] Warning: clean kha.smali not found in scratch/clean_apktool.")
+def patch_zoom_controllers():
+    print("[*] Patching 10x Quick Zoom button controllers (knq, knk, kmd, kmo)...")
 
-def patch_kfl_smali():
-    print("[*] Patching kfl.smali (Dynamically ensuring 10x Quick Zoom button in button list)...")
-    kfl_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kfl.smali")
-    if not os.path.exists(kfl_path):
-        print("    [!] Warning: kfl.smali not found.")
-        return
-    with open(kfl_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    target_photo = """    invoke-static {v6, v7, v8, v9}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
 
-    # Revert dead-code hook if present
-    if ":cond_skip_10x\n" in content or ":cond_skip_10x\r\n" in content:
-        old_full_pattern = re.compile(r"    :cond_11\s+const/4 v5, 0x0\s+:goto_8\s+invoke-interface \{v1\}, Ljava/util/List;->isEmpty\(\)Z.*?    :cond_skip_10x\s+const/4 v5, 0x0\s+invoke-virtual \{v6, v1\}, Laaxk;->t\(Ljava/lang/Iterable;\)V", re.DOTALL)
-        content = old_full_pattern.sub("    :cond_11\n    const/4 v5, 0x0\n\n    :goto_8\n    invoke-virtual {v6, v1}, Laaxk;->t(Ljava/lang/Iterable;)V", content)
+    move-result-object v10
 
-    kfl_target = """    :cond_c
+    invoke-virtual {v3, v10}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;
+
+    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10"""
+
+    repl_photo = """    const/high16 v10, 0x41200000    # 10.0f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    invoke-static/range {v6 .. v10}, Lyqc;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v5
+
+    invoke-virtual {v3, v5}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;"""
+
+    target_other = """    invoke-static {v6, v7, v8, v9}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v3
+
+    invoke-virtual {v1, v3}, Labjo;->w(Ljava/lang/Iterable;)V"""
+
+    repl_other = """    invoke-static {v6, v7, v8, v9, v10}, Lyqc;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v3
+
+    invoke-virtual {v1, v3}, Labjo;->w(Ljava/lang/Iterable;)V"""
+
+    # 1. knq.smali (Pixel 8 Pro zoom configuration)
+    knq_path = os.path.join(APKTOOL_DIR, "smali_classes2", "knq.smali")
+    if os.path.exists(knq_path):
+        with open(knq_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if target_photo in content:
+            content = content.replace(target_photo, repl_photo)
+            print("    [+] knq.smali: 10x Quick Zoom added to Pixel 8 Pro Photo mode.")
+        elif "invoke-static/range {v6 .. v10}, Lyqc;->p" in content:
+            print("    [+] knq.smali: already patched for Photo mode.")
+        else:
+            print("    [!] Warning: knq.smali Photo mode target not found.")
+
+        if target_other in content:
+            content = content.replace(target_other, repl_other)
+            print("    [+] knq.smali: 10x Quick Zoom added to Pixel 8 Pro Night Sight, Video, and Slow-mo modes.")
+
+        with open(knq_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 2. knk.smali (Pixel 7 Pro zoom configuration)
+    knk_path = os.path.join(APKTOOL_DIR, "smali_classes2", "knk.smali")
+    if os.path.exists(knk_path):
+        with open(knk_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if target_photo in content:
+            content = content.replace(target_photo, repl_photo)
+            print("    [+] knk.smali: 10x Quick Zoom added to Pixel 7 Pro Photo mode.")
+        if target_other in content:
+            content = content.replace(target_other, repl_other)
+            print("    [+] knk.smali: 10x Quick Zoom added to Pixel 7 Pro Night Sight, Video, and Slow-mo modes.")
+
+        with open(knk_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 3. kmd.smali (Dynamic zoom stops listener, was kfl)
+    kmd_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kmd.smali")
+    if os.path.exists(kmd_path):
+        with open(kmd_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        kmd_target = """    :cond_b
     :goto_6
-    invoke-virtual {v6, v7}, Laaxk;->v(Ljava/lang/Iterable;)V"""
+    invoke-virtual {v1, v6}, Labjo;->w(Ljava/lang/Iterable;)V"""
 
-    kfl_repl = """    :cond_c
+        kmd_repl = """    :cond_b
     :goto_6
-    const/high16 v1, 0x40a00000    # 5.0f
+    const/high16 v2, 0x40a00000    # 5.0f
 
-    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
-    move-result-object v1
+    move-result-object v2
 
-    invoke-interface {v7, v1}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_skip_10x_kfl
-
-    const/high16 v1, 0x41200000    # 10.0f
-
-    invoke-static {v1, v13}, Ljava/lang/Float;->compare(FF)I
-
-    move-result v1
-
-    if-gtz v1, :cond_skip_10x_kfl
-
-    const/high16 v1, 0x41200000    # 10.0f
-
-    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v1
-
-    invoke-interface {v7, v1}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+    invoke-interface {v6, v2}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
 
     move-result v2
 
-    if-nez v2, :cond_skip_10x_kfl
+    if-eqz v2, :cond_skip_10x_kmd
 
-    invoke-interface {v7, v1}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+    const/high16 v2, 0x41200000    # 10.0f
 
-    :cond_skip_10x_kfl
-    invoke-virtual {v6, v7}, Laaxk;->v(Ljava/lang/Iterable;)V"""
+    invoke-static {v2, v13}, Ljava/lang/Float;->compare(FF)I
 
-    if kfl_target in content:
-        content = content.replace(kfl_target, kfl_repl)
-        print("    [+] kfl.smali: 10x Quick Zoom button dynamically generated when 5x is present and max zoom >= 10x.")
-    elif ":cond_skip_10x_kfl" in content:
-        print("    [+] kfl.smali: already patched with dynamic 10x hook.")
-    else:
-        print("    [!] Warning: kfl.smali target not found.")
+    move-result v2
 
-    with open(kfl_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    if-gtz v2, :cond_skip_10x_kmd
 
-def patch_kfw_smali():
-    print("[*] Patching kfw.smali (Adding 10x toggle to P and Q for Photo mode)...")
-    kfw_path = os.path.join(APKTOOL_DIR, "smali", "kfw.smali")
-    if not os.path.exists(kfw_path):
-        print("    [!] Warning: kfw.smali not found.")
-        return
-    with open(kfw_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    const/high16 v2, 0x41200000    # 10.0f
 
-    kfw_repl = """    :goto_a
-    iget-object v6, v0, Lkfw;->Q:Ljava/util/List;
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v6, v2}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-nez v5, :cond_skip_10x_kmd
+
+    invoke-interface {v6, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    :cond_skip_10x_kmd
+    invoke-virtual {v1, v6}, Labjo;->w(Ljava/lang/Iterable;)V"""
+
+        if kmd_target in content:
+            content = content.replace(kmd_target, kmd_repl)
+            print("    [+] kmd.smali: 10x Quick Zoom button dynamically generated when 5x is present and max zoom >= 10x.")
+        elif ":cond_skip_10x_kmd" in content:
+            print("    [+] kmd.smali: already patched with dynamic 10x hook.")
+        else:
+            print("    [!] Warning: kmd.smali target not found.")
+
+        with open(kmd_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 4. kmo.smali (Viewfinder zoom toggle button row manager, was kfw)
+    kmo_path = os.path.join(APKTOOL_DIR, "smali", "kmo.smali")
+    if os.path.exists(kmo_path):
+        with open(kmo_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        kmo_target = """    invoke-interface {v4, v5}, Ljava/util/List;->addAll(Ljava/util/Collection;)Z
+
+    :goto_a
+    const/4 v4, 0x1"""
+
+        kmo_repl = """    invoke-interface {v4, v5}, Ljava/util/List;->addAll(Ljava/util/Collection;)Z
+
+    :goto_a
+    iget-object v6, v0, Lkmo;->S:Ljava/util/List;
 
     const/high16 v8, 0x40a00000    # 5.0f
 
@@ -3722,7 +4459,7 @@ def patch_kfw_smali():
 
     move-result v8
 
-    if-eqz v8, :cond_skip_10x_kfw
+    if-eqz v8, :cond_skip_10x_kmo
 
     const/high16 v8, 0x41200000    # 10.0f
 
@@ -3732,45 +4469,37 @@ def patch_kfw_smali():
 
     invoke-interface {v6, v8}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
 
-    move-result v9
+    move-result v11
 
-    if-nez v9, :cond_skip_10x_kfw
+    if-nez v11, :cond_skip_10x_kmo
 
     invoke-interface {v6, v8}, Ljava/util/List;->add(Ljava/lang/Object;)Z
 
-    new-instance v6, Lkds;
+    new-instance v6, Lkkl;
 
     const-string v8, "10"
 
-    invoke-direct {v6, v8}, Lkds;-><init>(Ljava/lang/String;)V
+    const/4 v11, 0x0
 
-    iget-object v8, v0, Lkfw;->P:Lcgz;
+    invoke-direct {v6, v8, v11}, Lkkl;-><init>(Ljava/lang/String;Ljava/lang/String;)V
 
-    invoke-virtual {v8, v6}, Lcgz;->add(Ljava/lang/Object;)Z
+    iget-object v8, v0, Lkmo;->R:Lchy;
 
-    :cond_skip_10x_kfw
-    if-eq v13, v1, :cond_10"""
+    invoke-virtual {v8, v6}, Lchy;->add(Ljava/lang/Object;)Z
 
-    kfw_target = """    invoke-interface {v4, v5}, Ljava/util/List;->addAll(Ljava/util/Collection;)Z
+    :cond_skip_10x_kmo
+    const/4 v4, 0x1"""
 
-    :goto_a
-    if-eq v13, v1, :cond_10"""
+        if kmo_target in content:
+            content = content.replace(kmo_target, kmo_repl)
+            print("    [+] kmo.smali: 10x Quick Zoom button dynamically hooked in UI toggle row.")
+        elif ":cond_skip_10x_kmo" in content:
+            print("    [+] kmo.smali: already patched with dynamic 10x hook.")
+        else:
+            print("    [!] Warning: kmo.smali target not found.")
 
-    if kfw_target in content:
-        content = content.replace(kfw_target, kfw_repl)
-        print("    [+] kfw.smali: 10x Quick Zoom button successfully hooked in UI toggle row.")
-    elif "invoke-interface {v6, v8}, Ljava/util/List;->size()I" in content:
-        # Update existing older hook
-        old_hook_pat = re.compile(r"    :goto_a\s+iget-object v6, v0, Lkfw;->Q:Ljava/util/List;.*?    :cond_skip_10x_kfw\s+if-eq v13, v1, :cond_10", re.DOTALL)
-        content = old_hook_pat.sub(kfw_repl, content)
-        print("    [+] kfw.smali: updated to relaxed 10x Quick Zoom hook.")
-    elif ":cond_skip_10x_kfw" in content:
-        print("    [+] kfw.smali: already patched.")
-    else:
-        print("    [!] Warning: kfw.smali target not found.")
-
-    with open(kfw_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        with open(kmo_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
 def patch_qhm_smali():
     print("[*] Patching qhm.smali (Bypassing capability checks for Quick Access sliders)...")
@@ -4438,6 +5167,15 @@ def patch_brightness_shadows_controllers():
     invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
 
     :cond_skip_ev_rst_d
+    iget-object v0, p0, Lnrd;->t:Lppn;
+
+    if-eqz v0, :cond_skip_ppn_rst_d
+
+    invoke-virtual {v0}, Lppn;->f()V
+
+    invoke-virtual {v0}, Lppn;->g()V
+
+    :cond_skip_ppn_rst_d
     iget-object v0, p0, Lnrd;->n:Lnrf;
 
     const/4 v1, 0x0
@@ -4755,13 +5493,13 @@ def patch_brightness_shadows_controllers():
 
     invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
 
-    iget-object v0, p0, Lnrd;->p:Lrex;
+    iget-object v0, p0, Lnrd;->p:Lrpr;
 
     const/16 v1, 0x8
 
     float-to-double v2, p1
 
-    invoke-virtual {v0, p3, v1, v2, v3}, Lrex;->E(Lsnw;ID)V
+    invoke-virtual {v0, p3, v1, v2, v3}, Lrpr;->E(Lsnw;ID)V
 
     return-void
 .end method"""
@@ -4909,6 +5647,13 @@ def patch_brightness_shadows_controllers():
     invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
 
     :cond_skip_ev_rst_m
+    iget-object v0, p0, Lnrm;->v:Lppn;
+
+    if-eqz v0, :cond_skip_ppn_rst_m
+
+    invoke-virtual {v0}, Lppn;->f()V
+
+    :cond_skip_ppn_rst_m
     iget-object v0, p0, Lnrm;->r:Lnrf;
 
     const/4 v1, 0x0
@@ -5226,13 +5971,13 @@ def patch_brightness_shadows_controllers():
 
     invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
 
-    iget-object v0, p0, Lnrm;->t:Lrex;
+    iget-object v0, p0, Lnrm;->t:Lrpr;
 
     const/4 v1, 0x3
 
     float-to-double v2, p1
 
-    invoke-virtual {v0, p3, v1, v2, v3}, Lrex;->E(Lsnw;ID)V
+    invoke-virtual {v0, p3, v1, v2, v3}, Lrpr;->E(Lsnw;ID)V
 
     return-void
 .end method"""
@@ -5362,6 +6107,177 @@ def patch_brightness_shadows_controllers():
                 f.write(pfh_c)
             print("    [+] pfh.smali: Unblocked direct AE compensation pipeline (pswitch_8).")
 
+    # 8. Patch osw.smali: Add b()Z to check if brightness or shadow adjustments are active
+    osw_path = os.path.join(APKTOOL_DIR, "smali", "osw.smali")
+    if os.path.exists(osw_path):
+        with open(osw_path, "r", encoding="utf-8") as f:
+            osw_c = f.read()
+        if ".method public final b()Z" not in osw_c:
+            b_method = """.method public final b()Z
+    .locals 3
+
+    iget-object v0, p0, Losw;->c:Lugh;
+
+    check-cast v0, Lufn;
+
+    iget-object v0, v0, Lufn;->c:Ljava/lang/Object;
+
+    check-cast v0, Ljava/lang/Float;
+
+    invoke-virtual {v0}, Ljava/lang/Float;->floatValue()F
+
+    move-result v0
+
+    const/4 v1, 0x0
+
+    cmpl-float v0, v0, v1
+
+    if-ltz v0, :cond_0
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_0
+    iget-object p0, p0, Losw;->d:Lugh;
+
+    check-cast p0, Lufn;
+
+    iget-object p0, p0, Lufn;->c:Ljava/lang/Object;
+
+    check-cast p0, Ljava/lang/Float;
+
+    invoke-virtual {p0}, Ljava/lang/Float;->floatValue()F
+
+    move-result p0
+
+    cmpl-float p0, p0, v1
+
+    if-ltz p0, :cond_1
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_1
+    const/4 p0, 0x0
+
+    return p0
+.end method"""
+            osw_c = osw_c.rstrip() + "\n\n" + b_method + "\n"
+            with open(osw_path, "w", encoding="utf-8") as f:
+                f.write(osw_c)
+            print("    [+] osw.smali: Added b()Z query for active manual slider adjustments.")
+
+    # 9. Patch ppn.smali: Linearize shadow curve exponent r = 1.0f in o(FFF)V
+    if os.path.exists(ppn_path):
+        with open(ppn_path, "r", encoding="utf-8") as f:
+            ppn_c = f.read()
+        target_r = "const/high16 p1, 0x3f800000    # 1.0f\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
+        if target_r not in ppn_c:
+            full_old = "div-float/2addr p2, p1\n\n    invoke-direct {p0, p2}, Lppn;->l(F)F\n\n    move-result p1\n\n    invoke-static {p1}, Lppn;->k(F)F\n\n    move-result p1\n\n    float-to-double p1, p1\n\n    invoke-static {p1, p2}, Ljava/lang/Math;->log(D)D\n\n    move-result-wide p1\n\n    iget p3, p0, Lppn;->i:F\n\n    invoke-static {p3}, Lppn;->k(F)F\n\n    move-result p3\n\n    float-to-double v0, p3\n\n    invoke-static {v0, v1}, Ljava/lang/Math;->log(D)D\n\n    move-result-wide v0\n\n    div-double/2addr p1, v0\n\n    double-to-float p1, p1\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
+            if full_old in ppn_c:
+                ppn_c = ppn_c.replace(full_old, target_r, 1)
+            else:
+                old_div = "div-double/2addr p1, v0\n\n    double-to-float p1, p1\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
+                if old_div in ppn_c:
+                    ppn_c = ppn_c.replace(old_div, target_r, 1)
+            with open(ppn_path, "w", encoding="utf-8") as f:
+                f.write(ppn_c)
+        print("    [+] ppn.smali: Linearized shadow transfer curve exponent r = 1.0f.")
+
+    # 10. Patch pkb.smali: Guard Losw.a() and ppn.f() on tap reset
+    pkb_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkb.smali")
+    if os.path.exists(pkb_path):
+        with open(pkb_path, "r", encoding="utf-8") as f:
+            pkb_c = f.read()
+        if "cond_skip_rst_pkb_h" not in pkb_c:
+            old_pkb_h = "invoke-virtual {2, v1}, Lpix;->p(Ltqz;)V\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    iget-object v1, p0, Lpkb;->b:Lzfr;"
+            new_pkb_h = "invoke-virtual {2, v1}, Lpix;->p(Ltqz;)V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->b()Z\n\n    move-result v1\n\n    if-nez v1, :cond_skip_rst_pkb_h\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    :cond_skip_rst_pkb_h\n\n    iget-object v1, p0, Lpkb;->b:Lzfr;"
+            if old_pkb_h in pkb_c:
+                pkb_c = pkb_c.replace(old_pkb_h, new_pkb_h, 1)
+        if "cond_skip_rst_pkb_i" not in pkb_c:
+            old_pkb_i = ":cond_1\n    iget-object v0, p0, Lpkb;->i:Lpkc;\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    iget-object v1, p0, Lpkb;->g:Lpjp;"
+            new_pkb_i = ":cond_1\n    iget-object v0, p0, Lpkb;->i:Lpkc;\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->b()Z\n\n    move-result v1\n\n    if-nez v1, :cond_skip_rst_pkb_i\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    :cond_skip_rst_pkb_i\n\n    iget-object v1, p0, Lpkb;->g:Lpjp;"
+            if old_pkb_i in pkb_c:
+                pkb_c = pkb_c.replace(old_pkb_i, new_pkb_i, 1)
+        with open(pkb_path, "w", encoding="utf-8") as f:
+            f.write(pkb_c)
+        print("    [+] pkb.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
+
+    # 11. Patch pkn.smali: Guard resets on tap
+    pkn_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkn.smali")
+    if os.path.exists(pkn_path):
+        with open(pkn_path, "r", encoding="utf-8") as f:
+            pkn_c = f.read()
+        if "Losw;->b()Z" not in pkn_c:
+            old_pkn_b = "if-eqz p2, :cond_1\n\n    iget-object v0, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_1"
+            new_pkn_b = "if-eqz p2, :cond_1\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->b()Z\n\n    move-result v0\n\n    if-nez v0, :cond_1\n\n    iget-object v0, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_1"
+            if old_pkn_b in pkn_c:
+                pkn_c = pkn_c.replace(old_pkn_b, new_pkn_b, 1)
+            old_pkn_g = "if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V\n\n    :cond_1"
+            new_pkn_g = "if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v2}, Losw;->b()Z\n\n    move-result v2\n\n    if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V\n\n    :cond_1"
+            if old_pkn_g in pkn_c:
+                pkn_c = pkn_c.replace(old_pkn_g, new_pkn_g, 1)
+            with open(pkn_path, "w", encoding="utf-8") as f:
+                f.write(pkn_c)
+        print("    [+] pkn.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
+
+    # 12. Patch pkw.smali: Guard resets on tap
+    pkw_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkw.smali")
+    if os.path.exists(pkw_path):
+        with open(pkw_path, "r", encoding="utf-8") as f:
+            pkw_c = f.read()
+        if "cond_skip_rst_pkw_h" not in pkw_c:
+            old_pkw_h = "iget-object p0, p0, Lpkw;->d:Lpkx;\n\n    iget-object v0, p0, Lpkx;->m:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V"
+            new_pkw_h = "iget-object p0, p0, Lpkw;->d:Lpkx;\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->b()Z\n\n    move-result v0\n\n    if-nez v0, :cond_skip_rst_pkw_h\n\n    iget-object v0, p0, Lpkx;->m:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_skip_rst_pkw_h"
+            if old_pkw_h in pkw_c:
+                pkw_c = pkw_c.replace(old_pkw_h, new_pkw_h, 1)
+        if "cond_skip_rst_pkw_i" not in pkw_c:
+            old_pkw_i = "invoke-interface {v1, v2}, Ljava/util/concurrent/Executor;->execute(Ljava/lang/Runnable;)V\n\n    iget-object p0, v0, Lpkx;->m:Lppn;\n\n    invoke-virtual {p0}, Lppn;->f()V\n\n    invoke-virtual {v0}, Lpkx;->c()V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V"
+            new_pkw_i = "invoke-interface {v1, v2}, Ljava/util/concurrent/Executor;->execute(Ljava/lang/Runnable;)V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {p0}, Losw;->b()Z\n\n    move-result p0\n\n    if-nez p0, :cond_skip_rst_pkw_i\n\n    iget-object p0, v0, Lpkx;->m:Lppn;\n\n    invoke-virtual {p0}, Lppn;->f()V\n\n    invoke-virtual {v0}, Lpkx;->c()V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_skip_rst_pkw_i"
+            if old_pkw_i in pkw_c:
+                pkw_c = pkw_c.replace(old_pkw_i, new_pkw_i, 1)
+        with open(pkw_path, "w", encoding="utf-8") as f:
+            f.write(pkw_c)
+        print("    [+] pkw.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
+
+    # 13. Patch pkc.smali: Guard ppn.g() on tap
+    pkc_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkc.smali")
+    if os.path.exists(pkc_path):
+        with open(pkc_path, "r", encoding="utf-8") as f:
+            pkc_c = f.read()
+        if "Losw;->b()Z" not in pkc_c:
+            old_pkc_g = "if-nez v2, :cond_6\n\n    :try_start_9\n    iget-object v2, p0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V"
+            new_pkc_g = "if-nez v2, :cond_6\n\n    :try_start_9\n    iget-object v2, p0, Lpkc;->f:Losw;\n\n    invoke-virtual {v2}, Losw;->b()Z\n\n    move-result v2\n\n    if-nez v2, :cond_6\n\n    iget-object v2, p0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V"
+            if old_pkc_g in pkc_c:
+                pkc_c = pkc_c.replace(old_pkc_g, new_pkc_g, 1)
+                with open(pkc_path, "w", encoding="utf-8") as f:
+                    f.write(pkc_c)
+        print("    [+] pkc.smali: Guarded ppn.g() on tap.")
+
+    # 14. Patch hxj.smali & hxh.smali: Guard AF/AE reset in hxh
+    hxj_path = os.path.join(APKTOOL_DIR, "smali", "hxj.smali")
+    if os.path.exists(hxj_path):
+        with open(hxj_path, "r", encoding="utf-8") as f:
+            hxj_c = f.read()
+        hxj_c = hxj_c.replace(".field private final A:Lnrf;", ".field public final A:Lnrf;")
+        with open(hxj_path, "w", encoding="utf-8") as f:
+            f.write(hxj_c)
+
+    hxh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "hxh.smali")
+    if os.path.exists(hxh_path):
+        with open(hxh_path, "r", encoding="utf-8") as f:
+            hxh_c = f.read()
+        old_hxh = ":cond_e\n    check-cast p0, Ligp;\n\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->i()V"
+        new_hxh = ":cond_e\n    check-cast p0, Ligp;\n\n    iget-object p1, p0, Ligp;->A:Lnrf;\n\n    iget-boolean p1, p1, Lnrf;->c:Z\n\n    if-eqz p1, :cond_hxh_reset\n\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->j()V\n\n    return-void\n\n    :cond_hxh_reset\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->i()V"
+        if old_hxh in hxh_c:
+            hxh_c = hxh_c.replace(old_hxh, new_hxh, 1)
+            with open(hxh_path, "w", encoding="utf-8") as f:
+                f.write(hxh_c)
+            print("    [+] hxh.smali: Guarded focus completion reset.")
+
+
 patch_mzc_smali = patch_brightness_shadows_controllers
 
 def patch_pro_controls_live():
@@ -5443,42 +6359,125 @@ def patch_pro_controls_live():
         else:
             print("    [+] nrn.smali (Focus): already patched")
 
+    # 5. wqz.smali (Manual White Balance / Temperature): Unblock wqz.J to unconditionally return Ling.b()
+    wqz_path = os.path.join(APKTOOL_DIR, "smali", "wqz.smali")
+    if os.path.exists(wqz_path):
+        with open(wqz_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """.method public static synthetic J(Laeea;Lksf;)Lxwg;
+    .locals 1
+
+    sget-object v0, Lkld;->a:Lkps;
+
+    invoke-virtual {p1, v0}, Lksf;->q(Lkps;)Z
+
+    move-result p1
+
+    if-eqz p1, :cond_0
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_0
+    sget-object p0, Lxuz;->a:Lxuz;
+
+    return-object p0
+.end method"""
+        repl = """.method public static synthetic J(Laeea;Lksf;)Lxwg;
+    .locals 0
+
+    check-cast p0, Ling;
+
+    invoke-virtual {p0}, Ling;->b()Lxwg;
+
+    move-result-object p0
+
+    return-object p0
+.end method"""
+        if target in c:
+            c = c.replace(target, repl, 1)
+            with open(wqz_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] wqz.smali: Unblocked wqz.J for Manual White Balance / Temperature slider")
+        else:
+            print("    [+] wqz.smali: already patched or target not found")
+
+    # 6. odr.smali (Manual White Balance HAL Dispatch): Null-guard tdn.a and tdn.b
+    odr_path = os.path.join(APKTOOL_DIR, "smali", "odr.smali")
+    if os.path.exists(odr_path):
+        with open(odr_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """    packed-switch v0, :pswitch_data_0
+
+    check-cast p1, Lpqg;
+
+    iget v0, p1, Lpqg;->a:I
+
+    sget-object v1, Ltdn;->a:Landroid/hardware/camera2/CaptureRequest$Key;"""
+        repl = """    packed-switch v0, :pswitch_data_0
+
+    check-cast p1, Lpqg;
+
+    sget-object v1, Ltdn;->a:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    if-eqz v1, :cond_skip_wb
+
+    sget-object v0, Ltdn;->b:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    if-eqz v0, :cond_skip_wb
+
+    iget v0, p1, Lpqg;->a:I"""
+        if target in c and ":cond_skip_wb" not in c:
+            c = c.replace(target, repl, 1)
+            c = c.replace("invoke-interface {p0, p1}, Luoi;->t(Ljava/util/Set;)V\n\n    return-void\n\n    :pswitch_0",
+                          "invoke-interface {p0, p1}, Luoi;->t(Ljava/util/Set;)V\n\n    :cond_skip_wb\n    return-void\n\n    :pswitch_0", 1)
+            with open(odr_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] odr.smali: Null-guarded tdn.a and tdn.b in manual AWB dispatch")
+        else:
+            print("    [+] odr.smali: already patched or target not found")
+
 def patch_sauce_onboarding():
     print("[*] Patching Sauce Onboarding & Pixel Looks Tutorial...")
 
-    # 1. Patch qlr.smali: Force qlr.a = true so "Choose a Camera Look" preference is created in laf.smali
-    qlr_path = os.path.join(APKTOOL_DIR, "smali", "qlr.smali")
-    if os.path.exists(qlr_path):
-        with open(qlr_path, "r", encoding="utf-8") as f:
+    # 1. Patch qvw.smali (was qlr): Force qvw.d = true so "Choose a Camera Look" preference is created
+    qvw_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qvw.smali")
+    if os.path.exists(qvw_path):
+        with open(qvw_path, "r", encoding="utf-8") as f:
             content = f.read()
-        target = "iput-boolean p1, p0, Lqlr;->a:Z"
-        replacement = "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqlr;->a:Z"
-        if target in content and "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqlr;->a:Z" not in content:
+        target = "iput-boolean p1, p0, Lqvw;->d:Z"
+        replacement = "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqvw;->d:Z"
+        if target in content and "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqvw;->d:Z" not in content:
             content = content.replace(target, replacement, 1)
-            with open(qlr_path, "w", encoding="utf-8") as f:
+            with open(qvw_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] qlr.smali: Forced qlr.a = true (unlocking 'Choose a Camera Look' preference).")
-        elif "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqlr;->a:Z" in content:
-            print("    [+] qlr.smali: already patched.")
+            print("    [+] qvw.smali: Forced qvw.d = true (unlocking 'Choose a Camera Look' preference).")
+        elif "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lqvw;->d:Z" in content:
+            print("    [+] qvw.smali: already patched.")
         else:
-            print("    [!] Warning: qlr.smali target not found.")
+            print("    [!] Warning: qvw.smali target not found.")
 
-    # 2. Patch rmn.smali: Force rmn.p = true so device eligibility check passes in first-run getting-started flow
-    rmn_path = os.path.join(APKTOOL_DIR, "smali", "rmn.smali")
-    if os.path.exists(rmn_path):
-        with open(rmn_path, "r", encoding="utf-8") as f:
+    # 2. Patch rxh.smali (was rmn): Force rxh.p = true so device eligibility check passes in first-run getting-started flow
+    rxh_path = os.path.join(APKTOOL_DIR, "smali", "rxh.smali")
+    if os.path.exists(rxh_path):
+        with open(rxh_path, "r", encoding="utf-8") as f:
             content = f.read()
-        target = "iput-boolean p1, p0, Lrmn;->p:Z"
-        replacement = "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrmn;->p:Z"
-        if target in content and "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrmn;->p:Z" not in content:
+        target = "iput-boolean p1, p0, Lrxh;->p:Z"
+        replacement = "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrxh;->p:Z"
+        if target in content and "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrxh;->p:Z" not in content:
             content = content.replace(target, replacement, 1)
-            with open(rmn_path, "w", encoding="utf-8") as f:
+            with open(rxh_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] rmn.smali: Forced rmn.p = true (enabling onboarding prompt).")
-        elif "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrmn;->p:Z" in content:
-            print("    [+] rmn.smali: already patched.")
+            print("    [+] rxh.smali: Forced rxh.p = true (enabling onboarding prompt).")
+        elif "const/4 p1, 0x1\n\n    iput-boolean p1, p0, Lrxh;->p:Z" in content:
+            print("    [+] rxh.smali: already patched.")
         else:
-            print("    [!] Warning: rmn.smali target not found.")
+            print("    [!] Warning: rxh.smali target not found.")
 
     # 3. Patch isu.smali: Hook Camera Looks '?' help button (:pswitch_2) to launch SauceOnboarding (qls) directly
     isu_path = os.path.join(APKTOOL_DIR, "smali", "isu.smali")
@@ -5502,7 +6501,7 @@ def patch_sauce_onboarding():
 
     invoke-virtual {p1, v0}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
 
-    iget-object p0, p0, Lisu;->a:Ljava/lang/Object;
+    iget-object p0, p0, Lizl;->a:Ljava/lang/Object;
 
     check-cast p0, Landroid/content/Context;
 
@@ -5511,7 +6510,7 @@ def patch_sauce_onboarding():
     return-void"""
 
         new_pswitch = """:pswitch_2
-    iget-object p1, p0, Lisu;->a:Ljava/lang/Object;
+    iget-object p1, p0, Lizl;->a:Ljava/lang/Object;
 
     instance-of v0, p1, Lbe;
 
@@ -5564,7 +6563,7 @@ def patch_sauce_onboarding():
 
     invoke-virtual {p1, v0}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
 
-    iget-object p0, p0, Lisu;->a:Ljava/lang/Object;
+    iget-object p0, p0, Lizl;->a:Ljava/lang/Object;
 
     check-cast p0, Landroid/content/Context;
 
@@ -5584,18 +6583,18 @@ def patch_sauce_onboarding():
 
 def patch_creator_suite_smali():
     print("[*] Patching Creator Suite (Granite, Biotite, Mica, Slate, Basalt, Project Album)...")
-    # 1. kid.smali
-    kid_path = os.path.join(APKTOOL_DIR, "smali", "kid.smali")
-    if os.path.exists(kid_path):
-        with open(kid_path, "r", encoding="utf-8") as f:
+    # 1. kow.smali (was kid.smali)
+    kow_path = os.path.join(APKTOOL_DIR, "smali", "kow.smali")
+    if os.path.exists(kow_path):
+        with open(kow_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         def replace_static_method(src, name):
-            m_start = src.find(f".method public static final {name}(Lklm;)Z")
+            m_start = src.find(f".method public static final {name}(Lksf;)Z")
             if m_start == -1:
                 return src
             m_end = src.find(".end method", m_start) + len(".end method")
-            new_m = f""".method public static final {name}(Lklm;)Z
+            new_m = f""".method public static final {name}(Lksf;)Z
     .locals 1
 
     const/4 v0, 0x1
@@ -5604,17 +6603,17 @@ def patch_creator_suite_smali():
 .end method"""
             return src[:m_start] + new_m + src[m_end:]
 
-        for m in ["b", "c", "d", "e", "f", "g", "h"]:
+        for m in ["a", "b", "c", "d", "e", "f", "g"]:
             content = replace_static_method(content, m)
 
-        with open(kid_path, "w", encoding="utf-8") as f:
+        with open(kow_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] kid.smali: enabled all Creator Suite feature getters (b-h -> true).")
+        print("    [+] kow.smali: enabled all Creator Suite feature getters (a-g -> true).")
 
-    # 2. kqc.smali - Hide and disable "Save to a project" (pa_/pam_) to prevent gRPC errors with Photos
-    kqc_path = os.path.join(APKTOOL_DIR, "smali", "kqc.smali")
-    if os.path.exists(kqc_path):
-        with open(kqc_path, "r", encoding="utf-8") as f:
+    # 2. kww.smali (was kqc.smali) - Hide and disable "Save to a project" (pa_/pam_) to prevent gRPC errors with Photos
+    kww_path = os.path.join(APKTOOL_DIR, "smali", "kww.smali")
+    if os.path.exists(kww_path):
+        with open(kww_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         def replace_method(src, decl, body):
@@ -5627,19 +6626,19 @@ def patch_creator_suite_smali():
 .end method"""
             return src[:m_start] + new_m + src[m_end:]
 
-        content = replace_method(content, ".method public final q(Lpfr;)Z", "    .locals 1\n\n    const/4 v0, 0x0\n\n    return v0")
-        content = replace_method(content, ".method public final u(Lpfr;)Z", "    .locals 1\n\n    const/4 v0, 0x0\n\n    return v0")
-        content = replace_method(content, ".method public final l(Lpfr;)V", "    .locals 0\n\n    return-void")
-        content = replace_method(content, ".method public final k(Lpfr;)V", "    .locals 0\n\n    return-void")
+        content = replace_method(content, ".method public final q(Lppk;)Z", "    .locals 1\n\n    const/4 v0, 0x0\n\n    return v0")
+        content = replace_method(content, ".method public final u(Lppk;)Z", "    .locals 1\n\n    const/4 v0, 0x0\n\n    return v0")
+        content = replace_method(content, ".method public final l(Lppk;)V", "    .locals 0\n\n    return-void")
+        content = replace_method(content, ".method public final k(Lppk;)V", "    .locals 0\n\n    return-void")
 
-        with open(kqc_path, "w", encoding="utf-8") as f:
+        with open(kww_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] kqc.smali: hid and neutralized 'Save to a project' button (q/u -> false, l/k -> no-op).")
+        print("    [+] kww.smali: hid and neutralized 'Save to a project' button (q/u -> false, l/k -> no-op).")
 
-    # 3. klm.smali - Ensure Creator Suite flags intercepted in q(Lkiz;)Z and x(Lkiz;)Z
-    klm_path = os.path.join(APKTOOL_DIR, "smali_classes2", "klm.smali")
-    if os.path.exists(klm_path):
-        with open(klm_path, "r", encoding="utf-8") as f:
+    # 3. ksf.smali (was klm.smali) - Ensure Creator Suite flags intercepted in q(Lkps;)Z and x(Lkps;)Z
+    ksf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ksf.smali")
+    if os.path.exists(ksf_path):
+        with open(ksf_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         flags = [
@@ -5659,7 +6658,7 @@ def patch_creator_suite_smali():
             "camera.ark_ISO_available",
         ]
 
-        q_start = content.find(".method public final q(Lkiz;)Z")
+        q_start = content.find(".method public final q(Lkps;)Z")
         if q_start != -1:
             q_end = content.find(".end method", q_start)
             q_body = content[q_start:q_end]
@@ -5681,12 +6680,12 @@ def patch_creator_suite_smali():
 
     :{next_label}
 """
-                target_marker = "iget-object v0, p0, Lklm;->b:Ljava/util/Map;"
+                target_marker = "iget-object v0, p0, Lksf;->b:Ljava/util/Map;"
                 t_idx = content.find(target_marker, q_start)
                 if t_idx != -1 and t_idx < q_end:
                     content = content[:t_idx] + chain + content[t_idx:]
 
-        x_start = content.find(".method public final x(Lkiz;)Z")
+        x_start = content.find(".method public final x(Lkps;)Z")
         if x_start != -1:
             x_end = content.find(".end method", x_start)
             x_body = content[x_start:x_end]
@@ -5708,12 +6707,12 @@ def patch_creator_suite_smali():
 
     :{next_label}
 """
-                new_x = f""".method public final x(Lkiz;)Z
+                new_x = f""".method public final x(Lkps;)Z
     .locals 3
 
     if-eqz p1, :cond_check_orig_x
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_x
 
@@ -5731,43 +6730,42 @@ def patch_creator_suite_smali():
 
     :cond_check_creator_x_0
 {chain}"""
-                target_marker_x = "iget-object p0, p0, Lklm;->b:Ljava/util/Map;"
+                target_marker_x = "iget-object p0, p0, Lksf;->b:Ljava/util/Map;"
                 t_idx_x = content.find(target_marker_x, x_start)
                 if t_idx_x != -1 and t_idx_x < x_end:
                     content = content[:x_start] + new_x + content[t_idx_x:]
 
-        with open(klm_path, "w", encoding="utf-8") as f:
+        with open(ksf_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] klm.smali: Creator Suite flags intercepted in q(Lkiz;) and x(Lkiz;).")
+        print("    [+] ksf.smali: Creator Suite flags intercepted in q(Lkps;) and x(Lkps;).")
 
-def patch_sdo_smali():
-    print("[*] Patching sdo.smali (Mode change hook for Looks scoping)...")
-    sdo_path = os.path.join(APKTOOL_DIR, "smali", "sdo.smali")
-    if not os.path.exists(sdo_path):
-        print("    [!] Warning: sdo.smali not found.")
+def patch_sof_smali():
+    print("[*] Patching sof.smali (Mode change hook for Looks scoping, was sdo)...")
+    sof_path = os.path.join(APKTOOL_DIR, "smali", "sof.smali")
+    if not os.path.exists(sof_path):
+        print("    [!] Warning: sof.smali not found.")
         return
-    with open(sdo_path, "r", encoding="utf-8") as f:
+    with open(sof_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Hook sdo.O(Lsql;)V — the mode setter method
-    # After storing the new mode, notify TomteInitHelper with the mode ordinal
-    target = """.method private final O(Lsql;)V
+    # Hook sof.P(Ltbp;)V — the mode setter method
+    target = """.method private final P(Ltbp;)V
     .locals 4
 
-    iget-object v0, p0, Lsdo;->f:Lsql;
+    iget-object v0, p0, Lsof;->f:Ltbp;
 
-    iput-object v0, p0, Lsdo;->y:Lsql;
+    iput-object v0, p0, Lsof;->x:Ltbp;
 
-    iput-object p1, p0, Lsdo;->f:Lsql;"""
+    iput-object p1, p0, Lsof;->f:Ltbp;"""
 
-    replacement = """.method private final O(Lsql;)V
+    replacement = """.method private final P(Ltbp;)V
     .locals 4
 
-    iget-object v0, p0, Lsdo;->f:Lsql;
+    iget-object v0, p0, Lsof;->f:Ltbp;
 
-    iput-object v0, p0, Lsdo;->y:Lsql;
+    iput-object v0, p0, Lsof;->x:Ltbp;
 
-    iput-object p1, p0, Lsdo;->f:Lsql;
+    iput-object p1, p0, Lsof;->f:Ltbp;
 
     invoke-virtual {p1}, Ljava/lang/Enum;->ordinal()I
 
@@ -5777,11 +6775,293 @@ def patch_sdo_smali():
 
     if target in content:
         content = content.replace(target, replacement)
-        with open(sdo_path, "w", encoding="utf-8") as f:
+        with open(sof_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] sdo.smali: Mode change hook injected for TomteInitHelper.")
+        print("    [+] sof.smali: Mode change hook injected for TomteInitHelper.")
+    elif "setCurrentMode" in content:
+        print("    [+] sof.smali: already patched with setCurrentMode.")
     else:
-        print("    [!] Warning: sdo.smali target block not found.")
+        print("    [!] Warning: sof.smali target block not found.")
+
+def patch_izk_smali():
+    print("[*] Patching izk.smali (Unlocking Camera Looks and Quick Access across all photo modes, was isk)...")
+    izk_path = os.path.join(APKTOOL_DIR, "smali", "izk.smali")
+    if not os.path.exists(izk_path):
+        print("    [!] Warning: izk.smali not found.")
+        return
+    with open(izk_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    m_start = content.find(".method public final a(Ltbp;)Z")
+    if m_start != -1:
+        m_end = content.find(".end method", m_start) + len(".end method")
+        new_m = """.method public final a(Ltbp;)Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+        content = content[:m_start] + new_m + content[m_end:]
+
+    b_start = content.find(".method public final b(Ltbp;)Z")
+    if b_start != -1:
+        b_end = content.find(".end method", b_start) + len(".end method")
+        new_b = """.method public final b(Ltbp;)Z
+    .locals 0
+
+    sget-object p0, Ltbp;->h:Ltbp;
+
+    if-eq p1, p0, :cond_0
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_0
+    const/4 p0, 0x0
+
+    return p0
+.end method"""
+        content = content[:b_start] + new_b + content[b_end:]
+
+    with open(izk_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] izk.smali: a() and b() patched successfully.")
+
+def patch_dual_exposure_viewfinder():
+    print("[*] Patching Dual Exposure & Shadows sliders for viewfinder (nzx, nzr, nia)...")
+    
+    # 1. Patch nzx.smali: Make a()Z return true unconditionally (isDisplayable)
+    nzx_path = os.path.join(APKTOOL_DIR, "smali", "nzx.smali")
+    if os.path.exists(nzx_path):
+        with open(nzx_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target = """.method public final a()Z
+    .locals 1
+
+    sget-object v0, Lnzx;->d:Lnzx;
+
+    invoke-virtual {p0, v0}, Lnzx;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_1
+
+    sget-object v0, Lnzx;->e:Lnzx;
+
+    invoke-virtual {p0, v0}, Lnzx;->equals(Ljava/lang/Object;)Z
+
+    move-result p0
+
+    if-eqz p0, :cond_0
+
+    goto :goto_0
+
+    :cond_0
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_1
+    :goto_0
+    const/4 p0, 0x1
+
+    return p0
+.end method"""
+        replacement = """.method public final a()Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+        if target in content:
+            content = content.replace(target, replacement)
+            with open(nzx_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] nzx.smali: a() patched to return true (displayable on viewfinder).")
+        elif "const/4 v0, 0x1\n\n    return v0\n.end method" in content:
+            print("    [+] nzx.smali: a() already patched.")
+        else:
+            print("    [!] Warning: nzx.smali target not found.")
+
+    # 2. Patch nzr.smali: G(Lnzx;)Z bypass for DUAL_EXPOSURE, SINGLE_EXPOSURE, WHITEBALANCE, TOMTE
+    nzr_path = os.path.join(APKTOOL_DIR, "smali", "nzr.smali")
+    if os.path.exists(nzr_path):
+        with open(nzr_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_g = """.method public final declared-synchronized G(Lnzx;)Z
+    .locals 1
+
+    monitor-enter p0
+
+    :try_start_0
+    iget-object v0, p0, Lnzr;->k:Loba;
+
+    invoke-virtual {v0, p1}, Loba;->n(Lnzx;)Z
+
+    move-result p1
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    monitor-exit p0
+
+    return p1"""
+        replacement_g = """.method public final declared-synchronized G(Lnzx;)Z
+    .locals 2
+
+    monitor-enter p0
+
+    :try_start_0
+    sget-object v0, Lnzx;->a:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->b:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->c:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->j:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->k:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->l:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->m:Lnzx;
+
+    if-eq p1, v0, :cond_ret_true
+
+    sget-object v0, Lnzx;->n:Lnzx;
+
+    if-ne p1, v0, :cond_check_orig
+
+    :cond_ret_true
+    const/4 v0, 0x1
+
+    monitor-exit p0
+
+    return v0
+
+    :cond_check_orig
+    iget-object v0, p0, Lnzr;->k:Loba;
+
+    invoke-virtual {v0, p1}, Loba;->n(Lnzx;)Z
+
+    move-result p1
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    monitor-exit p0
+
+    return p1"""
+        if target_g in content:
+            content = content.replace(target_g, replacement_g)
+            print("    [+] nzr.smali: G(Lnzx;)Z hooked for EXPOSURE, WB, and TOMTE.")
+        elif "sget-object v0, Lnzx;->j:Lnzx;" not in content and "sget-object v0, Lnzx;->c:Lnzx;" in content:
+            content = content.replace("sget-object v0, Lnzx;->c:Lnzx;\n\n    if-ne p1, v0, :cond_check_orig",
+                                      "sget-object v0, Lnzx;->c:Lnzx;\n\n    if-eq p1, v0, :cond_ret_true\n\n    sget-object v0, Lnzx;->j:Lnzx;\n\n    if-eq p1, v0, :cond_ret_true\n\n    sget-object v0, Lnzx;->k:Lnzx;\n\n    if-eq p1, v0, :cond_ret_true\n\n    sget-object v0, Lnzx;->l:Lnzx;\n\n    if-eq p1, v0, :cond_ret_true\n\n    sget-object v0, Lnzx;->m:Lnzx;\n\n    if-eq p1, v0, :cond_ret_true\n\n    sget-object v0, Lnzx;->n:Lnzx;\n\n    if-ne p1, v0, :cond_check_orig")
+            print("    [+] nzr.smali: G(Lnzx;)Z updated with TOMTE controls.")
+        elif "cond_ret_true" in content:
+            print("    [+] nzr.smali: G(Lnzx;)Z already hooked.")
+
+        # Also patch nzr.smali: e(Llsx;)V to support both DUAL and DUAL_INDEPENDENT
+        target_e = """    sget-object v1, Llsx;->c:Llsx;
+
+    invoke-virtual {p1, v1}, Llsx;->equals(Ljava/lang/Object;)Z
+
+    move-result p1
+
+    sget-object v1, Lnzx;->b:Lnzx;
+
+    invoke-virtual {p0, v1, v0}, Lnzr;->v(Lnzx;Z)V
+
+    sget-object v0, Lnzx;->a:Lnzx;
+
+    invoke-virtual {p0, v0, p1}, Lnzr;->v(Lnzx;Z)V"""
+
+        replacement_e = """    sget-object v1, Llsx;->c:Llsx;
+
+    invoke-virtual {p1, v1}, Llsx;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_dual_mode
+
+    sget-object v1, Llsx;->b:Llsx;
+
+    invoke-virtual {p1, v1}, Llsx;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_not_dual_mode
+
+    :cond_dual_mode
+    const/4 p1, 0x1
+
+    goto :goto_dual_mode
+
+    :cond_not_dual_mode
+    const/4 p1, 0x0
+
+    :goto_dual_mode
+    sget-object v1, Lnzx;->b:Lnzx;
+
+    invoke-virtual {p0, v1, v0}, Lnzr;->v(Lnzx;Z)V
+
+    sget-object v0, Lnzx;->a:Lnzx;
+
+    invoke-virtual {p0, v0, p1}, Lnzr;->v(Lnzx;Z)V"""
+
+        if target_e in content:
+            content = content.replace(target_e, replacement_e)
+            print("    [+] nzr.smali: e(Llsx;)V updated to enable dual sliders on DUAL and DUAL_INDEPENDENT.")
+        elif "goto_dual_mode" in content:
+            print("    [+] nzr.smali: e(Llsx;)V already updated.")
+
+        with open(nzr_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 3. Patch nia.smali: Force dual exposure sliders (brightness_control & shadow_control)
+    nia_path = os.path.join(APKTOOL_DIR, "smali", "nia.smali")
+    if os.path.exists(nia_path):
+        with open(nia_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_nia = """    sget-object v3, Lkpf;->f:Lkps;
+
+    invoke-virtual {v1, v3}, Lksf;->q(Lkps;)Z
+
+    move-result v3
+
+    const v10, 0x7f13049c"""
+
+        replacement_nia = """    sget-object v3, Lkpf;->f:Lkps;
+
+    invoke-virtual {v1, v3}, Lksf;->q(Lkps;)Z
+
+    const/4 v3, 0x1
+
+    const v10, 0x7f13049c"""
+
+        if target_nia in content:
+            content = content.replace(target_nia, replacement_nia)
+            with open(nia_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] nia.smali: Dual exposure branch forced (Brightness and Shadows registered).")
+        elif "const/4 v3, 0x1\\n\\n    const v10, 0x7f13049c" in content:
+            print("    [+] nia.smali: Dual exposure branch already forced.")
+        else:
+            print("    [!] Warning: nia.smali target not found.")
 
 def inject_splits():
     print("[*] Injecting dynamic native libraries and neural assets from feature splits...")
@@ -5992,6 +7272,33 @@ def build_and_sign():
         print(f"[-] apksigner failed:\n{res.stdout}")
         sys.exit(1)
     print(f"    [+] apksigner succeeded! Output: {signed_apk}")
+
+    # Post-build verification: ensure critical assets are stored uncompressed
+    print("[*] Verifying asset compression in signed APK...")
+    critical_assets = [
+        "3cdbac706c98421a96e16fdbfd97a35f.tflite.uncompressed",  # Film Grain TFLite model
+        "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed",  # Monocular depth
+        "portrait_matting_mask_1024_768.tflite.uncompressed",  # Portrait matting
+        "1c33c30c31a74d99b66f54c22014a27a.uncompressed",  # Portrait segmenter
+    ]
+    with zipfile.ZipFile(signed_apk, 'r') as zf:
+        defl_count = 0
+        stored_count = 0
+        for info in zf.infolist():
+            if info.filename.endswith('.uncompressed') or info.filename.endswith('.tflite'):
+                if info.compress_type == zipfile.ZIP_STORED:
+                    stored_count += 1
+                else:
+                    defl_count += 1
+                    # Check if it's a critical asset
+                    for ca in critical_assets:
+                        if ca in info.filename:
+                            print(f"    [!] CRITICAL: {info.filename} is Deflate-compressed! AssetManager.openFd() will fail!")
+        print(f"    [+] Asset compression: {stored_count} Stored (correct), {defl_count} Deflated (wrong)")
+        if defl_count > 0:
+            print(f"    [!] WARNING: {defl_count} model assets are Deflate-compressed. Film Grain and Portrait may fail!")
+        else:
+            print(f"    [+] All model assets are correctly stored uncompressed.")
     return signed_apk
 
 def balance_dex_limits():
@@ -6067,55 +7374,116 @@ def install_and_launch(signed_apk):
         subprocess.run(["adb", "shell", "am", "start", "-n", "com.google.android.GoogleCameraEng/com.android.camera.CameraLauncher"])
         print("    [+] App launched successfully!")
 
+def patch_looks_fine_tuning_and_grain():
+    print("[*] Patching Looks Fine-Tuning controls and Film Grain settings...")
+    # 1. Patch qut.smali to expose all 10 Tomte fine-tuning sliders unconditionally
+    qut_path = os.path.join(APKTOOL_DIR, "smali", "qut.smali")
+    if os.path.exists(qut_path):
+        with open(qut_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target = """    const/4 v1, 0x0
+
+    invoke-virtual {v0, v1}, Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Ljava/lang/Boolean;
+
+    if-eqz v0, :cond_1
+
+    invoke-virtual {v0}, Ljava/lang/Boolean;->booleanValue()Z
+
+    move-result v0
+
+    if-nez v0, :cond_0
+
+    goto/16 :goto_0"""
+        if target in content:
+            content = content.replace(target, "    goto :cond_0")
+            with open(qut_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] qut.smali: bypassed flag check, all 10 Tomte fine-tuning sliders enabled.")
+        elif "goto :cond_0" in content:
+            print("    [+] qut.smali: already patched to goto :cond_0.")
+
+    # 2. Inject Film Grain strings into strings.xml
+    strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
+    if os.path.exists(strings_path):
+        with open(strings_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_looks_film_grain_title" not in content:
+            content = content.replace("<resources>",
+                '<resources>\n    <string name="pref_camera_looks_film_grain_title">Film Grain</string>\n    <string name="pref_camera_looks_film_grain_summary">Add subtle analog film texture to Camera Looks photos</string>')
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: Film Grain title and summary strings added.")
+        else:
+            print("    [+] strings.xml: Film Grain strings already present.")
+
+    # 3. Inject Film Grain toggle into camera_gm3_preferences.xml
+    gm3_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_gm3_preferences.xml")
+    if os.path.exists(gm3_path):
+        with open(gm3_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_looks_film_grain_key" not in content:
+            target_gm3 = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_colors_vd_theme_24" android:title="@string/pref_sauce_stickiness_title" android:key="pref_sauce_stickiness_key" android:summary="@string/pref_sauce_stickiness_summary" android:order="0" android:defaultValue="false" />'
+            replacement_gm3 = target_gm3 + '\n        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_grain_vd_theme_24" android:title="@string/pref_camera_looks_film_grain_title" android:key="pref_camera_looks_film_grain_key" android:summary="@string/pref_camera_looks_film_grain_summary" android:order="1" android:defaultValue="true" />'
+            if target_gm3 in content:
+                content = content.replace(target_gm3, replacement_gm3)
+                with open(gm3_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_gm3_preferences.xml: Film Grain toggle preference injected.")
+        else:
+            print("    [+] camera_gm3_preferences.xml: Film Grain preference already present.")
+
+    # 4. Inject Film Grain toggle into camera_preferences.xml
+    cam_pref_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_preferences.xml")
+    if os.path.exists(cam_pref_path):
+        with open(cam_pref_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_looks_film_grain_key" not in content:
+            target_cam = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_water_lux_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="" android:key="pref_camera_acineta_enabled_key" android:summary="" android:defaultValue="false" />'
+            replacement_cam = target_cam + '\n            <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_grain_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_looks_film_grain_title" android:key="pref_camera_looks_film_grain_key" android:summary="@string/pref_camera_looks_film_grain_summary" android:defaultValue="true" />'
+            if target_cam in content:
+                content = content.replace(target_cam, replacement_cam)
+                with open(cam_pref_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_preferences.xml: Film Grain toggle preference injected.")
+        else:
+            print("    [+] camera_preferences.xml: Film Grain preference already present.")
+
 def main():
     clean_build_artifacts()
     patch_manifest()
     patch_app_name()
-    patch_uyv_smali()
-    patch_qau_smali()
+    patch_vku_smali()
+    patch_qko_smali()
     patch_camera_app_smali()
     inject_tomte_init_helper()
-    patch_qkp_smali()
-    patch_qkq_smali()
-    patch_qmy_smali()
-    patch_klm_smali()
-    patch_hpq_smali()
-    patch_mkm_smali()
-    patch_ejn_smali()
-    patch_kic_smali()
-    patch_mwg_smali()
-    patch_aaog_smali()
-    patch_libgcastartup()
-    patch_mjy_smali()
-    patch_psk_smali()
-    patch_psh_smali()
-    patch_klh_smali()
-    patch_num_smali()
-    patch_tba_smali()
-    patch_pzs_smali()
-    patch_mia_smali()
-    patch_muh_smali()
-    patch_ioy_smali()
-    patch_qkj_smali()
-    patch_mla_smali()
-    patch_pwh_smali()
-    patch_pwm_smali()
-    patch_pwp_smali()
-    patch_pvz_smali()
-    patch_pwo_smali()
-    patch_kha_smali()
-    patch_kgy_smali()
-    patch_kgx_smali()
-    patch_khk_smali()
-    patch_kgs_smali()
-    patch_kfl_smali()
-    patch_kfw_smali()
-    patch_qhm_smali()
-    patch_mzc_smali()
-    patch_pro_controls_live()
+    patch_qur_smali()
+    patch_qus_smali()
+    patch_qxg_smali()
+    patch_ksf_smali()
+    patch_izk_smali()
+    patch_msr_smali()
+    patch_ndf_smali()
+    patch_jex_smali()
+    patch_rfx_smali()
+    patch_mtt_smali()
     patch_sauce_onboarding()
-    patch_sdo_smali()
+    patch_sof_smali()
     patch_creator_suite_smali()
+    patch_dual_exposure_viewfinder()
+    patch_looks_fine_tuning_and_grain()
+    patch_nzr_and_mpd_smali()
+    patch_zoom_controllers()
+    patch_mqs_smali()
+    patch_hpq_smali()
+    patch_kic_smali()
+    patch_qfr_smali()
+    patch_qfz_smali()
+    patch_qge_smali()
+    patch_qgh_smali()
     inject_splits()
     patch_libgcastartup()
     balance_dex_limits()

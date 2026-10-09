@@ -10,21 +10,13 @@ val photoSavingFixPatch = bytecodePatch(
     extendWith("TomteInitHelper.dex")
 
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
-        // Replaces photo saving and device sensor stream classes with verified implementations:
-        // - mkm: Disables missing Flare Removal model crash (ceftazidime) during FinishShot on Wide lens
-        // - ejn: Disables ceftazidime and classifier flags and cleans missing asset strings on Pixel 10/Pro
-        // - hpq: Device portrait model mappings, binned RAW dimensions in aW/aX, disables failing Eclipse AE (kjq.bb = false)
-        // - psh: Guard binned RAW stream dimensions with orElse(0x7e0) and orElse(0x5e8) fallbacks
-        // - psk: Guard telephoto streams (PD_TELE, RAW_TELE) against NullPointerException
-        // - mjy: Guard khw.d and khw.e with isPresent()
-        // - tba: Guard Centaur / Boba Jelly Optional.get() against NoSuchElementException
-        PixelCameraPatchUtils.replaceClassesFromDexResource(this, "PhotoSavingControllers.dex")
+        // Hook feature flags (ceftazidime, lasagna, use_eclipse) and binned RAW dimension fallbacks
 
         // Hook klm feature flags and binned RAW dimension fallbacks
-        mutableClassDefByOrNull("Lklm;")?.let { clazz ->
+        mutableClassDefByOrNull("Lksf;")?.let { clazz ->
             PixelCameraPatchUtils.hookKlmFlags(clazz)
             PixelCameraPatchUtils.hookKlmFlagA(clazz)
         }

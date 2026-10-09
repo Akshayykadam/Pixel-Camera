@@ -12,18 +12,18 @@ val creatorSuitePatch = bytecodePatch(
 ) {
     dependsOn(cameraLooksPatch)
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
         // ── 1. Unlock Creator Suite feature getters in kid.smali ─────────────────────────
-        mutableClassDefByOrNull("Lkid;")?.let { clazz ->
+        mutableClassDefByOrNull("Lkow;")?.let { clazz ->
             for (m in listOf("b", "c", "d", "e", "f", "g", "h")) {
                 PixelCameraPatchUtils.forceReturnTrue(clazz, m)
             }
         }
 
         // ── 2. Neutralize 'Save to a project' button in kqc.smali to prevent cloud crash ──
-        mutableClassDefByOrNull("Lkqc;")?.let { clazz ->
+        mutableClassDefByOrNull("Lkxd;")?.let { clazz ->
             PixelCameraPatchUtils.forceReturnFalse(clazz, "q")
             PixelCameraPatchUtils.forceReturnFalse(clazz, "u")
             PixelCameraPatchUtils.forceReturnVoid(clazz, "l")

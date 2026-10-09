@@ -1,4 +1,4 @@
-# Pixel Camera Smali Patches Directory (Patch 1.0.3)
+# Pixel Camera Smali Patches Directory (Patch 1.0.4)
 
 This directory contains standalone, decompiled Smali bytecode reference implementations for all functional modifications made in the Pixel Camera backport for Google Pixel devices (Pixel 6 through Pixel 10).
 
@@ -18,6 +18,7 @@ This directory contains standalone, decompiled Smali bytecode reference implemen
 | **Quick Access Shortcuts** | `qhm.smali`, `nqj.smali`, `nqp.smali` | Initializes viewfinder shortcuts with `[nqq.h, nqq.b]` and bypasses capability verification. |
 | **Creator Suite** | `kid.smali`, `kqc.smali` | Unlocks Teleprompter HUD (Biotite), Audio VU Meter (Mica), Framing Guides (Slate); neutralizes 'Save to a project' crash. |
 | **Non-Root Clone** | `klh.smali` | Updates `SpecialTypesProvider` authority to match cloned package name. |
+| **Gallery Target** | `hpq.smali`, `hwb.smali` | Unblocks review intent (`hpq.cD` / `hwb.w`) via `TomteInitHelper.configureGalleryIntent` for default/custom galleries when Google Photos is missing. |
 
 ---
 

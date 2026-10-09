@@ -17,7 +17,7 @@ build/
 bin/
 out/
 gen/
-teleprompter_open.xml
+buildOutput/
 camera-looks-quick-access/patch/
 creator-suite-research/patch/
 pixel-camera-looks-research/patch/
@@ -26,22 +26,25 @@ pixel-camera-looks-research/patch/
 # Source APKs, Extracted & Decompiled Workspaces (Multi-GB)
 # ------------------------------------------------------------------------------
 Input_file/
-apktool_base/
-apktool_full/
+input_file*/
+apktool/
+apktool_*/
 decompiled/
 decompiled_*/
-extracted_apkm/
-extracted_pixel8pro/
+extracted_*/
 dex/
 
-# ADB uiautomator window dump XML files
+# ------------------------------------------------------------------------------
+# ADB UIAutomator Dumps & Layout Captures
+# ------------------------------------------------------------------------------
 *dump*.xml
 *.dump.xml
-live_dump.xml
-live_portrait_dump.xml
 window_dump*.xml
+teleprompter*.xml
+live_*.xml
 
-# Reverse-Engineering Tools & Binaries
+# ------------------------------------------------------------------------------
+# Reverse-Engineering Tools & Scratchpad
 # ------------------------------------------------------------------------------
 tools/
 scratch/
@@ -54,10 +57,13 @@ keystore/
 *.jks
 *.p12
 *.key
+*.pem
 signing.properties
+.env
+.env.*
 
 # ------------------------------------------------------------------------------
-# Gradle & Android Studio / IntelliJ IDEA
+# Gradle, Kotlin & Android Studio / IntelliJ IDEA
 # ------------------------------------------------------------------------------
 .gradle/
 **/build/
@@ -66,13 +72,16 @@ captures/
 .cxx/
 local.properties
 *.hprof
+.kotlin/
+.gradletasknamecache
 
-# IDE Configurations
+# IDE & Editor Configurations
 .idea/
 *.iml
 *.iws
 *.ipr
 .vscode/
+*.code-workspace
 *.swp
 *.swo
 *~
@@ -88,14 +97,37 @@ __pycache__/
 env/
 venv/
 .venv/
+ENV/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ------------------------------------------------------------------------------
+# Logs & Diagnostic Traces
+# ------------------------------------------------------------------------------
+*.log
+*.tmp
+*.bak
+
+# ------------------------------------------------------------------------------
+# Temporary Git Diffs & Rejects (Protect curated patches/ directory)
+# ------------------------------------------------------------------------------
+*.patch
+*.diff
+*.orig
+*.rej
+!patches/**
 
 # ------------------------------------------------------------------------------
 # Operating System Artifacts
 # ------------------------------------------------------------------------------
 .DS_Store
+**/.DS_Store
 .DS_Store?
 ._*
+**/._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db

@@ -14,7 +14,7 @@ val proControlsPatch = bytecodePatch(
 ) {
     dependsOn(cameraLooksPatch)
     compatibleWith(
-        "com.google.android.GoogleCamera" to setOf("11.0.073.972752740.32")
+        "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
         // ── 1. Remove Dragging Suppression on Pro Sliders for Live Viewfinder Response ──
@@ -76,6 +76,29 @@ val proControlsPatch = bytecodePatch(
                     field.accessFlags = (field.accessFlags and visibilityMask) or AccessFlags.PUBLIC.value
                 }
             }
+        }
+
+        // ── 5. Manual White Balance / Temperature: Unblock provider to always supply taj.c ──
+        // 11.1: von.G(Ladnq;Lksf;)Lyia;
+        mutableClassDefByOrNull("Lvon;")?.let { clazz ->
+            val smali = """
+                check-cast p0, Litz;
+                invoke-virtual {p0}, Litz;->b()Lyia;
+                move-result-object p0
+                return-object p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "G", "Lyia;", smali)
+        }
+
+        // 11.0: wqz.J(Ladbv;Lklm;)Lxwg;
+        mutableClassDefByOrNull("Lwqz;")?.let { clazz ->
+            val smali = """
+                check-cast p0, Ling;
+                invoke-virtual {p0}, Ling;->b()Lxwg;
+                move-result-object p0
+                return-object p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "J", "Lxwg;", smali)
         }
     }
 }

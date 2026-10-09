@@ -7,8 +7,11 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
-  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.3.mpp">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.3%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
+  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.4.mpp">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.4%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
+  </a>
+  <a href="https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20BASE%20APK-Pixel%20Camera%2011.1%20(APKMirror)-ff8800?style=for-the-badge&logo=google&logoColor=white&labelColor=e65100" alt="Download Base APK from APKMirror" height="42">
   </a>
 </p>
 
@@ -18,7 +21,7 @@
 
 ## Overview
 
-Google introduced **"Camera Looks"** (designated internally as `sauce` and `tomte`) and customizable **"Creator Suit"** with Pixel Camera `11.0.073.972752740.32` on the Pixel 11 family. 
+Google introduced **"Camera Looks"** (designated internally as `sauce` and `tomte`) and customizable **"Creator Suit"** with Pixel Camera `11.1.040.982810059.19` on the Pixel 11 family. 
 
 Through deep reverse-engineering of Dalvik bytecode and native Halide binaries, we discovered that **the complete feature framework is present across older Pixel devices**. The features were withheld exclusively via runtime feature flags and device checks.
 
@@ -28,7 +31,7 @@ This repository provides **comprehensive reverse-engineering research**, **devic
 
 ## Key Features Unlocked
 
-### 1. Ten Signature Camera Looks (Sauce & Tomte)
+### 1. Thirteen Signature Camera Looks (Sauce & Tomte)
 Instant tone mapping, color matrix shifts, and organic film grain encoded into captures:
 
 | # | Look Preset | Internal Codename | Visual Characteristics |
@@ -43,6 +46,9 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 | **7** | **Digi** | `sauce_digicam_label` | Nostalgic early-2000s compact digital camera punch and flare. |
 | **8** | **Black Tie** | `sauce_black_and_white_label` | Fine-grain, high-contrast monochrome with deep dynamic range. |
 | **9** | **Minimal** | `sauce_minimal_label` | Clean, desaturated Scandinavian fine-art style. |
+| **10** | **Flat** | `sauce_pesto_label` | Low-contrast flat color profile with maximum dynamic range for color grading. |
+| **11** | **Buffalo** | `sauce_unflat_label` | Punchy, rich earth-tone saturation with expanded dynamic latitude. |
+| **12** | **Dijon** | `sauce_yellow_green_faded_label` | Warm vintage look with olive-tinted highlights and faded contrast. |
 
 ### 2. Customizable Viewfinder Quick Access Controls
 * **Interactive Viewfinder Slots**: Assign **Left** and **Right** quick access slots directly from the Camera settings.
@@ -143,9 +149,12 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 ### Known Issues Tracker
 - [x] **Motion Blur (Action Pan / Long Exposure) Stalls**: **Resolved** — Cleanly hidden and disabled via `camera.lasagna` flags to prevent photo-saving hangs caused by SELinux `/dev/gxp` restrictions.
-- [x] **Brightness & Shadows Quick Sliders**: **Resolved** — Fully mapped to all 4 exposure controllers (`mzc`, `nrh`, `nre`, `nrd`).
-- [x] **Portrait Mode Crash**: **Resolved** — Preserved stable stock portrait pipeline across all devices.
-- [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements on older SoCs.
+- [x] **Brightness & Shadows Quick Sliders**: **Resolved** — Fully mapped to all 4 exposure controllers (`mzc`, `nrh`, `nre`, `nrd`) with dynamic AE and tap-to-focus unblocked.
+- [x] **Portrait Mode Crash on Pixel 8 Pro / Tensor G1–G3 (Issue #19)**: **Resolved** — Hardened EdgeTPU guards (`pvz`, `kic`) and routed portrait processing to pure-TFLite monocular depth (`pwh`, `pwm`), bypassing `edgetpu-custom-op-2` permission error `-8`.
+- [x] **White Balance Slider Reverting to Auto (Issues #22, #28)**: **Resolved** — Unblocked Manual White Balance provider (`taj.c`) across both 11.0 (`wqz.J`) and 11.1 (`von.G`) and synchronized Chameleon flags.
+- [x] **Invisible Differences Between Looks (Issue #27)**: **Resolved** — Routed `camera.cottage_looknet_model` and `camera.cottage_film_blender_model` to standard floating-point TFLite models (`looknet_v2.1_float.tflite.uncompressed` and `all_in_film_blender.tflite.uncompressed`), restoring full color and saturation differences without EdgeTPU custom op dependencies.
+- [x] **Configurable / Default Gallery Viewer (Issue #6)**: **Resolved** — Intercepted review intent factory (`hpq.cD` / `hwb.w`) via `TomteInitHelper.configureGalleryIntent`, unblocking GrapheneOS, Aves, Simple Gallery, and default gallery apps when Google Photos is missing.
+- [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements (`REQUEST_TOMTE_TYPE`) on older SoCs.
 - [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
 
@@ -161,8 +170,9 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Link |
 | :--- | :---: | :--- | :---: | :--- | :---: |
-| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.3`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.3 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
-| **Patch Source Code (Kotlin)** | **`v1.0.3`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
+| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.4`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.4 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
+| **Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official, unmodified Google Camera base to patch | [Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
+| **Patch Source Code (Kotlin)** | **`v1.0.4`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
 
 ---
 
@@ -175,9 +185,9 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
    * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=akshayykadam/Pixel-Camera) on your phone.
-   * **Or Manual Import**: Download `patches-1.0.3.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
+   * **Or Manual Import**: Download `morphe-patches-pixelcamera-1.0.4.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
 3. **Get Base Google Camera**:
-   * Download `Pixel Camera 11.0.073.972752740.32` (`.apkm` bundle) from APKMirror.
+   * Download [Pixel Camera 11.1.040.982810059.19](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
    * In **Morphe Manager**, tap **Select an application** → pick the downloaded APKM file.
    * Select your desired Pixel Camera patches (**Camera Looks Backport**, **Pro Manual Controls**, **10x Viewfinder Quick Zoom**, and **Pixel Camera Clone**).
@@ -190,16 +200,17 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
      | **Override certificate pinning** | ❌ **UNCHECK** | Only for developer proxy debugging; unnecessary for camera. |
    * Tap **Proceed to patching** (or **Patch**). Morphe will merge the split assets and apply the bytecode patches directly on your phone.
    * Once finished, tap **Install**!
-5. Open **PixelCamera** from your app drawer. All 10 Camera Looks, viewfinder quick-access slots, Pro Manual Controls (Focus, Shutter Speed, ISO, Peaking, Badges), 10x zoom button, and creator tools are unlocked!
+5. Open **PixelCamera** from your app drawer. All 13 Camera Looks, viewfinder quick-access slots, Pro Manual Controls (Focus, Shutter Speed, ISO, Peaking, Badges), 10x zoom button, and creator tools are unlocked!
 
 ---
 
 ### Method 2: On Your Computer (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download `morphe-patches-pixelcamera-1.0.3.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
-3. Drop the `Pixel Camera 11.0.073` APKM into Morphe Desktop and apply the patch package.
-4. Install the resulting `PixelCamera_signed.apk` to your phone via ADB:
+2. Download `morphe-patches-pixelcamera-1.0.4.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
+3. Download the base [Pixel Camera 11.1.040 APKM](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) from APKMirror.
+4. Drop the APKM into Morphe Desktop and apply the patch package.
+5. Install the resulting `PixelCamera_signed.apk` to your phone via ADB:
    ```bash
    adb install -r PixelCamera_signed.apk
    ```
@@ -318,6 +329,18 @@ Root is <b>NOT required</b>. Morphe patches the application bytecode directly an
 <summary><b>Do photos taken with Looks save correctly in Google Photos?</b></summary>
 <p>
 Yes. Photos are written to the standard <code>DCIM/Camera</code> directory with complete EXIF and embedded <code>GFileMetadata$Sauce</code> tags, allowing Google Photos to display and backup captures normally.
+</p>
+</details>
+
+<details>
+<summary><b>Why do I get "ZipException: invalid stored block lengths" in Morphe Manager?</b></summary>
+<p>
+This error occurs in <code>SplitApkPreparer</code> when the downloaded <code>.apkm</code> archive is incomplete, corrupted, or has malformed compression stream boundaries from mobile browser downloads. To fix:
+<ol>
+  <li>Re-download the clean base <code>Pixel Camera 11.1.040.982810059.19</code> (or <code>11.0.073.972752740.32</code>) APKM using a reliable download manager or PC browser.</li>
+  <li>Verify the archive integrity before patching.</li>
+  <li>Alternatively, rename the downloaded <code>.apkm</code> file to <code>.zip</code>, extract its contents (e.g., using ZArchiver, 7-Zip, or Files by Google), and select the extracted <code>base.apk</code> directly inside Morphe Manager.</li>
+</ol>
 </p>
 </details>
 

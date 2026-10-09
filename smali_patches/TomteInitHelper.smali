@@ -12,7 +12,11 @@
 
 .field public static sSelectedLookId:I
 
-.field public static sLastSelectedLook:Lqlh;
+.field public static sLastSelectedLook:Lqvj;
+
+.field public static sAppContext:Landroid/content/Context;
+
+.field public static final PREF_FILM_GRAIN:Ljava/lang/String; = "pref_camera_looks_film_grain_key"
 
 
 # direct methods
@@ -35,9 +39,85 @@
 
     const/4 v0, 0x0
 
-    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
 
     return-void
+.end method
+
+.method public static setContext(Landroid/content/Context;)V
+    .locals 0
+
+    sput-object p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
+
+    return-void
+.end method
+
+.method public static getApplicationContext()Landroid/content/Context;
+    .locals 1
+
+    :try_start_app
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
+
+    if-eqz v0, :cond_try_activity_thread
+
+    return-object v0
+    :try_end_app
+    .catch Ljava/lang/Throwable; {:try_start_app .. :try_end_app} :catch_app
+
+    :catch_app
+    :cond_try_activity_thread
+    :try_start_thread
+    invoke-static {}, Landroid/app/ActivityThread;->currentApplication()Landroid/app/Application;
+
+    move-result-object v0
+
+    return-object v0
+    :try_end_thread
+    .catch Ljava/lang/Throwable; {:try_start_thread .. :try_end_thread} :catch_thread
+
+    :catch_thread
+    const/4 v0, 0x0
+
+    return-object v0
+.end method
+
+.method public static isGrainEnabled()Z
+    .locals 4
+
+    :try_start_0
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_default
+
+    invoke-static {v0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
+
+    move-result-object v0
+
+    const-string v1, "pref_camera_looks_film_grain_key"
+
+    const/4 v2, 0x1
+
+    invoke-interface {v0, v1, v2}, Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z
+
+    move-result v0
+
+    return v0
+
+    :cond_default
+    const/4 v0, 0x1
+
+    return v0
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    :catchall_0
+    const/4 v0, 0x1
+
+    return v0
 .end method
 
 .method public constructor <init>()V
@@ -155,6 +235,27 @@
 
     monitor-enter v1
 
+    :try_start_grain_check
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
+
+    move-result v0
+
+    if-nez v0, :cond_grain_allowed
+
+    const-string v0, "PATCH_LOOKS"
+
+    const-string v2, "TomteInitHelper.initTomteGrain: film grain is DISABLED by user setting."
+
+    invoke-static {v0, v2}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    monitor-exit v1
+
+    return-void
+
+    :cond_grain_allowed
+    :try_end_grain_check
+    .catchall {:try_start_grain_check .. :try_end_grain_check} :catchall_1
+
     .line 15
     const-wide/16 v2, 0x0
 
@@ -219,12 +320,7 @@
     .line 24
     :cond_1
     :try_start_2
-    sget-object v0, Lcom/google/android/apps/camera/app/CameraApp;->sAppContext:Landroid/content/Context;
-
-    .line 25
-    if-nez v0, :cond_2
-
-    invoke-static {}, Landroid/app/ActivityThread;->currentApplication()Landroid/app/Application;
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
 
     move-result-object v0
 
@@ -449,14 +545,14 @@
     return-void
 .end method
 
-.method public static onLookObjectSelected(Lqlh;)V
+.method public static onLookObjectSelected(Lqvj;)V
     .locals 2
 
     if-eqz p0, :cond_null
 
-    sput-object p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+    sput-object p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
-    iget v0, p0, Lqlh;->d:I
+    iget v0, p0, Lqvj;->d:I
 
     invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V
 
@@ -465,7 +561,7 @@
     :cond_null
     const/4 v0, 0x0
 
-    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
     const/4 v0, 0x0
 
@@ -474,15 +570,15 @@
     return-void
 .end method
 
-.method public static getLastSelectedLook()Lqlh;
+.method public static getLastSelectedLook()Lqvj;
     .locals 1
 
-    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
     return-object v0
 .end method
 
-.method public static getEffectiveLookOrFallback(Lqlh;)Lqlh;
+.method public static getEffectiveLookOrFallback(Lqvj;)Lqvj;
     .locals 1
 
     if-eqz p0, :cond_use_fallback
@@ -490,7 +586,7 @@
     return-object p0
 
     :cond_use_fallback
-    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqlh;
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
     return-object v0
 .end method
@@ -545,6 +641,71 @@
 
     :cond_check_ark
     const-string v0, "camera.ark"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_chameleon
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_chameleon
+    const-string v0, "camera.chameleon"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_cct
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_cct
+    const-string v0, "camera.enable_show_cct"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_freesia
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_freesia
+    const-string v0, "camera.enable_freesia"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_peony
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_peony
+    const-string v0, "camera.enable_peony"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_basil
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_basil
+    const-string v0, "camera.enable_basil"
 
     invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 
@@ -654,9 +815,61 @@
 
     move-result v0
 
-    if-eqz v0, :cond_check_gs
+    if-eqz v0, :cond_check_dualev_single_knob
 
     const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_dualev_single_knob
+    const-string v0, "camera.dualev.singleKnob"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_enable_twilight
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_enable_twilight
+    const-string v0, "camera.enable_twilight"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_dualev_ultrawide
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_dualev_ultrawide
+    const-string v0, "camera.dualev.limitUltrawide"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_dualev_shadowboost
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_dualev_shadowboost
+    const-string v0, "camera.dualev.limitShadowBoost"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_gs
+
+    const/4 v0, 0x0
 
     return v0
 
@@ -849,6 +1062,32 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_rear_rgbpd
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_rear_rgbpd
+    const-string v0, "camera.gouda.rear_rgbpd"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_physeter
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_physeter
+    const-string v0, "physeter"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_check_generic_tpu
 
     const/4 v0, 0x0
@@ -900,12 +1139,12 @@
     return v0
 .end method
 
-.method public static interceptFlagQ(Lklm;Lkiz;)Z
+.method public static interceptFlagQ(Lksf;Lkps;)Z
     .locals 2
 
     if-eqz p1, :cond_orig_q
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_orig_q
 
@@ -928,7 +1167,7 @@
 
     :cond_orig_q
     :try_start_orig_q
-    invoke-virtual {p0, p1}, Lklm;->original_q(Lkiz;)Z
+    invoke-virtual {p0, p1}, Lksf;->original_q(Lkps;)Z
 
     move-result p0
 
@@ -942,12 +1181,12 @@
     return p0
 .end method
 
-.method public static interceptFlagX(Lklm;Lkiz;)Z
+.method public static interceptFlagX(Lksf;Lkps;)Z
     .locals 2
 
     if-eqz p1, :cond_orig_x
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_orig_x
 
@@ -970,7 +1209,7 @@
 
     :cond_orig_x
     :try_start_orig_x
-    invoke-virtual {p0, p1}, Lklm;->original_x(Lkiz;)Z
+    invoke-virtual {p0, p1}, Lksf;->original_x(Lkps;)Z
 
     move-result p0
 
@@ -984,13 +1223,152 @@
     return p0
 .end method
 
-.method public static interceptFlagA(Lklm;Lkiy;)Lj$/util/Optional;
+.method public static interceptPref(Lrdo;Lrdg;)Ljava/lang/Object;
+    .locals 2
+
+    if-nez p1, :cond_check_pref
+
+    const/4 p0, 0x0
+
+    return-object p0
+
+    :cond_check_pref
+    iget-object v0, p1, Lrdg;->a:Ljava/lang/String;
+
+    if-nez v0, :cond_check_qa_key
+
+    const/4 p0, 0x0
+
+    return-object p0
+
+    :cond_check_qa_key
+    const-string v1, "pref_quick_access_controls_key"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_slot_left
+
+    sget-object p0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
+
+    return-object p0
+
+    :cond_check_slot_left
+    const-string v1, "pref_quick_access_slot_left_1_id"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_slot_r1
+
+    invoke-virtual {p0, p1}, Lrdo;->c(Lrdg;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_use_def_left
+
+    check-cast v0, Ljava/lang/Number;
+
+    invoke-virtual {v0}, Ljava/lang/Number;->intValue()I
+
+    move-result v0
+
+    const/4 v1, -0x1
+
+    if-ne v0, v1, :cond_ret_null
+
+    :cond_use_def_left
+    const/4 p0, 0x2
+
+    invoke-static {p0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_check_slot_r1
+    const-string v1, "pref_quick_access_slot_right_1_id"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_slot_r2
+
+    invoke-virtual {p0, p1}, Lrdo;->c(Lrdg;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_use_def_r1
+
+    check-cast v0, Ljava/lang/Number;
+
+    invoke-virtual {v0}, Ljava/lang/Number;->intValue()I
+
+    move-result v0
+
+    const/4 v1, -0x1
+
+    if-ne v0, v1, :cond_ret_null
+
+    :cond_use_def_r1
+    const/16 p0, 0x9
+
+    invoke-static {p0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_check_slot_r2
+    const-string v1, "pref_quick_access_slot_right_2_id"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_ret_null
+
+    invoke-virtual {p0, p1}, Lrdo;->c(Lrdg;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_use_def_r2
+
+    check-cast v0, Ljava/lang/Number;
+
+    invoke-virtual {v0}, Ljava/lang/Number;->intValue()I
+
+    move-result v0
+
+    const/4 v1, -0x1
+
+    if-ne v0, v1, :cond_ret_null
+
+    :cond_use_def_r2
+    const/16 p0, 0x8
+
+    invoke-static {p0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_ret_null
+    const/4 p0, 0x0
+
+    return-object p0
+.end method
+
+.method public static interceptFlagA(Lksf;Lkpr;)Lj$/util/Optional;
     .locals 3
 
     if-eqz p1, :cond_orig_a
 
     # kiy extends kix, which has field a:Ljava/lang/String; (the flag name)
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_orig_a
 
@@ -1018,7 +1396,7 @@
     :cond_try_orig_a
     # Call original method first; if result is present, return it
     :try_start_orig_a
-    invoke-virtual {p0, p1}, Lklm;->original_a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p0, p1}, Lksf;->original_a(Lkpr;)Lj$/util/Optional;
 
     move-result-object v0
     :try_end_orig_a
@@ -1032,7 +1410,7 @@
     if-nez v1, :cond_return_result
 
     # Result is empty — check if we have a binned RAW fallback
-    iget-object v1, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v1, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v1, :cond_return_result
 
@@ -1106,7 +1484,7 @@
 
     :cond_orig_a
     :try_start_orig_a2
-    invoke-virtual {p0, p1}, Lklm;->original_a(Lkiy;)Lj$/util/Optional;
+    invoke-virtual {p0, p1}, Lksf;->original_a(Lkpr;)Lj$/util/Optional;
 
     move-result-object p0
 
@@ -1122,12 +1500,12 @@
     return-object p0
 .end method
 
-.method public static interceptFlagH(Lklm;Lkiz;)Ljava/lang/String;
+.method public static interceptFlagH(Lksf;Lkps;)Ljava/lang/String;
     .locals 3
 
     if-eqz p1, :cond_check_orig_h
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_h
 
@@ -1189,6 +1567,45 @@
 
     move-result v1
 
+    if-eqz v1, :cond_check_gouda_rear_pdlearned_remosaic_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_rear_pdlearned_remosaic_model
+    const-string v1, "camera.gouda.rear_pdlearned_remosaic_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_front_pdlearned_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_front_pdlearned_model
+    const-string v1, "camera.gouda.front_pdlearned_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_front_rgbpd_v2_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_front_rgbpd_v2_model
+    const-string v1, "camera.gouda.front_rgbpd_v2_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_gouda_pdstereo_model
 
     const-string v0, ""
@@ -1197,6 +1614,58 @@
 
     :cond_check_gouda_pdstereo_model
     const-string v1, "camera.gouda.pdstereo_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_pdstereo_remosaic_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_pdstereo_remosaic_model
+    const-string v1, "camera.gouda.pdstereo_remosaic_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_model
+    const-string v1, "camera.gouda.physeter_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_v2_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_v2_model
+    const-string v1, "camera.gouda.physeter_v2_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_physeter_v3_model
+
+    const-string v0, ""
+
+    return-object v0
+
+    :cond_check_gouda_physeter_v3_model
+    const-string v1, "camera.gouda.physeter_v3_model"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
@@ -1228,15 +1697,41 @@
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig_h
+    if-eqz v1, :cond_check_cottage_looknet_model
 
     const-string v0, "portrait_matting_mask_1024_768.tflite.uncompressed"
 
     return-object v0
 
+    :cond_check_cottage_looknet_model
+    const-string v1, "camera.cottage_looknet_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_cottage_film_blender_model
+
+    const-string v0, "looknet_v2.1_float.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_cottage_film_blender_model
+    const-string v1, "camera.cottage_film_blender_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_h
+
+    const-string v0, "all_in_film_blender.tflite.uncompressed"
+
+    return-object v0
+
     :cond_check_orig_h
     :try_start_orig_h
-    invoke-virtual {p0, p1}, Lklm;->original_h(Lkiz;)Ljava/lang/String;
+    invoke-virtual {p0, p1}, Lksf;->original_h(Lkps;)Ljava/lang/String;
 
     move-result-object p0
 
@@ -1250,12 +1745,12 @@
     return-object p0
 .end method
 
-.method public static interceptFlagR(Lklm;Lkiz;)Lj$/util/Optional;
+.method public static interceptFlagR(Lksf;Lkps;)Lj$/util/Optional;
     .locals 2
 
     if-eqz p1, :cond_check_orig_r
 
-    iget-object v0, p1, Lkix;->a:Ljava/lang/String;
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
 
     if-eqz v0, :cond_check_orig_r
 
@@ -1323,7 +1818,7 @@
 
     :cond_check_orig_r
     :try_start_orig_r
-    invoke-virtual {p0, p1}, Lklm;->original_r(Lkiz;)Lj$/util/Optional;
+    invoke-virtual {p0, p1}, Lksf;->original_r(Lkps;)Lj$/util/Optional;
 
     move-result-object p0
 
@@ -1339,13 +1834,13 @@
     return-object p0
 .end method
 
-.method public static hookZoomButtons(Lkfw;)V
+.method public static hookZoomButtons(Lkmo;)V
     .locals 3
 
     if-nez p0, :cond_end
 
     :try_start_0
-    iget-object v0, p0, Lkfw;->Q:Ljava/util/List;
+    iget-object v0, p0, Lkmo;->Q:Ljava/util/List;
 
     if-nez v0, :cond_check_5
 
@@ -1384,17 +1879,17 @@
     :cond_add_10
     invoke-interface {v0, v1}, Ljava/util/List;->add(Ljava/lang/Object;)Z
 
-    iget-object v0, p0, Lkfw;->P:Lcgz;
+    iget-object v0, p0, Lkmo;->P:Lchy;
 
     if-eqz v0, :cond_end
 
-    new-instance v1, Lkds;
+    new-instance v1, Lkkl;
 
     const-string v2, "10"
 
-    invoke-direct {v1, v2}, Lkds;-><init>(Ljava/lang/String;)V
+    invoke-direct {v1, v2}, Lkkl;-><init>(Ljava/lang/String;)V
 
-    invoke-virtual {v0, v1}, Lcgz;->add(Ljava/lang/Object;)Z
+    invoke-virtual {v0, v1}, Lchy;->add(Ljava/lang/Object;)Z
     :try_end_0
     .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_hook_zoom
 
@@ -1450,5 +1945,143 @@
 
     :catch_hook_slider
     return-void
+.end method
+
+.method public static configureGalleryIntent(Landroid/content/Intent;)Landroid/content/Intent;
+    .locals 4
+
+    if-nez p0, :cond_start
+
+    return-object p0
+
+    :cond_start
+    const/4 v0, 0x1
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    :try_start_full
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    if-nez v0, :cond_has_context
+
+    const/4 v0, 0x0
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    goto :goto_adjust_action
+
+    :cond_has_context
+    invoke-virtual {v0}, Landroid/content/Context;->getPackageManager()Landroid/content/pm/PackageManager;
+
+    move-result-object v1
+
+    if-nez v1, :cond_check_prefs
+
+    const/4 v0, 0x0
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    goto :goto_adjust_action
+
+    :cond_check_prefs
+    :try_start_pref
+    invoke-static {v0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
+
+    move-result-object v0
+
+    const-string v2, "pref_gallery_package_key"
+
+    const/4 v3, 0x0
+
+    invoke-interface {v0, v2, v3}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_no_pref
+
+    invoke-virtual {v0}, Ljava/lang/String;->isEmpty()Z
+
+    move-result v2
+
+    if-nez v2, :cond_no_pref
+
+    const-string v2, "default"
+
+    invoke-virtual {v0, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-nez v2, :cond_no_pref
+
+    const/4 v2, 0x0
+
+    invoke-virtual {v1, v0, v2}, Landroid/content/pm/PackageManager;->getPackageInfo(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    goto :goto_adjust_action
+    :try_end_pref
+    .catch Ljava/lang/Throwable; {:try_start_pref .. :try_end_pref} :catch_pref
+
+    :catch_pref
+    :cond_no_pref
+    const/4 v0, 0x0
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    :goto_adjust_action
+    invoke-virtual {p0}, Landroid/content/Intent;->getAction()Ljava/lang/String;
+
+    move-result-object v0
+
+    if-nez v0, :cond_check_action_name
+
+    const-string v0, "android.intent.action.VIEW"
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+
+    return-object p0
+
+    :cond_check_action_name
+    const-string v2, "com.google.android.apps.photos.mars.api.ACTION_REVIEW_SECURE"
+
+    invoke-virtual {v0, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-nez v2, :cond_secure_action
+
+    const-string v2, "android.provider.action.REVIEW_SECURE"
+
+    invoke-virtual {v0, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_regular_action
+
+    :cond_secure_action
+    const-string v0, "com.google.android.apps.photos"
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v0, "com.google.android.apps.photos.mars.api.ACTION_REVIEW_SECURE"
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+
+    return-object p0
+
+    :cond_regular_action
+    const-string v0, "android.intent.action.VIEW"
+
+    invoke-virtual {p0, v0}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+
+    return-object p0
+    :try_end_full
+    .catch Ljava/lang/Throwable; {:try_start_full .. :try_end_full} :catch_all_fallback
+
+    :catch_all_fallback
+    return-object p0
 .end method
 

@@ -1,5 +1,5 @@
 group = "app.morphe.patches.pixelcamera"
-version = "1.0.3"
+version = "1.0.4"
 
 patches {
     about {
@@ -27,3 +27,8 @@ dependencies {
     testImplementation(libs.smali)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 }
+
+tasks.named("assemble") {
+    dependsOn("buildAndroid")
+}
+
