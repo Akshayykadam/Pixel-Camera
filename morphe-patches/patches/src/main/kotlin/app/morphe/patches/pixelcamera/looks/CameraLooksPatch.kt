@@ -154,25 +154,13 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 9. Bypass split check in CameraApp.smali ───────────────────────────────────
+        // ── 9. Save static Application Context in CameraApp.smali ────────────────────
         mutableClassDefByOrNull("Lcom/google/android/apps/camera/app/CameraApp;")?.let { clazz ->
-            val gASmali = """
-                iget-object v0, p0, Lcom/google/android/apps/camera/app/CameraApp;->q:Livg;
-                invoke-virtual {v0, p0}, Livg;->b(Landroid/content/Context;)V
-                invoke-direct {p0}, Lcom/google/android/apps/camera/app/CameraApp;->i()Litb;
-                move-result-object p0
-                invoke-virtual {p0}, Litb;->gA()Ladvz;
-                move-result-object p0
-                invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-                return-object p0
-            """.trimIndent()
-            PixelCameraPatchUtils.replaceMethodBody(clazz, "gA", "Ladvz;", gASmali)
-
             // Register Application Context in TomteInitHelper on onCreate()
             clazz.methods.firstOrNull { it.name == "onCreate" && it.parameterTypes.isEmpty() }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
-                    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setContext(Landroid/content/Context;)V
+                    invoke-static/range {p0 .. p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setContext(Landroid/content/Context;)V
                 """.trimIndent()
                 try {
                     val instructions = hookSmali.toInstructions(method)

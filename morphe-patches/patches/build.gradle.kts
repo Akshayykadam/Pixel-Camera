@@ -28,6 +28,10 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 }
 
+tasks.named("jar") {
+    finalizedBy("buildAndroid")
+}
+
 tasks.named("assemble") {
     dependsOn("buildAndroid")
 }

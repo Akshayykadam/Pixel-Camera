@@ -41,6 +41,24 @@ class SmokeTest {
     }
 
     @Test
+    fun testFindEmptyOrInvalidMethods() {
+        val dexFile = java.io.File("build/tmp/test_patcher/patched_dex/classes.dex")
+        if (!dexFile.exists()) return
+        val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        println("=== Inspecting ${dex.classes.size} classes in classes.dex ===")
+        for (c in dex.classes) {
+            println("Class: ${c.type}")
+            for (m in c.methods) {
+                val impl = m.implementation
+                val insCount = impl?.instructions?.count() ?: -1
+                if (insCount <= 0 && (m.accessFlags and com.android.tools.smali.dexlib2.AccessFlags.ABSTRACT.value) == 0 && (m.accessFlags and com.android.tools.smali.dexlib2.AccessFlags.NATIVE.value) == 0) {
+                    println("  !!! EMPTY METHOD: ${c.type}->${m.name}(${m.parameterTypes.joinToString()}) (count=$insCount)")
+                }
+            }
+        }
+    }
+
+    @Test
     fun testInspectPpnMethodO() {
         val dexFile = java.io.File("build/tmp/test_patcher/patched_dex/classes.dex")
         if (!dexFile.exists()) {

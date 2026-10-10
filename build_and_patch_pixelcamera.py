@@ -2445,32 +2445,31 @@ def patch_psh_smali():
         f.write(content)
 
 def patch_klh_smali():
-    print("[*] Patching klh.smali (SpecialTypesProvider authority alignment)...")
-    klh_path = os.path.join(APKTOOL_DIR, "smali", "klh.smali")
-    if not os.path.exists(klh_path):
-        print("    [!] Warning: klh.smali not found.")
-        return
-    with open(klh_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    print("[*] Patching SpecialTypesProvider authority alignment (klh.smali / ksa.smali)...")
+    for smali_name in ["klh.smali", "ksa.smali"]:
+        for folder in ["smali", "smali_classes2"]:
+            f_path = os.path.join(APKTOOL_DIR, folder, smali_name)
+            if not os.path.exists(f_path):
+                continue
+            with open(f_path, "r", encoding="utf-8") as f:
+                content = f.read()
 
-    changed = False
-    for old_auth in [
-        "com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng",
-        "com.google.android.apps.camera.specialtypes.SpecialTypesProviderNext",
-        "com.google.android.apps.camera.specialtypes.SpecialTypesProvider",
-    ]:
-        if old_auth in content:
-            content = content.replace(old_auth, "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider")
-            changed = True
+            changed = False
+            for old_auth in [
+                "com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng",
+                "com.google.android.apps.camera.specialtypes.SpecialTypesProviderNext",
+                "com.google.android.apps.camera.specialtypes.SpecialTypesProvider",
+            ]:
+                if old_auth in content:
+                    content = content.replace(old_auth, "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider")
+                    changed = True
 
-    if changed:
-        with open(klh_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] klh.smali: SpecialTypesProvider authority aligned to cloned package.")
-    elif "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" in content:
-        print("    [+] klh.smali: already patched.")
-    else:
-        print("    [!] Warning: klh.smali authority target strings not found.")
+            if changed:
+                with open(f_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"    [+] {smali_name}: SpecialTypesProvider authority aligned to cloned package.")
+            elif "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" in content:
+                print(f"    [+] {smali_name}: already patched.")
 
 def patch_num_smali():
     print("[*] Patching num.smali (Guard telephoto portrait sensor against NPE)...")
@@ -7063,6 +7062,248 @@ def patch_dual_exposure_viewfinder():
         else:
             print("    [!] Warning: nia.smali target not found.")
 
+def patch_dual_ev_ctrl_and_slider_sync():
+    print("[*] Patching DualEvCtrl (ptm, pzj) and Slider Sync (lts) for full dynamic exposure range & sync...")
+    
+    # 1. ptm.smali: Force ptm.g = false so DualEvCtrl connects to Camera2 HAL request pipeline
+    ptm_path = os.path.join(APKTOOL_DIR, "smali", "ptm.smali")
+    if os.path.exists(ptm_path):
+        with open(ptm_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_ptm = """    invoke-virtual {p6, p1}, Lksf;->q(Lkps;)Z
+
+    move-result p1
+
+    iput-boolean p1, p0, Lptm;->g:Z"""
+        replacement_ptm = """    invoke-virtual {p6, p1}, Lksf;->q(Lkps;)Z
+
+    const/4 p1, 0x0
+
+    iput-boolean p1, p0, Lptm;->g:Z"""
+        if target_ptm in content:
+            content = content.replace(target_ptm, replacement_ptm)
+            with open(ptm_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] ptm.smali: ptm.g forced to false (DualEvCtrl enabled).")
+        elif "const/4 p1, 0x0\\n\\n    iput-boolean p1, p0, Lptm;->g:Z" in content:
+            print("    [+] ptm.smali: already patched.")
+        else:
+            print("    [!] Warning: ptm.smali target not found.")
+
+    # 2. pzj.smali: Linear shadow exponent (1.0f), forced i()Z return true, and g()V unconditional set
+    pzj_path = os.path.join(APKTOOL_DIR, "smali", "pzj.smali")
+    if os.path.exists(pzj_path):
+        with open(pzj_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 2a. Linear shadow curve in pzj.n
+        target_pow = """    if-eqz p1, :cond_2
+
+    float-to-double p1, v1
+
+    invoke-static {v2, v3, p1, p2}, Ljava/lang/Math;->pow(DD)D
+
+    move-result-wide p1
+
+    double-to-float p1, p1
+
+    div-float/2addr v1, v0
+
+    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+
+    move-result v6"""
+        replacement_pow = """    if-eqz p1, :cond_2
+
+    const/high16 p1, 0x3f800000    # 1.0f
+
+    div-float/2addr v1, v0
+
+    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+
+    move-result v6"""
+        if target_pow in content:
+            content = content.replace(target_pow, replacement_pow)
+            print("    [+] pzj.smali: Linear shadow response (1.0f) injected.")
+        elif "const/high16 p1, 0x3f800000" in content:
+            print("    [+] pzj.smali: shadow curve already linearized.")
+
+        # 2b. pzj.i()Z return true
+        target_i = """.method public final declared-synchronized i()Z
+    .locals 1
+
+    monitor-enter p0
+
+    :try_start_0
+    iget-object v0, p0, Lpzj;->t:Lurt;
+
+    if-eqz v0, :cond_0
+
+    invoke-interface {v0}, Lurt;->d()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lpzm;
+
+    iget-boolean v0, v0, Lpzm;->a:Z
+
+    if-eqz v0, :cond_0
+
+    iget-object v0, p0, Lpzj;->t:Lurt;
+
+    invoke-interface {v0}, Lurt;->d()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lpzm;
+
+    iget-boolean v0, v0, Lpzm;->b:Z
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    if-eqz v0, :cond_0
+
+    monitor-exit p0
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_0
+    monitor-exit p0
+
+    const/4 p0, 0x0
+
+    return p0
+.end method"""
+        replacement_i = """.method public final declared-synchronized i()Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method"""
+        if target_i in content:
+            content = content.replace(target_i, replacement_i)
+            print("    [+] pzj.smali: i()Z forced to return true.")
+        elif ".method public final declared-synchronized i()Z\\n    .locals 1\\n\\n    const/4 v0, 0x1\\n\\n    return v0\\n.end method" in content:
+            print("    [+] pzj.smali: i()Z already returns true.")
+
+        # 2c. pzj.g()V remove goto bypass
+        target_g = """    iget-boolean v0, p0, Lpzj;->e:Z
+
+    if-eqz v0, :cond_0
+
+    goto :goto_0
+
+    :cond_0"""
+        replacement_g = """    nop
+
+    nop
+
+    nop
+
+    :cond_0"""
+        if target_g in content:
+            content = content.replace(target_g, replacement_g)
+            print("    [+] pzj.smali: g()V early exit bypassed.")
+        elif "nop\\n\\n    nop\\n\\n    nop\\n\\n    :cond_0" in content:
+            print("    [+] pzj.smali: g()V already patched.")
+
+        with open(pzj_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 3. lts.smali: Modulo-2 enum mapping & dual slider synchronization
+    lts_path = os.path.join(APKTOOL_DIR, "smali", "lts.smali")
+    if os.path.exists(lts_path):
+        with open(lts_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 3a. rem-int/lit8 v0, v0, 0x2
+        target_ordinal = """:cond_3
+    invoke-virtual {p2}, Llsz;->ordinal()I
+
+    move-result v0
+
+    const/high16 v1, -0x40800000    # -1.0f"""
+        replacement_ordinal = """:cond_3
+    invoke-virtual {p2}, Llsz;->ordinal()I
+
+    move-result v0
+
+    rem-int/lit8 v0, v0, 0x2
+
+    const/high16 v1, -0x40800000    # -1.0f"""
+        if target_ordinal in content:
+            content = content.replace(target_ordinal, replacement_ordinal)
+            print("    [+] lts.smali: rem-int/lit8 v0, v0, 0x2 injected.")
+        elif "rem-int/lit8 v0, v0, 0x2" in content:
+            print("    [+] lts.smali: ordinal already modulo-2 mapped.")
+
+        # 3b. Sync in :cond_6 (Shadow knob)
+        target_c6 = """    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->v:Lusf;"""
+        replacement_c6 = """    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Llts;->f:Lusf;
+
+    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->v:Lusf;"""
+        if target_c6 in content and "iget-object v0, p0, Llts;->f:Lusf;" not in content:
+            content = content.replace(target_c6, replacement_c6)
+            print("    [+] lts.smali: :cond_6 updated with Twilight EVC sync.")
+
+        target_c6_uninit = """    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    goto :goto_0
+
+    :cond_7"""
+        replacement_c6_uninit = """    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->g:Lusf;
+
+    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    goto :goto_0
+
+    :cond_7"""
+        if target_c6_uninit in content and "iget-object p1, p0, Llts;->g:Lusf;" not in content:
+            content = content.replace(target_c6_uninit, replacement_c6_uninit)
+            print("    [+] lts.smali: :cond_6 updated with Twilight Brightness sync.")
+
+        # 3c. Sync in :cond_7 (Brightness knob)
+        target_c7 = """    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->w:Lusf;"""
+        replacement_c7 = """    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Llts;->g:Lusf;
+
+    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->w:Lusf;"""
+        if target_c7 in content and replacement_c7 not in content:
+            content = content.replace(target_c7, replacement_c7)
+            print("    [+] lts.smali: :cond_7 updated with Twilight Brightness sync.")
+
+        target_c7_uninit = """    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_8"""
+        replacement_c7_uninit = """    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p1, p0, Llts;->f:Lusf;
+
+    invoke-interface {p1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_8"""
+        if target_c7_uninit in content and replacement_c7_uninit not in content:
+            content = content.replace(target_c7_uninit, replacement_c7_uninit)
+            print("    [+] lts.smali: :cond_7 updated with Twilight EVC sync.")
+
+        with open(lts_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
 def inject_splits():
     print("[*] Injecting dynamic native libraries and neural assets from feature splits...")
     
@@ -7346,15 +7587,18 @@ def copy_to_desktop(signed_apk):
     if os.path.isdir(desktop_dir):
         dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
         shutil.copy2(signed_apk, dest_apk)
+        dest_v104 = os.path.join(desktop_dir, "PixelCamera-1.0.4.apk")
+        shutil.copy2(signed_apk, dest_v104)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v104} ({size_mb:.2f} MB)")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera_signed2.apk"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera_signed.apk and PixelCamera_signed2.apk")
-        return dest_apk
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.4.apk"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.4.apk")
+        return dest_v104
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
@@ -7474,6 +7718,7 @@ def main():
     patch_sof_smali()
     patch_creator_suite_smali()
     patch_dual_exposure_viewfinder()
+    patch_dual_ev_ctrl_and_slider_sync()
     patch_looks_fine_tuning_and_grain()
     patch_nzr_and_mpd_smali()
     patch_zoom_controllers()

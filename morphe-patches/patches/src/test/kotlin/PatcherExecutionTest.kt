@@ -26,12 +26,7 @@ class PatcherExecutionTest {
         }
         val tmpDir = File("build/tmp/test_patcher")
         tmpDir.mkdirs()
-        val config = PatcherConfig(
-            apkFile = baseApk,
-            temporaryFilesPath = tmpDir
-        )
-        val patcher = Patcher(config)
-        patcher += setOf(
+        val allPatches = listOf(
             cameraLooksPatch,
             quickAccessPatch,
             telephotoPortraitAndZoomPatch,
@@ -41,10 +36,33 @@ class PatcherExecutionTest {
             creatorSuitePatch,
             pixelCameraClonePatch
         )
-        patcher.invoke().collect { result ->
+        for (p in allPatches) {
+            val patchName = p.name ?: "unnamed"
+            println("--- Testing patch: $patchName ---")
+            val pDir = File(tmpDir, "patch_${patchName.replace(" ", "_")}")
+            pDir.mkdirs()
+            val pConfig = PatcherConfig(apkFile = baseApk, temporaryFilesPath = pDir)
+            val pPatcher = Patcher(pConfig)
+            pPatcher += setOf(p)
+            try {
+                pPatcher.invoke().collect { res ->
+                    println("  Finished $patchName: $res")
+                }
+            } catch (e: Throwable) {
+                println("  ERROR in $patchName: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+        val config = PatcherConfig(
+            apkFile = baseApk,
+            temporaryFilesPath = tmpDir
+        )
+        val fullPatcher = Patcher(config)
+        fullPatcher += allPatches.toSet()
+        fullPatcher.invoke().collect { result ->
             println("Patch result: $result")
         }
-        val result = patcher.get()
+        val result = fullPatcher.get()
         val outDexDir = File("build/tmp/test_patcher/patched_dex")
         outDexDir.mkdirs()
         for (dex in result.dexFiles) {

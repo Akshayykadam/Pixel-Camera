@@ -484,14 +484,21 @@ val quickAccessPatch = bytecodePatch(
             val smaliI = """
                 sget-object p1, Llsx;->c:Llsx;
                 iget-object v0, p0, Lltg;->o:Lusf;
+                if-eqz v0, :cond_skip_o
                 invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
+                :cond_skip_o
                 iget-object v0, p0, Lltg;->m:Lcom/google/android/apps/camera/evcomp/EvCompView;
+                if-nez v0, :cond_has_view
+                return-void
+                :cond_has_view
                 iget-object v1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->b:Lusf;
+                if-eqz v1, :cond_skip_b
                 invoke-interface {v1, p1}, Lusf;->a(Ljava/lang/Object;)V
-                invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->m()V
-                invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->k()V
-                invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->l()V
+                :cond_skip_b
                 iget-object v1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->a:Ljava/util/ArrayList;
+                if-nez v1, :cond_view_has_list
+                return-void
+                :cond_view_has_list
                 invoke-virtual {v1}, Ljava/util/ArrayList;->isEmpty()Z
                 move-result v4
                 const/4 v3, 0x0
@@ -505,21 +512,24 @@ val quickAccessPatch = bytecodePatch(
                 move-result-object v6
                 check-cast v6, Llsy;
                 iget-object v7, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v7, :cond_skip_rem_e
                 invoke-virtual {v7, v6}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->indexOfChild(Landroid/view/View;)I
                 move-result v7
                 const/4 v8, -0x1
-                if-eq v7, v8, :cond_1
+                if-eq v7, v8, :cond_skip_rem_e
                 iget-object v7, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
                 invoke-virtual {v7, v6}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->removeView(Landroid/view/View;)V
                 goto :goto_1
-                :cond_1
+                :cond_skip_rem_e
                 iget-object v7, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v7, :cond_skip_rem_f
                 invoke-virtual {v7, v6}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->indexOfChild(Landroid/view/View;)I
                 move-result v7
-                if-eq v7, v8, :cond_2
+                const/4 v8, -0x1
+                if-eq v7, v8, :cond_skip_rem_f
                 iget-object v7, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
                 invoke-virtual {v7, v6}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->removeView(Landroid/view/View;)V
-                :cond_2
+                :cond_skip_rem_f
                 :goto_1
                 add-int/lit8 v5, v5, 0x1
                 goto :goto_0
@@ -529,18 +539,32 @@ val quickAccessPatch = bytecodePatch(
                 invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->j()V
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
                 iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
+                if-eqz p1, :cond_skip_add_e
+                if-eqz v2, :cond_skip_add_e
                 invoke-virtual {p1, v2}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
+                :cond_skip_add_e
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
                 iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
+                if-eqz p1, :cond_skip_add_f
+                if-eqz v2, :cond_skip_add_f
                 invoke-virtual {p1, v2}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
+                :cond_skip_add_f
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
+                if-eqz p1, :cond_skip_list_g
                 invoke-virtual {v1, p1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+                :cond_skip_list_g
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
+                if-eqz p1, :cond_skip_list_h
                 invoke-virtual {v1, p1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+                :cond_skip_list_h
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz p1, :cond_skip_vis_e
                 invoke-virtual {p1, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                :cond_skip_vis_e
                 iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz p1, :cond_skip_vis_f
                 invoke-virtual {p1, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                :cond_skip_vis_f
                 invoke-interface {v1}, Ljava/util/List;->size()I
                 move-result p1
                 move v2, v3
@@ -557,12 +581,19 @@ val quickAccessPatch = bytecodePatch(
                 invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->invalidate()V
                 invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->requestLayout()V
                 iget-object p1, p0, Lltg;->l:Llts;
-                new-array v0, v3, [Ljava/lang/Object;
-                if-eqz p1, :cond_9
+                if-nez p1, :cond_has_l
+                return-void
+                :cond_has_l
                 invoke-virtual {p1}, Llto;->c()V
                 invoke-virtual {p1}, Llts;->h()V
                 iget-object v0, p0, Lltg;->m:Lcom/google/android/apps/camera/evcomp/EvCompView;
+                if-nez v0, :cond_chk_list
+                return-void
+                :cond_chk_list
                 iget-object v0, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->a:Ljava/util/ArrayList;
+                if-nez v0, :cond_chk_iter
+                return-void
+                :cond_chk_iter
                 invoke-interface {v0}, Ljava/util/List;->iterator()Ljava/util/Iterator;
                 move-result-object v0
                 :goto_5
@@ -578,13 +609,6 @@ val quickAccessPatch = bytecodePatch(
                 goto :goto_5
                 :cond_8
                 return-void
-                :cond_9
-                new-instance p0, Lyje;
-                const-string p1, "expected a non-null reference"
-                invoke-static {p1, v0}, Lxum;->G(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
-                move-result-object p1
-                invoke-direct {p0, p1}, Lyje;-><init>(Ljava/lang/String;)V
-                throw p0
             """.trimIndent()
             PixelCameraPatchUtils.replaceMethodBody(clazz, "i", "V", smaliI)
         }
@@ -604,16 +628,5 @@ val quickAccessPatch = bytecodePatch(
             }
         }
 
-        // ── 10. Hook EvCompView.onMeasure(II) → Always measure and layout sliders ──
-        mutableClassDefByOrNull("Lcom/google/android/apps/camera/evcomp/EvCompView;")?.let { clazz ->
-            val smaliOnMeasure = """
-                invoke-super {p0, p1, p2}, Landroid/widget/FrameLayout;->onMeasure(II)V
-                invoke-virtual {p0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->m()V
-                invoke-virtual {p0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->k()V
-                invoke-virtual {p0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->l()V
-                return-void
-            """.trimIndent()
-            PixelCameraPatchUtils.replaceMethodBody(clazz, "onMeasure", "V", smaliOnMeasure)
-        }
     }
 }
