@@ -41,19 +41,25 @@ class SmokeTest {
     }
 
     @Test
-    fun testFindEmptyOrInvalidMethods() {
+    fun testInspectMttK() {
         val dexFile = java.io.File("build/tmp/test_patcher/patched_dex/classes.dex")
         if (!dexFile.exists()) return
         val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
-        println("=== Inspecting ${dex.classes.size} classes in classes.dex ===")
-        for (c in dex.classes) {
-            println("Class: ${c.type}")
-            for (m in c.methods) {
-                val impl = m.implementation
-                val insCount = impl?.instructions?.count() ?: -1
-                if (insCount <= 0 && (m.accessFlags and com.android.tools.smali.dexlib2.AccessFlags.ABSTRACT.value) == 0 && (m.accessFlags and com.android.tools.smali.dexlib2.AccessFlags.NATIVE.value) == 0) {
-                    println("  !!! EMPTY METHOD: ${c.type}->${m.name}(${m.parameterTypes.joinToString()}) (count=$insCount)")
+        val mtt = dex.classes.firstOrNull { it.type == "Lmtt;" } ?: return
+        val kMethod = mtt.methods.firstOrNull { it.name == "K" } ?: return
+        val impl = kMethod.implementation ?: return
+        val insList = impl.instructions.toList()
+        for (i in insList.indices) {
+            val ins = insList[i]
+            val refStr = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+            if (refStr.contains("getEffectiveLookId") || refStr.contains("ShotParams_tomte_type_set")) {
+                println(">>> Target instruction at index $i:")
+                for (j in (i - 5).coerceAtLeast(0)..(i + 5).coerceAtMost(insList.size - 1)) {
+                    val insJ = insList[j]
+                    val r = (insJ as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                    println("   [$j] ${insJ.opcode} ref=$r")
                 }
+                break
             }
         }
     }
