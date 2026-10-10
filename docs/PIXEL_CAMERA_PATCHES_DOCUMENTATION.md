@@ -287,4 +287,5 @@ A deep architectural analysis revealed the exact cause:
 | Version | Highlights |
 |---|---|
 | **v1.0.3** | Initial public release (10 Camera Looks backport, Portrait Mode fix, 10x Quick Zoom, Pro manual controls). |
+| **v1.0.5** | • Fixed startup crash on Pixel 9 Pro, 9 Pro XL & Pixel 8 Pro by resolving `knq`/`knk` ART `VerifyError` (proper register routing for zoom stops, preserving float `v5` for `gei.o`).<br>• Preserved native Tensor G4 capability flags (`vku.g`, `vku.f`) on Pixel 9 models.<br>• Fixed 64-bit wide register collision in `mtt.K` (`ShotParams_tomte_type_set`) by utilizing scratch register `v15`.<br>• Removed legacy `EvCompView.onMeasure` bytecode hook causing verification errors on Android 15. |
 | **v1.0.4** | • Unlocked all 13 Camera Looks (+ Flat, Buffalo, Dijon).<br>• Restored viewfinder tap-to-focus dual sliders (**Brightness & Shadow**) with full dynamic effect (-4.0 to +4.0 stops & 15.3x linear shadow boost) and bidirectional sync with bottom sheet.<br>• Pixel 10 12MP Photo Saving fix (disables failing Flare Removal & Eclipse AE with binned RAW fallbacks).<br>• Creator Suite (Teleprompter, VU Meter, Social Framing). |

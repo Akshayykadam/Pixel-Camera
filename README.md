@@ -7,8 +7,8 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
-  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.4.mpp">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.4%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
+  <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.5.mpp">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.5%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
   </a>
   <a href="https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/">
     <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20BASE%20APK-Pixel%20Camera%2011.1%20(APKMirror)-ff8800?style=for-the-badge&logo=google&logoColor=white&labelColor=e65100" alt="Download Base APK from APKMirror" height="42">
@@ -170,9 +170,9 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Link |
 | :--- | :---: | :--- | :---: | :--- | :---: |
-| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.4`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.4 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
+| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.5 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
 | **Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official, unmodified Google Camera base to patch | [Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
-| **Patch Source Code (Kotlin)** | **`v1.0.4`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
+| **Patch Source Code (Kotlin)** | **`v1.0.5`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
 
 ---
 
@@ -185,7 +185,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
    * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=akshayykadam/Pixel-Camera) on your phone.
-   * **Or Manual Import**: Download `morphe-patches-pixelcamera-1.0.4.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
+   * **Or Manual Import**: Download `morphe-patches-pixelcamera-1.0.5.mpp` from [Releases](https://github.com/Akshayykadam/Pixel-Camera/releases/latest).
 3. **Get Base Google Camera**:
    * Download [Pixel Camera 11.1.040.982810059.19](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
@@ -207,7 +207,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 ### Method 2: On Your Computer (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download `morphe-patches-pixelcamera-1.0.4.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
+2. Download `morphe-patches-pixelcamera-1.0.5.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
 3. Download the base [Pixel Camera 11.1.040 APKM](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) from APKMirror.
 4. Drop the APKM into Morphe Desktop and apply the patch package.
 5. Install the resulting `PixelCamera_signed.apk` to your phone via ADB:
@@ -350,6 +350,16 @@ This error occurs in <code>SplitApkPreparer</code> when the downloaded <code>.ap
 Android 14 (API 34), Android 15 (API 35), and Android 16/17 previews. The Morphe patch automatically backports the <code>minSdkVersion</code> requirement from 37 down to 34.
 </p>
 </details>
+
+---
+
+## 📋 Release History & Changelog
+
+| Version | Highlights |
+|---|---|
+| **v1.0.5** *(Latest)* | • **Fixed Startup Crash on Pixel 9 Pro, 9 Pro XL & Pixel 8 Pro**: Resolved ART bytecode `VerifyError` in `knq` and `knk` by safely routing zoom stop references through `v11` and preserving primitive float register `v5` (`2.0f`) for `gei.o(FLabjo;)V`.<br>• **Preserved Stock Tensor G4 Capabilities**: Kept native `vku.g` and `vku.f` hardware capability flags on Pixel 9 series to prevent profile fallback.<br>• **64-bit Pointer Pair Alignment**: Fixed look ID scratch register in `mtt.K` (`ShotParams_tomte_type_set`) to `v15`, eliminating wide register pair collisions.<br>• **Viewfinder & Quick Access Hardening**: Removed legacy `EvCompView.onMeasure` bytecode hook causing Android 15 verification conflicts, and added null-safety guards across activity startup. |
+| **v1.0.4** | • Unlocked all 13 Camera Looks (+ Flat, Buffalo, Dijon).<br>• Restored viewfinder tap-to-focus dual sliders (**Brightness & Shadow**) with full dynamic range and bidirectional sync with bottom drawer.<br>• Pixel 10 12MP Photo Saving fix (disables failing Flare Removal & Eclipse AE with binned RAW fallbacks).<br>• Creator Suite (Teleprompter, VU Meter, Social Framing). |
+| **v1.0.3** | Initial public release (10 Camera Looks backport, Portrait Mode fix, 10x Quick Zoom, Pro manual controls). |
 
 ---
 
