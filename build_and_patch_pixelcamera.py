@@ -4317,11 +4317,13 @@ def patch_zoom_controllers():
 
     invoke-static/range {v6 .. v10}, Lyqc;->p(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
 
-    move-result-object v5
+    move-result-object v11
 
-    invoke-virtual {v3, v5}, Labjo;->w(Ljava/lang/Iterable;)V
+    invoke-virtual {v3, v11}, Labjo;->w(Ljava/lang/Iterable;)V
 
-    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;"""
+    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;
+
+    const/high16 v5, 0x40000000    # 2.0f"""
 
     target_other = """    invoke-static {v6, v7, v8, v9}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
 
