@@ -1,2 +1,2 @@
 group = "app.morphe.patches.pixelcamera"
-version = "1.0.4"
+version = "1.0.5"
