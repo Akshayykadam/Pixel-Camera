@@ -7,6 +7,9 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
+  <a href="https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20PATCHED%20APK-Pixel%20Camera%20v1.0.5%20(Google%20Drive)-2e7d32?style=for-the-badge&logo=googledrive&logoColor=white&labelColor=1b5e20" alt="Download Latest Patched APK" height="42">
+  </a>
   <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.5.mpp">
     <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.5%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
   </a>
@@ -154,15 +157,13 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 - [x] **White Balance Slider Reverting to Auto (Issues #22, #28)**: **Resolved** — Unblocked Manual White Balance provider (`taj.c`) across both 11.0 (`wqz.J`) and 11.1 (`von.G`) and synchronized Chameleon flags.
 - [x] **Invisible Differences Between Looks (Issue #27)**: **Resolved** — Routed `camera.cottage_looknet_model` and `camera.cottage_film_blender_model` to standard floating-point TFLite models (`looknet_v2.1_float.tflite.uncompressed` and `all_in_film_blender.tflite.uncompressed`), restoring full color and saturation differences without EdgeTPU custom op dependencies.
 - [x] **Configurable / Default Gallery Viewer (Issue #6)**: **Resolved** — Intercepted review intent factory (`hpq.cD` / `hwb.w`) via `TomteInitHelper.configureGalleryIntent`, unblocking GrapheneOS, Aves, Simple Gallery, and default gallery apps when Google Photos is missing.
+- [x] **Pro Manual Controls & Peaking**: **Resolved** — Fully backported manual focus slider, real-time GPU edge focus peaking, manual shutter speed dials, and ISO controls with live viewfinder chips.
 - [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements (`REQUEST_TOMTE_TYPE`) on older SoCs.
 - [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
 
 ### Future Scope
 - [ ] **Add Me & Best Take** backporting research.
-- [ ] **OpenCL Shader Pipeline for Live Preview**: Experimental GPU shader LUT emulation for real-time viewfinder Looks.
-- [ ] **Custom Film Look Preset Importer**: Allow users to load custom 3D LUT `.cube` or `.png` HaldCLUT profiles into the Tomte engine.
-- [ ] **Enhanced Pro Controls**: Additional manual shutter speed, ISO, and focus peaking options.
 
 ---
 
@@ -170,17 +171,29 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Link |
 | :--- | :---: | :--- | :---: | :--- | :---: |
+| **Patched Pixel Camera APK (`.apk`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | Pre-patched & signed standalone APK (All features unlocked, no Morphe Manager needed) | [Download Patched APK (Google Drive)](https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link) |
 | **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.5 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
-| **Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official, unmodified Google Camera base to patch | [Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
+| **Stock Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official unmodified stock APK (required only if patching manually via Morphe) | [Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
 | **Patch Source Code (Kotlin)** | **`v1.0.5`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
 
 ---
 
 ## Installation Guide
 
-Using [Morphe](https://morphe.software), you patch the official, clean Google Camera APKM directly on your Android phone or PC. **No root required**, and the patched app installs alongside your stock camera without replacing it.
+You can either install the pre-patched APK directly (ready to use), or patch the official stock Google Camera APKM yourself using [Morphe](https://morphe.software). **No root required**, and the patched app installs alongside your stock camera without replacing it.
 
-### Method 1: On Your Android Phone (Morphe Manager — Recommended)
+### Method 1: Direct Install (Pre-Patched Standalone APK — Fastest & Easiest)
+
+> [!NOTE]
+> This is the **pre-patched APK (`Camera-v11.1.040...-patches-v1.0.5.apk`)**, NOT the stock Google Camera APK. All 13 Camera Looks, Pro controls, and fixes are already applied and signed.
+
+1. **Download Patched APK**: Download [Camera-v11.1.040.982810059.19-patches-v1.0.5.apk](https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link) from Google Drive.
+2. **Install**: Tap the downloaded `.apk` file on your phone and tap **Install** (allow installation from unknown sources in your browser or file manager settings if prompted).
+3. **Open & Shoot**: Launch **PixelCamera** from your app drawer. All 13 Camera Looks, Pro controls, and 10x Quick Zoom are immediately active!
+
+---
+
+### Method 2: On Your Android Phone (Morphe Manager)
 
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
@@ -204,7 +217,7 @@ Using [Morphe](https://morphe.software), you patch the official, clean Google Ca
 
 ---
 
-### Method 2: On Your Computer (Morphe Desktop / CLI)
+### Method 3: On Your Computer (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
 2. Download `morphe-patches-pixelcamera-1.0.5.mpp` from [Releases](https://github.com/akshayykadam/Pixel-Camera/releases/latest).
