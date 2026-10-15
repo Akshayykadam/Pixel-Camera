@@ -49,8 +49,8 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 
 > [!TIP]
 > **Prefer a pre-patched 1-tap install?**
-> If you don't wish to patch the stock APK manually, you can download the ready-to-install pre-patched APK directly from Google Drive:
-> **[⬇️ Download Latest Patched APK (v1.0.5)](https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link)** (`Camera-v11.1.040.982810059.19-patches-v1.0.5.apk`).
+> If you don't wish to patch the stock APK manually, you can download the ready-to-install pre-patched APK directly from SourceForge:
+> **[⬇️ Download Latest Patched APK (v1.0.5)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.5.apk/download)** (`Camera-v11.1.040.982810059.19-patches-v1.0.5.apk`).
 
 ### Option 1: On Your Android Phone (Morphe Manager — Recommended)
 

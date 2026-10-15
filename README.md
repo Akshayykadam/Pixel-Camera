@@ -7,8 +7,8 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
-  <a href="https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20PATCHED%20APK-Pixel%20Camera%20v1.0.5%20(Google%20Drive)-2e7d32?style=for-the-badge&logo=googledrive&logoColor=white&labelColor=1b5e20" alt="Download Latest Patched APK" height="42">
+  <a href="https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.5.apk/download">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20PATCHED%20APK-Pixel%20Camera%20v1.0.5%20(SourceForge)-ee6600?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=d45500" alt="Download Latest Patched APK" height="42">
   </a>
   <a href="https://github.com/Akshayykadam/Pixel-Camera/releases/latest/download/morphe-patches-pixelcamera-1.0.5.mpp">
     <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20LATEST%20RELEASE-PixelCamera%20Morphe%20Patch%20v1.0.5%20(.mpp)-00acc1?style=for-the-badge&logo=android&logoColor=white&labelColor=00838f" alt="Download Latest Release" height="42">
@@ -171,7 +171,7 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Link |
 | :--- | :---: | :--- | :---: | :--- | :---: |
-| **Patched Pixel Camera APK (`.apk`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | Pre-patched & signed standalone APK (All features unlocked, no Morphe Manager needed) | [Download Patched APK (Google Drive)](https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link) |
+| **Patched Pixel Camera APK (`.apk`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | Pre-patched & signed standalone APK (All features unlocked, no Morphe Manager needed) | [Download Patched APK (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.5.apk/download) |
 | **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.5`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [Download v1.0.5 (.mpp)](https://github.com/akshayykadam/Pixel-Camera/releases/latest) |
 | **Stock Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official unmodified stock APK (required only if patching manually via Morphe) | [Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
 | **Patch Source Code (Kotlin)** | **`v1.0.5`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
@@ -187,7 +187,7 @@ You can either install the pre-patched APK directly (ready to use), or patch the
 > [!NOTE]
 > This is the **pre-patched APK (`Camera-v11.1.040...-patches-v1.0.5.apk`)**, NOT the stock Google Camera APK. All 13 Camera Looks, Pro controls, and fixes are already applied and signed.
 
-1. **Download Patched APK**: Download [Camera-v11.1.040.982810059.19-patches-v1.0.5.apk](https://drive.google.com/file/d/1KRdjyuyjQ8gYv6KXMTf_9f00B90VjiF_/view?usp=drive_link) from Google Drive.
+1. **Download Patched APK**: Download [Camera-v11.1.040.982810059.19-patches-v1.0.5.apk](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.5.apk/download) from SourceForge.
 2. **Install**: Tap the downloaded `.apk` file on your phone and tap **Install** (allow installation from unknown sources in your browser or file manager settings if prompted).
 3. **Open & Shoot**: Launch **PixelCamera** from your app drawer. All 13 Camera Looks, Pro controls, and 10x Quick Zoom are immediately active!
 
