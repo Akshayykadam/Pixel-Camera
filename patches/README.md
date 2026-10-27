@@ -36,6 +36,7 @@ These patches allow exact git-style tracking and reproducible application onto a
 | [`ppn_field_access.patch`](ppn_field_access.patch) | `smali/ppn.smali` | Changes field access of `f:Losw` and `u:AtomicBoolean` to public. |
 | [`clone_authority.patch`](clone_authority.patch) | `smali/klh.smali` | SpecialTypesProvider authority synchronization for clone package. |
 | [`guh_focal_length_cycling.patch`](guh_focal_length_cycling.patch) | `smali/guh.smali` | 1x Main Camera Focal Length Cycling: tapping the 1x button repeatedly cycles through 1.0x (24mm) -> 1.2x (28mm) -> 1.5x (35mm) -> 1.0x. |
+| [`tomte_init_helper.patch`](tomte_init_helper.patch) | `smali_patches/TomteInitHelper.smali` | Safe multi-file preferences parser, look selection tracking, and photo saving AE flags. |
 
 ---
 
