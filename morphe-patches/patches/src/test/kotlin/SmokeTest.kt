@@ -19,8 +19,24 @@ class SmokeTest {
             if (!dexFile.name.endsWith(".dex")) continue
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
             for (c in dex.classes) {
-                if (c.type in listOf("Lknq;", "Lknk;", "Lkmd;", "Lkmo;")) {
+                if (c.type in listOf("Lknq;", "Lknk;", "Lkmd;", "Lkmo;", "Lguh;")) {
                     foundZoom.add(c.type)
+                    if (c.type == "Lguh;") {
+                        val aMethod = c.methods.firstOrNull { it.name == "a" }
+                        val insList = aMethod?.implementation?.instructions?.toList() ?: emptyList()
+                        var found12x = false
+                        var found15x = false
+                        for (ins in insList) {
+                            val narrow = ins as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                            if (narrow != null) {
+                                if (narrow.narrowLiteral == 0x3f99999a) found12x = true
+                                if (narrow.narrowLiteral == 0x3fc00000) found15x = true
+                            }
+                        }
+                        println("Patched guh.a: found 1.2x (28mm) = $found12x, found 1.5x (35mm) = $found15x")
+                        assertTrue(found12x, "guh.a must contain 1.2f (28mm) focal length constant")
+                        assertTrue(found15x, "guh.a must contain 1.5f (35mm) focal length constant")
+                    }
                     if (c.type == "Lknq;") {
                         val initM = c.methods.firstOrNull { it.name == "<init>" }
                         val insList = initM?.implementation?.instructions?.toList() ?: emptyList()
@@ -269,7 +285,11 @@ class SmokeTest {
             java.io.File(rootDir, "apktool_full/smali_classes2/knq.smali"),
             java.io.File(rootDir, "apktool_full/smali_classes2/knk.smali"),
             java.io.File(rootDir, "apktool_full/smali_classes2/kmd.smali"),
-            java.io.File(rootDir, "apktool_full/smali/kmo.smali")
+            java.io.File(rootDir, "apktool_full/smali/kmo.smali"),
+            if (java.io.File(rootDir, "smali_patches/guh.smali").exists())
+                java.io.File(rootDir, "smali_patches/guh.smali")
+            else
+                java.io.File(rootDir, "apktool_full/smali/guh.smali")
         ).filter { it.exists() }
 
         if (zoomSmaliFiles.isNotEmpty()) {
@@ -289,7 +309,7 @@ class SmokeTest {
         val dexFile = java.io.File("src/main/resources/ZoomControllers.dex")
         assertTrue(dexFile.exists(), "ZoomControllers.dex must exist")
         val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
-        for (className in listOf("Lknq;", "Lknk;")) {
+        for (className in listOf("Lknq;", "Lknk;", "Lguh;")) {
             val cls = dex.classes.firstOrNull { it.type == className }
             assertTrue(cls != null, "Class $className must exist in ZoomControllers.dex")
             val initM = cls!!.methods.firstOrNull { it.name == "<init>" }

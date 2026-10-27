@@ -208,5 +208,82 @@ val cameraLooksPatch = bytecodePatch(
         mutableClassDefByOrNull("Lhpq;")?.let { clazz ->
             PixelCameraPatchUtils.hookGalleryReviewIntent(clazz)
         }
+
+        // ── 12. Hook CameraActivity.onResume for Display Max Brightness ─────────────────
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/activity/main/CameraActivity;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "onResume" && it.parameterTypes.isEmpty() }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static/range {p0 .. p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 13. Hook tcc.f(F)V to enforce 100% brightness when enabled ───────────────
+        mutableClassDefByOrNull("Ltcc;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "f" && it.parameterTypes == listOf("F") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+                    move-result v0
+                    if-eqz v0, :cond_orig_f
+                    const/high16 p1, 0x3f800000
+                    :cond_orig_f
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 14. Hook rds.j to immediately update brightness when toggle changes ───────
+        mutableClassDefByOrNull("Lrds;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "j" && it.parameterTypes == listOf("Ljava/lang/String;", "Z") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    const-string v0, "pref_camera_max_brightness_key"
+                    invoke-virtual {v0, p1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                    move-result v0
+                    if-eqz v0, :cond_skip_bright
+                    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onBrightnessPrefChanged(Z)V
+                    :cond_skip_bright
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 15. Hook CameraGm3SettingsActivity.onResume for Display Max Brightness ───
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "onResume" && it.parameterTypes.isEmpty() }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static/range {p0 .. p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
     }
 }

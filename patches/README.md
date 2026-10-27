@@ -35,6 +35,7 @@ These patches allow exact git-style tracking and reproducible application onto a
 | [`kqc_project_album.patch`](kqc_project_album.patch) | `smali/kqc.smali` | Project Album: neutralizes 'Save to a project' button to prevent crashes. |
 | [`ppn_field_access.patch`](ppn_field_access.patch) | `smali/ppn.smali` | Changes field access of `f:Losw` and `u:AtomicBoolean` to public. |
 | [`clone_authority.patch`](clone_authority.patch) | `smali/klh.smali` | SpecialTypesProvider authority synchronization for clone package. |
+| [`guh_focal_length_cycling.patch`](guh_focal_length_cycling.patch) | `smali/guh.smali` | 1x Main Camera Focal Length Cycling: tapping the 1x button repeatedly cycles through 1.0x (24mm) -> 1.2x (28mm) -> 1.5x (35mm) -> 1.0x. |
 
 ---
 

@@ -4502,6 +4502,139 @@ def patch_zoom_controllers():
         with open(kmo_path, "w", encoding="utf-8") as f:
             f.write(content)
 
+    # 5. guh.smali (1x Main Camera Focal Length Cycling: 1.0x (24mm) -> 1.2x (28mm) -> 1.5x (35mm) -> 1.0x)
+    guh_path = os.path.join(APKTOOL_DIR, "smali", "guh.smali")
+    if os.path.exists(guh_path):
+        with open(guh_path, "r", encoding="utf-8") as f:
+            guh_content = f.read()
+
+        if ":cond_apply_focal_zoom_guh" in guh_content or ":cond_std_zoom_guh" in guh_content:
+            print("    [+] guh.smali: already patched with 1x focal length cycling.")
+        else:
+            guh_target = """    check-cast p0, Ljava/lang/Number;
+
+    invoke-virtual {p0}, Ljava/lang/Number;->floatValue()F
+
+    move-result v2
+
+    iget-object p0, v0, Lkmo;->h:Lusf;
+
+    invoke-interface {p0}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p0
+
+    check-cast p0, Ljava/lang/Float;
+
+    invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
+
+    move-result p1
+
+    if-nez p1, :cond_3"""
+
+            guh_repl = """    check-cast p0, Ljava/lang/Number;
+
+    invoke-virtual {p0}, Ljava/lang/Number;->floatValue()F
+
+    move-result v2
+
+    iget-object p0, v0, Lkmo;->h:Lusf;
+
+    invoke-interface {p0}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p0
+
+    check-cast p0, Ljava/lang/Float;
+
+    const/high16 v1, 0x3f800000    # 1.0f
+
+    cmpl-float v1, v2, v1
+
+    if-nez v1, :cond_std_zoom_guh
+
+    if-nez p0, :cond_check_cur_zoom_guh
+
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    goto :cond_apply_focal_zoom_guh
+
+    :cond_check_cur_zoom_guh
+    invoke-virtual {p0}, Ljava/lang/Float;->floatValue()F
+
+    move-result v1
+
+    const v3, 0x3f733333    # 0.95f
+
+    cmpg-float v3, v1, v3
+
+    if-gez v3, :cond_focal_check_1_0x_guh
+
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    goto :cond_apply_focal_zoom_guh
+
+    :cond_focal_check_1_0x_guh
+    const v3, 0x3f933333    # 1.15f
+
+    cmpg-float v3, v1, v3
+
+    if-gez v3, :cond_focal_check_1_2x_guh
+
+    const v2, 0x3f99999a    # 1.2f (28mm)
+
+    goto :cond_apply_focal_zoom_guh
+
+    :cond_focal_check_1_2x_guh
+    const v3, 0x3faccccd    # 1.35f
+
+    cmpg-float v3, v1, v3
+
+    if-gez v3, :cond_focal_check_1_5x_guh
+
+    const/high16 v2, 0x3fc00000    # 1.5f (35mm)
+
+    goto :cond_apply_focal_zoom_guh
+
+    :cond_focal_check_1_5x_guh
+    const v3, 0x3feccccd    # 1.85f
+
+    cmpg-float v3, v1, v3
+
+    if-gez v3, :cond_focal_outside_guh
+
+    const/high16 v2, 0x3f800000    # 1.0f (24mm)
+
+    goto :cond_apply_focal_zoom_guh
+
+    :cond_focal_outside_guh
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    :cond_apply_focal_zoom_guh
+    invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
+
+    move-result p1
+
+    if-nez p1, :cond_3
+
+    goto :cond_exec_zoom_guh
+
+    :cond_std_zoom_guh
+    invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
+
+    move-result p1
+
+    if-nez p1, :cond_3
+
+    :cond_exec_zoom_guh"""
+
+            if guh_target in guh_content:
+                guh_content = guh_content.replace(guh_target, guh_repl)
+                print("    [+] guh.smali: 1x Focal Length Cycling (1.0x -> 1.2x -> 1.5x) successfully hooked.")
+            else:
+                print("    [!] Warning: guh.smali target not found.")
+
+            with open(guh_path, "w", encoding="utf-8") as f:
+                f.write(guh_content)
+
 def patch_qhm_smali():
     print("[*] Patching qhm.smali (Bypassing capability checks for Quick Access sliders)...")
     qhm_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qhm.smali")
@@ -4720,1563 +4853,489 @@ def patch_qhm_smali():
             print("    [+] nqp.smali: a() already updated.")
 
 def patch_brightness_shadows_controllers():
-    print("[*] Patching Brightness and Shadows controllers (mzc, nrd, nrm, nrc)...")
-    
-    # 1. Update mzc.smali: Map all 4 exposure/brightness controllers (i, j, h, b) to nrd and nrm
-    mzc_path = os.path.join(APKTOOL_DIR, "smali", "mzc.smali")
-    if os.path.exists(mzc_path):
-        with open(mzc_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Save registers v16 and v17 for nrm and nrd
-        if "check-cast v5, Lnrm;\n\n    move-object/from16 v16, v5" not in content:
-            content = content.replace(
-                "check-cast v5, Lnrm;",
-                "check-cast v5, Lnrm;\n\n    move-object/from16 v16, v5"
-            )
-        if "check-cast v6, Lnrd;\n\n    move-object/from16 v17, v6" not in content:
-            content = content.replace(
-                "check-cast v6, Lnrd;",
-                "check-cast v6, Lnrd;\n\n    move-object/from16 v17, v6"
-            )
-
-        # Replace the 4 Lnqo bindings in :pswitch_6 with dual-EV bindings
-        mzc_target = """    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v5, Lnqq;->i:Lnqq;
-
-    invoke-virtual {v2, v5}, Lnqo;->h(Lnqq;)V
-
-    sget-object v5, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v5}, Lnqo;->g(Lnqp;)V
-
-    const v6, 0x7f0802ec
-
-    invoke-virtual {v2, v6}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v11}, Lnqo;->f(I)V
-
-    const v6, 0x7f0a00cf
-
-    invoke-virtual {v2, v6}, Lnqo;->c(I)V
-
-    invoke-virtual {v2, v9}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v6, Lnqq;->j:Lnqq;
-
-    invoke-virtual {v2, v6}, Lnqo;->h(Lnqq;)V
-
-    invoke-virtual {v2, v5}, Lnqo;->g(Lnqp;)V
-
-    invoke-virtual {v2, v12}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v3}, Lnqo;->f(I)V
-
-    const v5, 0x7f0a01e5
-
-    invoke-virtual {v2, v5}, Lnqo;->c(I)V
-
-    invoke-virtual {v2, v8}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v13, Lnqq;->h:Lnqq;
-
-    invoke-virtual {v2, v13}, Lnqo;->h(Lnqq;)V
-
-    sget-object v13, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v13}, Lnqo;->g(Lnqp;)V
-
-    invoke-virtual {v2, v12}, Lnqo;->i(I)V
-
-    const v13, 0x7f130492
-
-    invoke-virtual {v2, v13}, Lnqo;->f(I)V
-
-    const v13, 0x7f0a01e5
-
-    invoke-virtual {v2, v13}, Lnqo;->c(I)V
-
-    invoke-virtual {v2, v8}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v13, Lnqq;->b:Lnqq;
-
-    invoke-virtual {v2, v13}, Lnqo;->h(Lnqq;)V
-
-    sget-object v13, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v13}, Lnqo;->g(Lnqp;)V
-
-    const v13, 0x7f0802eb
-
-    invoke-virtual {v2, v13}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v11}, Lnqo;->f(I)V
-
-    const v13, 0x7f0a00cf
-
-    invoke-virtual {v2, v13}, Lnqo;->c(I)V
-
-    invoke-virtual {v2, v9}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V"""
-
-        mzc_replacement = """    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v5, Lnqq;->i:Lnqq;
-
-    invoke-virtual {v2, v5}, Lnqo;->h(Lnqq;)V
-
-    sget-object v5, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v5}, Lnqo;->g(Lnqp;)V
-
-    const v6, 0x7f0802eb
-
-    invoke-virtual {v2, v6}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v11}, Lnqo;->f(I)V
-
-    const v6, 0x7f0a04ae
-
-    invoke-virtual {v2, v6}, Lnqo;->c(I)V
-
-    move-object/from16 v5, v16
-
-    invoke-virtual {v2, v5}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v6, Lnqq;->j:Lnqq;
-
-    invoke-virtual {v2, v6}, Lnqo;->h(Lnqq;)V
-
-    sget-object v5, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v5}, Lnqo;->g(Lnqp;)V
-
-    invoke-virtual {v2, v12}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v3}, Lnqo;->f(I)V
-
-    const v5, 0x7f0a00d0
-
-    invoke-virtual {v2, v5}, Lnqo;->c(I)V
-
-    move-object/from16 v5, v17
-
-    invoke-virtual {v2, v5}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v13, Lnqq;->h:Lnqq;
-
-    invoke-virtual {v2, v13}, Lnqo;->h(Lnqq;)V
-
-    sget-object v13, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v13}, Lnqo;->g(Lnqp;)V
-
-    invoke-virtual {v2, v12}, Lnqo;->i(I)V
-
-    const v13, 0x7f130492
-
-    invoke-virtual {v2, v13}, Lnqo;->f(I)V
-
-    const v13, 0x7f0a00d0
-
-    invoke-virtual {v2, v13}, Lnqo;->c(I)V
-
-    move-object/from16 v13, v17
-
-    invoke-virtual {v2, v13}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V
-
-    new-instance v2, Lnqo;
-
-    invoke-direct {v2}, Ljava/lang/Object;-><init>()V
-
-    invoke-virtual {v2, v4}, Lnqo;->b(Z)V
-
-    sget-object v13, Lnqq;->b:Lnqq;
-
-    invoke-virtual {v2, v13}, Lnqo;->h(Lnqq;)V
-
-    sget-object v13, Lnqp;->a:Lnqp;
-
-    invoke-virtual {v2, v13}, Lnqo;->g(Lnqp;)V
-
-    const v13, 0x7f0802eb
-
-    invoke-virtual {v2, v13}, Lnqo;->i(I)V
-
-    invoke-virtual {v2, v11}, Lnqo;->f(I)V
-
-    const v13, 0x7f0a04ae
-
-    invoke-virtual {v2, v13}, Lnqo;->c(I)V
-
-    move-object/from16 v13, v16
-
-    invoke-virtual {v2, v13}, Lnqo;->d(Lnqs;)V
-
-    invoke-virtual {v2}, Lnqo;->a()Lnqr;
-
-    move-result-object v2
-
-    invoke-virtual {v15, v2}, Lyec;->h(Ljava/lang/Object;)V"""
-
-        if mzc_target in content:
-            content = content.replace(mzc_target, mzc_replacement)
-            with open(mzc_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            print("    [+] mzc.smali: Mapped all 4 controllers to nrd and nrm.")
-        elif "move-object/from16 v16, v5" in content and "0x7f0a00d0" in content:
-            print("    [+] mzc.smali: already mapped.")
-        else:
-            print("    [!] Warning: mzc.smali binding target not found.")
-
-    # 2. Allow idempotent binding in nrd.smali, nrm.smali, nrh.smali, nre.smali
-    for smali_file, opcode in [("nrd.smali", 3), ("nrm.smali", 5)]:
-        p = os.path.join(APKTOOL_DIR, "smali", smali_file)
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                c = f.read()
-            target_bind = ':cond_0\n    new-instance p0, Ljava/lang/IllegalStateException;\n\n    const-string p1, "Cannot bind multiple times."\n\n    invoke-direct {p0, p1}, Ljava/lang/IllegalStateException;-><init>(Ljava/lang/String;)V\n\n    throw p0'
-            repl_bind = f':cond_0\n    new-instance p1, Lnht;\n\n    const/4 v0, 0x{opcode}\n\n    invoke-direct {{p1, p0, v0}}, Lnht;-><init>(Ljava/lang/Object;I)V\n\n    return-object p1'
-            if target_bind in c:
-                c = c.replace(target_bind, repl_bind)
-                with open(p, "w", encoding="utf-8") as f:
-                    f.write(c)
-                print(f"    [+] {smali_file}: Idempotent binding enabled.")
-
-    for smali_file, opcode in [("nrh.smali", "0xa"), ("nre.smali", "0x9")]:
-        p = os.path.join(APKTOOL_DIR, "smali", smali_file)
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                c = f.read()
-            target_bind = 'new-instance p0, Ljava/lang/IllegalStateException;\n\n    const-string p1, "Cannot bind multiple times."\n\n    invoke-direct {p0, p1}, Ljava/lang/IllegalStateException;-><init>(Ljava/lang/String;)V\n\n    throw p0'
-            repl_bind = f'new-instance p1, Lmmf;\n\n    const/16 v0, {opcode}\n\n    invoke-direct {{p1, p0, v0}}, Lmmf;-><init>(Ljava/lang/Object;I)V\n\n    return-object p1'
-            if target_bind in c:
-                c = c.replace(target_bind, repl_bind)
-                with open(p, "w", encoding="utf-8") as f:
-                    f.write(c)
-
-    # 3. Patch nrd.smali: Upgrade to qhr, implement rst, h, e, k, n, o, p, q, s
-    nrd_path = os.path.join(APKTOOL_DIR, "smali", "nrd.smali")
-    if os.path.exists(nrd_path):
-        with open(nrd_path, "r", encoding="utf-8") as f:
-            c = f.read()
-
-        # a) Super class
-        c = c.replace(".super Lnqu;", ".super Lqhr;")
-        c = c.replace("invoke-direct {p0}, Lnqu;-><init>()V", 'invoke-direct {p0}, Lqhr;-><init>()V\n\n    new-instance v0, Lufn;\n\n    const-string v1, ""\n\n    invoke-direct {v0, v1}, Lufn;-><init>(Ljava/lang/Object;)V\n\n    iput-object v0, p0, Lnrd;->x:Lufn;')
-
-        # b) Fields
-        if ".field private final t:Lppn;" in c:
-            c = c.replace(".field private final t:Lppn;", ".field public final t:Lppn;")
-        if ".field public final x:Lufn;" not in c:
-            c = c.replace(".field private w:Z", ".field private w:Z\n\n.field public final x:Lufn;")
-        # Clean any accidental literal \\n from previous replace
-        c = c.replace(".field public final x:Lufn;\\n\\n.field public rst:Lsmq;", ".field public final x:Lufn;\n\n.field public rst:Lsmq;")
-        c = c.replace(".field public final x:Lufn;\\n.field public rst:Lsmq;", ".field public final x:Lufn;\n\n.field public rst:Lsmq;")
-        if ".field public rst:Lsmq;" not in c:
-            c = c.replace(".field public final x:Lufn;", ".field public final x:Lufn;\n\n.field public rst:Lsmq;")
-
-        # c) In i(): save smq to p0->rst
-        target_smq = "invoke-direct {v5, v1, v6, v2}, Lsmq;-><init>(Ljava/lang/String;Ladfx;Lejf;)V"
-        repl_smq = target_smq + "\n\n    iput-object v5, v0, Lnrd;->rst:Lsmq;"
-        c = c.replace(target_smq + "\\n\\n    iput-object v5, v0, Lnrd;->rst:Lsmq;", repl_smq)
-        if target_smq in c and "iput-object v5, v0, Lnrd;->rst:Lsmq;" not in c:
-            c = c.replace(target_smq, repl_smq, 1)
-
-        # d) Replace e() with full reset method
-        new_e_nrd = """.method public final e()V
-    .locals 5
-
-    iget-object v0, p0, Lnrd;->e:Lejf;
-
-    if-eqz v0, :cond_rst_btn_d
-
-    const/4 v1, 0x0
-
-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+    print("[*] Patching 11.1 active Brightness and Shadows controllers (oak, oau, oaj, pco, plh)...")
+
+    # 1. Patch 11.1 active Brightness and Shadow slider handler: oaj.smali
+    oaj_path = os.path.join(APKTOOL_DIR, "smali_classes2", "oaj.smali")
+    if os.path.exists(oaj_path):
+        with open(oaj_path, "r", encoding="utf-8") as f:
+            oaj_c = f.read()
+        
+        # Shadow slider: :pswitch_3
+        target_oaj_p3 = """:pswitch_3
+    iget-object p0, p0, Loaj;->a:Loac;
+
+    iget-object v0, p0, Loac;->a:Lsxy;
+
+    if-eqz v0, :cond_2
+
+    invoke-static {p1, v5, v4}, Lokq;->o(FII)Ljava/lang/String;
 
     move-result-object v1
 
-    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
+    invoke-virtual {v0, v1}, Lsxy;->f(Ljava/lang/String;)V
 
-    :cond_rst_btn_d
-    iget-object v0, p0, Lnrd;->x:Lufn;
+    :cond_2
+    if-nez p2, :cond_3
 
-    if-eqz v0, :cond_rst_x
+    goto/16 :goto_2
 
-    const-string v1, ""
+    :cond_3
+    check-cast p0, Loau;
 
-    invoke-virtual {v0, v1}, Lufn;->a(Ljava/lang/Object;)V
+    iget-object p2, p0, Loau;->r:Loam;
 
-    :cond_rst_x
-    iget-object v0, p0, Lnqu;->a:Lsmy;
+    invoke-virtual {p2, v6}, Loam;->c(Z)V
 
-    if-eqz v0, :cond_skip_smy_d
+    iget-object p2, p0, Loau;->k:Lusf;
 
-    const/high16 v1, 0x3f000000    # 0.5f
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+        
+        repl_oaj_p3 = """:pswitch_3
+    iget-object p0, p0, Loaj;->a:Loac;
 
-    invoke-static {v0, v1}, Lsmy;->i(Lsmy;F)V
+    iget-object v0, p0, Loac;->a:Lsxy;
 
-    const-string v1, ""
+    if-eqz v0, :cond_2
 
-    invoke-virtual {v0, v1}, Lsmy;->f(Ljava/lang/String;)V
+    invoke-static {p1, v5, v4}, Lokq;->o(FII)Ljava/lang/String;
 
-    :cond_skip_smy_d
-    iget-object v0, p0, Lnrd;->g:Lugh;
+    move-result-object v1
 
-    const/high16 v1, -0x40800000    # -1.0f
+    invoke-virtual {v0, v1}, Lsxy;->f(Ljava/lang/String;)V
+
+    :cond_2
+    check-cast p0, Loau;
+
+    iget-object p2, p0, Loau;->r:Loam;
+
+    invoke-virtual {p2, v6}, Loam;->c(Z)V
+
+    iget-object p2, p0, Loau;->k:Lusf;
+
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+        if target_oaj_p3 in oaj_c:
+            oaj_c = oaj_c.replace(target_oaj_p3, repl_oaj_p3)
+            print("    [+] oaj.smali: Shadow live dragging & capture sync patched.")
+        elif ":cond_2\n    check-cast p0, Loau;" in oaj_c:
+            print("    [+] oaj.smali: Shadow live dragging & capture sync already patched.")
+
+        # Brightness slider: :pswitch_8
+        target_oaj_p8 = """:pswitch_8
+    if-eqz p2, :cond_e
+
+    iget-object p0, p0, Loaj;->a:Loac;
+
+    check-cast p0, Loak;
+
+    iget-object p2, p0, Loak;->n:Loam;
+
+    invoke-virtual {p2, v6}, Loam;->c(Z)V
+
+    iget-object p2, p0, Loak;->h:Lusf;
+
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oaj_p8 = """:pswitch_8
+    iget-object p0, p0, Loaj;->a:Loac;
+
+    iget-object v0, p0, Loac;->a:Lsxy;
+
+    if-eqz v0, :cond_8_label
+
+    invoke-static {p1, v5, v4}, Lokq;->o(FII)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-virtual {v0, v1}, Lsxy;->f(Ljava/lang/String;)V
+
+    :cond_8_label
+    check-cast p0, Loak;
+
+    iget-object p2, p0, Loak;->n:Loam;
+
+    invoke-virtual {p2, v6}, Loam;->c(Z)V
+
+    iget-object p2, p0, Loak;->h:Lusf;
+
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+        if target_oaj_p8 in oaj_c:
+            oaj_c = oaj_c.replace(target_oaj_p8, repl_oaj_p8)
+            print("    [+] oaj.smali: Brightness live dragging & capture sync patched.")
+        elif ":cond_8_label" in oaj_c:
+            print("    [+] oaj.smali: Brightness live dragging & capture sync already patched.")
+
+        # Drag suppression removal for fine-tuning sliders in oaj.smali
+        target_drag = """    packed-switch v0, :pswitch_data_0
+
+    if-nez p2, :cond_a
+
+    goto/16 :goto_2"""
+        repl_drag = """    packed-switch v0, :pswitch_data_0
+
+    goto :cond_a"""
+        if target_drag in oaj_c:
+            oaj_c = oaj_c.replace(target_drag, repl_drag)
+            print("    [+] oaj.smali: Drag suppression for fine-tuning sliders removed.")
+        elif "goto :cond_a\n\n    :pswitch_0" in oaj_c:
+            print("    [+] oaj.smali: Drag suppression already removed.")
+
+        # Remove rigid AE lock on Shadow slider
+        target_lock_s = """    iget-object p2, p0, Loau;->k:Lusf;
+
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+        repl_lock_s = """    iget-object p2, p0, Loau;->k:Lusf;
+
+    nop"""
+        if target_lock_s in oaj_c:
+            oaj_c = oaj_c.replace(target_lock_s, repl_lock_s)
+            print("    [+] oaj.smali: Rigid AE lock on Shadow slider removed.")
+        elif "iget-object p2, p0, Loau;->k:Lusf;\n\n    nop" in oaj_c:
+            print("    [+] oaj.smali: Shadow rigid AE lock already removed.")
+
+        # Remove rigid AE lock on Brightness slider
+        target_lock_b = """    iget-object p2, p0, Loak;->h:Lusf;
+
+    invoke-interface {p2, v7}, Lusf;->a(Ljava/lang/Object;)V"""
+        repl_lock_b = """    iget-object p2, p0, Loak;->h:Lusf;
+
+    nop"""
+        if target_lock_b in oaj_c:
+            oaj_c = oaj_c.replace(target_lock_b, repl_lock_b)
+            print("    [+] oaj.smali: Rigid AE lock on Brightness slider removed.")
+        elif "iget-object p2, p0, Loak;->h:Lusf;\n\n    nop" in oaj_c:
+            print("    [+] oaj.smali: Brightness rigid AE lock already removed.")
+
+        with open(oaj_path, "w", encoding="utf-8") as f:
+            f.write(oaj_c)
+
+    # 2. Patch pco.smali: Initialize pco.c and pco.d to 0.5f neutral baseline
+    pco_path = os.path.join(APKTOOL_DIR, "smali", "pco.smali")
+    if os.path.exists(pco_path):
+        with open(pco_path, "r", encoding="utf-8") as f:
+            pco_c = f.read()
+        target_pco_init = """    const/high16 v1, -0x40800000    # -1.0f
 
     invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v1
 
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+    invoke-direct {v0, v1}, Lurl;-><init>(Ljava/lang/Object;)V
 
-    iget-object v0, p0, Lnrd;->t:Lppn;
-
-    if-eqz v0, :cond_skip_ev_rst_d
-
-    iget-object v0, v0, Lppn;->f:Losw;
-
-    if-eqz v0, :cond_skip_ev_rst_d
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    iget-object v2, p0, Lnrd;->f:Lugh;
-
-    if-eqz v2, :cond_get_s_rst_done
-
-    check-cast v2, Lufn;
-
-    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v2, Ljava/lang/Float;
-
-    if-eqz v2, :cond_get_s_rst_done
-
-    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
-
-    move-result v2
-
-    const/4 v3, 0x0
-
-    cmpl-float v3, v2, v3
-
-    if-ltz v3, :cond_get_s_rst_done
-
-    move v1, v2
-
-    :cond_get_s_rst_done
-    const/high16 v2, 0x3f000000    # 0.5f
-
-    sub-float/2addr v1, v2
-
-    const/high16 v2, 0x41400000    # 12.0f
-
-    mul-float/2addr v1, v2
-
-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
-
-    move-result v1
-
-    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v1
-
-    iget-object v0, v0, Losw;->b:Lugh;
-
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_skip_ev_rst_d
-    iget-object v0, p0, Lnrd;->t:Lppn;
-
-    if-eqz v0, :cond_skip_ppn_rst_d
-
-    invoke-virtual {v0}, Lppn;->f()V
-
-    invoke-virtual {v0}, Lppn;->g()V
-
-    :cond_skip_ppn_rst_d
-    iget-object v0, p0, Lnrd;->n:Lnrf;
-
-    const/4 v1, 0x0
-
-    invoke-virtual {v0, v1}, Lnrf;->c(Z)V
-
-    iget-object v0, p0, Lnrd;->k:Lugh;
-
-    invoke-interface {v0}, Lugh;->d()Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, Lnql;
-
-    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
-
-    move-result-object v2
-
-    iput-object v2, v1, Lnql;->b:Lj$/util/Optional;
-
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
-
-    return-void
-.end method"""
-        m_e_start = c.find(".method public final e()V")
-        if m_e_start != -1:
-            m_e_end = c.find(".end method", m_e_start) + len(".end method")
-            c = c[:m_e_start] + new_e_nrd + c[m_e_end:]
-
-        # e) Add h() method
-        new_h_nrd = """.method public final h()Lsmq;
-    .locals 1
-
-    iget-object v0, p0, Lnrd;->rst:Lsmq;
-
-    return-object v0
-.end method"""
-        if ".method public final h()Lsmq;" in c:
-            m_h_start = c.find(".method public final h()Lsmq;")
-            m_h_end = c.find(".end method", m_h_start) + len(".end method")
-            c = c[:m_h_start] + new_h_nrd + c[m_h_end:]
-        else:
-            c += "\n" + new_h_nrd + "\n"
-
-        # f) Add k, n, o, p, q methods if missing
-        for m_sig, m_code in [
-            (".method public final k()F", """.method public final k()F
-    .locals 1
-
-    const/high16 v0, 0x3f000000    # 0.5f
-
-    return v0
-.end method"""),
-            (".method public final n()Lufv;", """.method public final n()Lufv;
-    .locals 1
-
-    iget-object v0, p0, Lnrd;->x:Lufn;
-
-    return-object v0
-.end method"""),
-            (".method public final o()Ljava/lang/Integer;", """.method public final o()Ljava/lang/Integer;
-    .locals 1
-
-    const v0, 0x7f1300f4
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    return-object v0
-.end method"""),
-            (".method public final p()Ljava/lang/Integer;", """.method public final p()Ljava/lang/Integer;
-    .locals 1
-
-    const v0, 0x7f1300fa
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    return-object v0
-.end method"""),
-            (".method public final q()Ljava/lang/Integer;", """.method public final q()Ljava/lang/Integer;
-    .locals 1
-
-    const v0, 0x7f1300f9
-
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v0
-
-    return-object v0
-.end method""")
-        ]:
-            if m_sig in c:
-                m_start = c.find(m_sig)
-                m_end = c.find(".end method", m_start) + len(".end method")
-                c = c[:m_start] + m_code + c[m_end:]
-            else:
-                c += "\n" + m_code + "\n"
-
-        # g) Replace s(FZLsnw;)V
-        new_s_nrd = """.method public final s(FZLsnw;)V
-    .locals 8
-
-    invoke-static {p1}, Lobf;->p(F)Ljava/lang/String;
-
-    move-result-object v0
-
-    iget-object v1, p0, Lnrd;->x:Lufn;
-
-    if-eqz v1, :cond_0
-
-    invoke-virtual {v1, v0}, Lufn;->a(Ljava/lang/Object;)V
-
-    :cond_0
-    iget-object v1, p0, Lnqu;->a:Lsmy;
-
-    if-eqz v1, :cond_1
-
-    invoke-virtual {v1, v0}, Lsmy;->f(Ljava/lang/String;)V
-
-    :cond_1
-    iget-object v0, p0, Lnrd;->e:Lejf;
-
-    if-eqz v0, :cond_skip_rst
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    cmpl-float v1, p1, v1
-
-    if-eqz v1, :cond_rst_off
-
-    const/4 v1, 0x1
-
-    goto :goto_rst
-
-    :cond_rst_off
-    const/4 v1, 0x0
-
-    :goto_rst
-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v1
-
-    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
-
-    :cond_skip_rst
-    iget-object v0, p0, Lnrd;->t:Lppn;
-
-    if-eqz v0, :cond_ppn
-
-    iget-object v1, v0, Lppn;->u:Ljava/util/concurrent/atomic/AtomicBoolean;
-
-    const/4 v2, 0x1
-
-    invoke-virtual {v1, v2}, Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V
-
-    iget-object v0, v0, Lppn;->f:Losw;
-
-    if-eqz v0, :cond_ppn
-
-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v1
-
-    iget-object v2, v0, Losw;->g:Lugh;
-
-    invoke-interface {v2, v1}, Lugh;->a(Ljava/lang/Object;)V
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    iget-object v2, p0, Lnrd;->f:Lugh;
-
-    if-eqz v2, :cond_get_s_done
-
-    check-cast v2, Lufn;
-
-    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v2, Ljava/lang/Float;
-
-    if-eqz v2, :cond_get_s_done
-
-    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
-
-    move-result v2
-
-    const/4 v3, 0x0
-
-    cmpl-float v3, v2, v3
-
-    if-ltz v3, :cond_get_s_done
-
-    move v1, v2
-
-    :cond_get_s_done
-    const/high16 v2, 0x3f000000    # 0.5f
-
-    sub-float v3, p1, v2
-
-    const/high16 v4, 0x41c00000    # 24.0f
-
-    mul-float/2addr v3, v4
-
-    sub-float v2, v1, v2
-
-    const/high16 v4, 0x41400000    # 12.0f
-
-    mul-float/2addr v2, v4
-
-    add-float/2addr v3, v2
-
-    invoke-static {v3}, Ljava/lang/Math;->round(F)I
-
-    move-result v2
-
-    const/16 v3, 0x18
-
-    if-le v2, v3, :cond_clamp_high_b
-
-    move v2, v3
-
-    :cond_clamp_high_b
-    const/16 v3, -0x18
-
-    if-ge v2, v3, :cond_clamp_low_b
-
-    move v2, v3
-
-    :cond_clamp_low_b
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    iget-object v0, v0, Losw;->b:Lugh;
-
-    invoke-interface {v0, v2}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_ppn
-    const/4 v0, 0x1
-
-    iget-object v1, p0, Lnrd;->n:Lnrf;
-
-    invoke-virtual {v1, v0}, Lnrf;->c(Z)V
-
-    iget-object v1, p0, Lnrd;->h:Lugh;
-
-    invoke-static {v0}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v0
-
-    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
-
-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v0
-
-    iget-object v1, p0, Lnrd;->g:Lugh;
-
-    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
-
-    iget-object v1, p0, Lnrd;->f:Lugh;
-
-    move-object v2, v1
-
-    check-cast v2, Lufn;
-
-    iget-object v3, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v3, Ljava/lang/Float;
-
-    invoke-virtual {v3}, Ljava/lang/Float;->floatValue()F
-
-    move-result v3
-
-    const/4 v4, 0x0
-
-    cmpg-float v3, v3, v4
-
-    if-gez v3, :cond_3
-
-    const/high16 v3, 0x3f000000    # 0.5f
-
-    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v3
-
-    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_3
-    iget-object v1, p0, Lnrd;->k:Lugh;
-
-    invoke-interface {v1}, Lugh;->d()Ljava/lang/Object;
-
-    move-result-object v3
-
-    check-cast v3, Lnql;
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    iput-object v0, v3, Lnql;->b:Lj$/util/Optional;
-
-    iget-object v0, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v0, Ljava/lang/Float;
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    iput-object v0, v3, Lnql;->e:Lj$/util/Optional;
-
-    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
-
-    iget-object v0, p0, Lnrd;->p:Lrpr;
-
-    const/16 v1, 0x8
-
-    float-to-double v2, p1
-
-    invoke-virtual {v0, p3, v1, v2, v3}, Lrpr;->E(Lsnw;ID)V
-
-    return-void
-.end method"""
-        if ".method public final s(FZLsnw;)V" in c:
-            m_s_start = c.find(".method public final s(FZLsnw;)V")
-            m_s_end = c.find(".end method", m_s_start) + len(".end method")
-            c = c[:m_s_start] + new_s_nrd + c[m_s_end:]
-        else:
-            c += "\n" + new_s_nrd + "\n"
-
-        with open(nrd_path, "w", encoding="utf-8") as f:
-            f.write(c)
-        print("    [+] nrd.smali: Fully patched with rst field, h(), e(), and dual-EV s().")
-
-    # 4. Patch nrm.smali: Upgrade to qhr, implement rst, h, e, k, n, o, p, q, s
-    nrm_path = os.path.join(APKTOOL_DIR, "smali", "nrm.smali")
-    if os.path.exists(nrm_path):
-        with open(nrm_path, "r", encoding="utf-8") as f:
-            c = f.read()
-
-        # a) Super class
-        c = c.replace(".super Lnqu;", ".super Lqhr;")
-        c = c.replace("invoke-direct {p0}, Lnqu;-><init>()V", 'invoke-direct {p0}, Lqhr;-><init>()V\n\n    new-instance v0, Lufn;\n\n    const-string v1, ""\n\n    invoke-direct {v0, v1}, Lufn;-><init>(Ljava/lang/Object;)V\n\n    iput-object v0, p0, Lnrm;->z:Lufn;')
-
-        # b) Fields
-        if ".field private final v:Lppn;" in c:
-            c = c.replace(".field private final v:Lppn;", ".field public final v:Lppn;")
-        if ".field public final z:Lufn;" not in c:
-            c = c.replace(".field private y:Luep;", ".field private y:Luep;\n\n.field public final z:Lufn;")
-        # Clean any accidental literal \\n from previous replace
-        c = c.replace(".field public final z:Lufn;\\n\\n.field public rst:Lsmq;", ".field public final z:Lufn;\n\n.field public rst:Lsmq;")
-        c = c.replace(".field public final z:Lufn;\\n.field public rst:Lsmq;", ".field public final z:Lufn;\n\n.field public rst:Lsmq;")
-        if ".field public rst:Lsmq;" not in c:
-            c = c.replace(".field public final z:Lufn;", ".field public final z:Lufn;\n\n.field public rst:Lsmq;")
-
-        # c) In i(): save smq to p0->rst
-        target_smq = "invoke-direct {v5, v1, v6, v2}, Lsmq;-><init>(Ljava/lang/String;Ladfx;Lejf;)V"
-        repl_smq = target_smq + "\n\n    iput-object v5, v0, Lnrm;->rst:Lsmq;"
-        c = c.replace(target_smq + "\\n\\n    iput-object v5, v0, Lnrm;->rst:Lsmq;", repl_smq)
-        if target_smq in c and "iput-object v5, v0, Lnrm;->rst:Lsmq;" not in c:
-            c = c.replace(target_smq, repl_smq, 1)
-
-        # d) Replace e() with full reset method
-        new_e_nrm = """.method public final e()V
-    .locals 5
-
-    iget-object v0, p0, Lnrm;->g:Lejf;
-
-    if-eqz v0, :cond_rst_btn_m
-
-    const/4 v1, 0x0
-
-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v1
-
-    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
-
-    :cond_rst_btn_m
-    iget-object v0, p0, Lnrm;->z:Lufn;
-
-    if-eqz v0, :cond_rst_z
-
-    const-string v1, ""
-
-    invoke-virtual {v0, v1}, Lufn;->a(Ljava/lang/Object;)V
-
-    :cond_rst_z
-    iget-object v0, p0, Lnqu;->a:Lsmy;
-
-    if-eqz v0, :cond_skip_smy_m
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    invoke-static {v0, v1}, Lsmy;->i(Lsmy;F)V
-
-    const-string v1, ""
-
-    invoke-virtual {v0, v1}, Lsmy;->f(Ljava/lang/String;)V
-
-    :cond_skip_smy_m
-    iget-object v0, p0, Lnrm;->i:Lugh;
-
-    const/high16 v1, -0x40800000    # -1.0f
+    iput-object v0, p0, Lpco;->c:Lusf;"""
+        repl_pco_init = """    const/high16 v1, 0x3f000000    # 0.5f
 
     invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v1
 
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+    invoke-direct {v0, v1}, Lurl;-><init>(Ljava/lang/Object;)V
 
-    iget-object v0, p0, Lnrm;->v:Lppn;
+    iput-object v0, p0, Lpco;->c:Lusf;"""
+        if target_pco_init in pco_c:
+            pco_c = pco_c.replace(target_pco_init, repl_pco_init)
+            print("    [+] pco.smali: Initialized pco.c & pco.d to 0.5f neutral.")
 
-    if-eqz v0, :cond_skip_ev_rst_m
+        target_pco_reset = """    iget-object v0, p0, Lpco;->c:Lusf;
 
-    iget-object v0, v0, Lppn;->f:Losw;
+    const/high16 v2, -0x40800000    # -1.0f
 
-    if-eqz v0, :cond_skip_ev_rst_m
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    iget-object v2, p0, Lnrm;->j:Lugh;
-
-    if-eqz v2, :cond_get_b_rst_done
-
-    check-cast v2, Lufn;
-
-    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v2, Ljava/lang/Float;
-
-    if-eqz v2, :cond_get_b_rst_done
-
-    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
-
-    move-result v2
-
-    const/4 v3, 0x0
-
-    cmpl-float v3, v2, v3
-
-    if-ltz v3, :cond_get_b_rst_done
-
-    move v1, v2
-
-    :cond_get_b_rst_done
-    const/high16 v2, 0x3f000000    # 0.5f
-
-    sub-float/2addr v1, v2
-
-    const/high16 v2, 0x41c00000    # 24.0f
-
-    mul-float/2addr v1, v2
-
-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
-
-    move-result v1
-
-    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v1
-
-    iget-object v0, v0, Losw;->b:Lugh;
-
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_skip_ev_rst_m
-    iget-object v0, p0, Lnrm;->v:Lppn;
-
-    if-eqz v0, :cond_skip_ppn_rst_m
-
-    invoke-virtual {v0}, Lppn;->f()V
-
-    :cond_skip_ppn_rst_m
-    iget-object v0, p0, Lnrm;->r:Lnrf;
-
-    const/4 v1, 0x0
-
-    invoke-virtual {v0, v1}, Lnrf;->c(Z)V
-
-    iget-object v0, p0, Lnrm;->h:Lugh;
-
-    invoke-interface {v0}, Lugh;->d()Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, Lnql;
-
-    invoke-static {}, Lj$/util/Optional;->empty()Lj$/util/Optional;
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v2
 
-    iput-object v2, v1, Lnql;->e:Lj$/util/Optional;
+    invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V"""
+        repl_pco_reset = """    iget-object v0, p0, Lpco;->c:Lusf;
 
-    invoke-interface {v0, v1}, Lugh;->a(Ljava/lang/Object;)V
+    const/high16 v2, 0x3f000000    # 0.5f
 
-    return-void
-.end method"""
-        m_e_start = c.find(".method public final e()V")
-        if m_e_start != -1:
-            m_e_end = c.find(".end method", m_e_start) + len(".end method")
-            c = c[:m_e_start] + new_e_nrm + c[m_e_end:]
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
-        # e) Add h() method
-        new_h_nrm = """.method public final h()Lsmq;
-    .locals 1
+    move-result-object v2
 
-    iget-object v0, p0, Lnrm;->rst:Lsmq;
+    invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V"""
+        if target_pco_reset in pco_c:
+            pco_c = pco_c.replace(target_pco_reset, repl_pco_reset)
+            print("    [+] pco.smali: Reset method initialized to 0.5f neutral.")
 
-    return-object v0
-.end method"""
-        if ".method public final h()Lsmq;" in c:
-            m_h_start = c.find(".method public final h()Lsmq;")
-            m_h_end = c.find(".end method", m_h_start) + len(".end method")
-            c = c[:m_h_start] + new_h_nrm + c[m_h_end:]
-        else:
-            c += "\n" + new_h_nrm + "\n"
+        with open(pco_path, "w", encoding="utf-8") as f:
+            f.write(pco_c)
 
-        # f) Add k, n, o, p, q methods if missing
-        for m_sig, m_code in [
-            (".method public final k()F", """.method public final k()F
-    .locals 1
+    # 3. Patch oak.smali: Loak.l initialized to 0.5f
+    oak_path = os.path.join(APKTOOL_DIR, "smali", "oak.smali")
+    if os.path.exists(oak_path):
+        with open(oak_path, "r", encoding="utf-8") as f:
+            oak_c = f.read()
+        target_oak_l = """    const/high16 v0, -0x40800000    # -1.0f
+
+    iput v0, p0, Loak;->l:F"""
+        repl_oak_l = """    const/high16 v0, 0x3f000000    # 0.5f
+
+    iput v0, p0, Loak;->l:F"""
+        if target_oak_l in oak_c:
+            oak_c = oak_c.replace(target_oak_l, repl_oak_l)
+            with open(oak_path, "w", encoding="utf-8") as f:
+                f.write(oak_c)
+            print("    [+] oak.smali: Loak.l initialized to 0.5f neutral.")
+
+        bad_oak_f = """    iget-object v0, v0, Lpco;->f:Lusf;\n\n    invoke-interface {v0, v1}, Lusf;->a(Ljava/lang/Object;)\n\n    :cond_res_f"""
+        good_oak_f = """    iget-object v0, v0, Lpco;->f:Lusf;\n\n    const/high16 v1, 0x3f000000    # 0.5f\n\n    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object v1\n\n    invoke-interface {v0, v1}, Lusf;->a(Ljava/lang/Object;)\n\n    :cond_res_f"""
+        if bad_oak_f in oak_c:
+            oak_c = oak_c.replace(bad_oak_f, good_oak_f)
+            with open(oak_path, "w", encoding="utf-8") as f:
+                f.write(oak_c)
+            print("    [+] oak.smali: pco.f reset fixed to 0.5f neutral.")
+
+    # 4. Patch oau.smali: Loau.o initialized to 0.5f
+    oau_path = os.path.join(APKTOOL_DIR, "smali", "oau.smali")
+    if os.path.exists(oau_path):
+        with open(oau_path, "r", encoding="utf-8") as f:
+            oau_c = f.read()
+        target_oau_o = """    const/high16 v0, -0x40800000    # -1.0f
+
+    iput v0, p0, Loau;->o:F"""
+        repl_oau_o = """    const/high16 v0, 0x3f000000    # 0.5f
+
+    iput v0, p0, Loau;->o:F"""
+        if target_oau_o in oau_c:
+            oau_c = oau_c.replace(target_oau_o, repl_oau_o)
+            with open(oau_path, "w", encoding="utf-8") as f:
+                f.write(oau_c)
+            print("    [+] oau.smali: Loau.o initialized to 0.5f neutral.")
+
+    # 5. Patch plh.smali: Set HIGH_QUALITY (2) for EDGE_MODE and NOISE_REDUCTION_MODE
+    plh_path = os.path.join(APKTOOL_DIR, "smali", "plh.smali")
+    if os.path.exists(plh_path):
+        with open(plh_path, "r", encoding="utf-8") as f:
+            plh_c = f.read()
+        target_plh = """    const/4 v7, 0x1
+
+    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v8"""
+        repl_plh = """    const/4 v7, 0x2
+
+    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v8"""
+        if target_plh in plh_c:
+            plh_c = plh_c.replace(target_plh, repl_plh)
+            with open(plh_path, "w", encoding="utf-8") as f:
+                f.write(plh_c)
+            print("    [+] plh.smali: EDGE_MODE and NOISE_REDUCTION_MODE set to HIGH_QUALITY (2).")
+        elif "const/4 v7, 0x2" in plh_c:
+            print("    [+] plh.smali: EDGE_MODE and NOISE_REDUCTION_MODE already set to HIGH_QUALITY (2).")
+
+    # 6. Patch pin.smali: Bypass jsn fallback overwrite loop so dual-EV settings persist
+    pin_path = os.path.join(APKTOOL_DIR, "smali", "pin.smali")
+    if os.path.exists(pin_path):
+        with open(pin_path, "r", encoding="utf-8") as f:
+            pin_c = f.read()
+        target_pin = """    iget-boolean v1, v0, Lptm;->g:Z
+
+    if-nez v1, :cond_a
+
+    iget-boolean v1, v0, Lptm;->h:Z
+
+    if-eqz v1, :cond_b"""
+        repl_pin = """    goto :cond_b"""
+        if target_pin in pin_c:
+            pin_c = pin_c.replace(target_pin, repl_pin)
+            with open(pin_path, "w", encoding="utf-8") as f:
+                f.write(pin_c)
+            print("    [+] pin.smali: jsn continuous overwrite loop bypassed.")
+        elif "goto :cond_b\\n\\n    :cond_a" in pin_c:
+            print("    [+] pin.smali: jsn overwrite loop already bypassed.")
+
+    # 7. Patch qdi.smali: Enable Camera Looks & Pro sliders (Highlights & Shadows) in Photo mode
+    qdi_path = os.path.join(APKTOOL_DIR, "smali", "qdi.smali")
+    if os.path.exists(qdi_path):
+        with open(qdi_path, "r", encoding="utf-8") as f:
+            qdi_c = f.read()
+        target_qdi = """    invoke-virtual {v9}, Ltbp;->f()Z
+
+    move-result v5
+
+    if-eqz v5, :cond_6
+
+    if-eqz v2, :cond_6"""
+        if target_qdi in qdi_c:
+            qdi_c = qdi_c.replace(target_qdi, "")
+            with open(qdi_path, "w", encoding="utf-8") as f:
+                f.write(qdi_c)
+            print("    [+] qdi.smali: Pro controls (Highlights & Shadows) enabled in Photo mode.")
+        elif ":cond_1\\n\\n    new-instance v2, Ladqa;" in qdi_c:
+            print("    [+] qdi.smali: Pro controls in Photo mode already enabled.")
+
+    # 8. Patch 11.1 Autofocus Session Listeners (puu, puo, pua, pul) to stop resetting pzj and pco to auto
+    for cls_name in ["puu.smali", "puo.smali", "pua.smali", "pul.smali"]:
+        cls_path = os.path.join(APKTOOL_DIR, "smali_classes2", cls_name)
+        if os.path.exists(cls_path):
+            with open(cls_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            c_mod = re.sub(r'invoke-virtual \{[vp0-9]+\}, Lpzj;->f\(\)V', 'nop', c)
+            c_mod = re.sub(r'invoke-virtual \{[vp0-9]+\}, Lpco;->a\(\)V', 'nop', c_mod)
+            if c_mod != c:
+                with open(cls_path, "w", encoding="utf-8") as f:
+                    f.write(c_mod)
+                print(f"    [+] {cls_name}: Autofocus exposure and tone curve reset calls eliminated.")
+            else:
+                print(f"    [+] {cls_name}: Autofocus resets already eliminated.")
+
+    # 9. Patch Slider Timeout & UI Dismissal (kfc.smali, lts.smali) so manual EV does not snap back
+    kfc_path = os.path.join(APKTOOL_DIR, "smali", "kfc.smali")
+    if os.path.exists(kfc_path):
+        with open(kfc_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target_kfc = """    check-cast p0, Lpzj;
+
+    invoke-virtual {p0}, Lpzj;->f()V
+
+    return-void"""
+        repl_kfc = """    check-cast p0, Lpzj;
+
+    nop
+
+    return-void"""
+        if target_kfc in c:
+            c = c.replace(target_kfc, repl_kfc)
+            with open(kfc_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] kfc.smali: Slider timeout reset to auto eliminated.")
+        elif "check-cast p0, Lpzj;\n\n    nop\n\n    return-void" in c:
+            print("    [+] kfc.smali: Slider timeout reset already eliminated.")
+
+    lts_path = os.path.join(APKTOOL_DIR, "smali", "lts.smali")
+    if os.path.exists(lts_path):
+        with open(lts_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target_lts_k = """    check-cast v0, Lpzj;
+
+    invoke-virtual {v0}, Lpzj;->f()V
+
+    :goto_0"""
+        repl_lts_k = """    check-cast v0, Lpzj;
+
+    nop
+
+    :goto_0"""
+        if target_lts_k in c:
+            c = c.replace(target_lts_k, repl_lts_k)
+            with open(lts_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] lts.smali: lts.k() reset eliminated.")
+        elif "check-cast v0, Lpzj;\n\n    nop\n\n    :goto_0" in c:
+            print("    [+] lts.smali: lts.k() reset already eliminated.")
+
+    # 10. Patch qwh.smali: Connect Bottom Sheet Shadows and Highlights to pco LiveData holders
+    qwh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qwh.smali")
+    if os.path.exists(qwh_path):
+        with open(qwh_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target_qwh = """.method public final l(IFZ)V
+    .locals 5
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        repl_qwh = """.method public final l(IFZ)V
+    .locals 5
+
+    const/4 v0, 0x1
+
+    if-ne p1, v0, :cond_check_hl
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    add-float v1, p2, v0
 
     const/high16 v0, 0x3f000000    # 0.5f
 
-    return v0
-.end method"""),
-            (".method public final n()Lufv;", """.method public final n()Lufv;
-    .locals 1
+    mul-float/2addr v1, v0
 
-    iget-object v0, p0, Lnrm;->z:Lufn;
+    const/4 v0, 0x0
 
-    return-object v0
-.end method"""),
-            (".method public final o()Ljava/lang/Integer;", """.method public final o()Ljava/lang/Integer;
-    .locals 1
+    cmpg-float v2, v1, v0
 
-    const v0, 0x7f130894
+    if-gez v2, :cond_clamp_s_min
 
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+    move v1, v0
 
-    move-result-object v0
+    :cond_clamp_s_min
+    const/high16 v0, 0x3f800000    # 1.0f
 
-    return-object v0
-.end method"""),
-            (".method public final p()Ljava/lang/Integer;", """.method public final p()Ljava/lang/Integer;
-    .locals 1
+    cmpl-float v2, v1, v0
 
-    const v0, 0x7f130897
+    if-lez v2, :cond_clamp_s_max
 
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+    move v1, v0
+
+    :cond_clamp_s_max
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v0
 
-    return-object v0
-.end method"""),
-            (".method public final q()Ljava/lang/Integer;", """.method public final q()Ljava/lang/Integer;
-    .locals 1
+    iget-object v1, p0, Lqwh;->g:Lpco;
 
-    const v0, 0x7f130896
+    iget-object v2, v1, Lpco;->d:Lusf;
 
-    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+    invoke-interface {v2, v0}, Lusf;->a(Ljava/lang/Object;)V
 
-    move-result-object v0
+    iget-object v1, v1, Lpco;->g:Lusf;
 
-    return-object v0
-.end method""")
-        ]:
-            if m_sig in c:
-                m_start = c.find(m_sig)
-                m_end = c.find(".end method", m_start) + len(".end method")
-                c = c[:m_start] + m_code + c[m_end:]
-            else:
-                c += "\n" + m_code + "\n"
+    invoke-interface {v1, v0}, Lusf;->a(Ljava/lang/Object;)V
 
-        # g) Replace s(FZLsnw;)V
-        new_s_nrm = """.method public final s(FZLsnw;)V
-    .locals 8
+    goto :cond_qwh_hook_done
 
-    invoke-static {p1}, Lobf;->p(F)Ljava/lang/String;
+    :cond_check_hl
+    const/4 v0, 0x2
+
+    if-ne p1, v0, :cond_qwh_hook_done
+
+    invoke-static {p2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
     move-result-object v0
 
-    iget-object v1, p0, Lnrm;->z:Lufn;
+    iget-object v1, p0, Lqwh;->g:Lpco;
 
-    if-eqz v1, :cond_0
+    iget-object v1, v1, Lpco;->e:Lusf;
 
-    invoke-virtual {v1, v0}, Lufn;->a(Ljava/lang/Object;)V
+    invoke-interface {v1, v0}, Lusf;->a(Ljava/lang/Object;)V
 
-    :cond_0
-    iget-object v1, p0, Lnqu;->a:Lsmy;
+    :cond_qwh_hook_done
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        if target_qwh in c:
+            c = c.replace(target_qwh, repl_qwh, 1)
+            with open(qwh_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] qwh.smali: Shadows and Highlights connected to pco pipeline.")
+        elif ":cond_qwh_hook_done" in c:
+            print("    [+] qwh.smali: Shadows and Highlights already connected.")
 
-    if-eqz v1, :cond_1
+    # 11. Ensure pzq.smali preserves standard pzq.c initialization (twilight mode disabled by default)
+    pzq_path = os.path.join(APKTOOL_DIR, "smali", "pzq.smali")
+    if os.path.exists(pzq_path):
+        with open(pzq_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        forced_pzq = """    sget-object p4, Lkpf;->f:Lkps;
 
-    invoke-virtual {v1, v0}, Lsmy;->f(Ljava/lang/String;)V
+    invoke-virtual {p2, p4}, Lksf;->q(Lkps;)Z
 
-    :cond_1
-    iget-object v0, p0, Lnrm;->g:Lejf;
+    const/4 p4, 0x1
 
-    if-eqz v0, :cond_skip_rst
+    iput-boolean p4, p0, Lpzq;->c:Z"""
+        orig_pzq = """    sget-object p4, Lkpf;->f:Lkps;
 
-    const/high16 v1, 0x3f000000    # 0.5f
+    invoke-virtual {p2, p4}, Lksf;->q(Lkps;)Z
 
-    cmpl-float v1, p1, v1
+    move-result p4
 
-    if-eqz v1, :cond_rst_off
-
-    const/4 v1, 0x1
-
-    goto :goto_rst
-
-    :cond_rst_off
-    const/4 v1, 0x0
-
-    :goto_rst
-    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v1
-
-    invoke-virtual {v0, v1}, Lejf;->j(Ljava/lang/Object;)V
-
-    :cond_skip_rst
-    iget-object v0, p0, Lnrm;->v:Lppn;
-
-    if-eqz v0, :cond_ppn
-
-    iget-object v1, v0, Lppn;->u:Ljava/util/concurrent/atomic/AtomicBoolean;
-
-    const/4 v2, 0x1
-
-    invoke-virtual {v1, v2}, Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V
-
-    iget-object v0, v0, Lppn;->f:Losw;
-
-    if-eqz v0, :cond_ppn
-
-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v1
-
-    iget-object v2, v0, Losw;->d:Lugh;
-
-    invoke-interface {v2, v1}, Lugh;->a(Ljava/lang/Object;)V
-
-    const/high16 v1, 0x3f000000    # 0.5f
-
-    iget-object v2, p0, Lnrm;->j:Lugh;
-
-    if-eqz v2, :cond_get_b_done
-
-    check-cast v2, Lufn;
-
-    iget-object v2, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v2, Ljava/lang/Float;
-
-    if-eqz v2, :cond_get_b_done
-
-    invoke-virtual {v2}, Ljava/lang/Float;->floatValue()F
-
-    move-result v2
-
-    const/4 v3, 0x0
-
-    cmpl-float v3, v2, v3
-
-    if-ltz v3, :cond_get_b_done
-
-    move v1, v2
-
-    :cond_get_b_done
-    const/high16 v2, 0x3f000000    # 0.5f
-
-    sub-float v3, v1, v2
-
-    const/high16 v4, 0x41c00000    # 24.0f
-
-    mul-float/2addr v3, v4
-
-    sub-float v2, p1, v2
-
-    const/high16 v4, 0x41400000    # 12.0f
-
-    mul-float/2addr v2, v4
-
-    add-float/2addr v3, v2
-
-    invoke-static {v3}, Ljava/lang/Math;->round(F)I
-
-    move-result v2
-
-    const/16 v3, 0x18
-
-    if-le v2, v3, :cond_clamp_high_s
-
-    move v2, v3
-
-    :cond_clamp_high_s
-    const/16 v3, -0x18
-
-    if-ge v2, v3, :cond_clamp_low_s
-
-    move v2, v3
-
-    :cond_clamp_low_s
-    invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v2
-
-    iget-object v0, v0, Losw;->b:Lugh;
-
-    invoke-interface {v0, v2}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_ppn
-    const/4 v0, 0x1
-
-    iget-object v1, p0, Lnrm;->r:Lnrf;
-
-    invoke-virtual {v1, v0}, Lnrf;->c(Z)V
-
-    iget-object v1, p0, Lnrm;->k:Lugh;
-
-    invoke-static {v0}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
-
-    move-result-object v0
-
-    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
-
-    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v0
-
-    iget-object v1, p0, Lnrm;->i:Lugh;
-
-    invoke-interface {v1, v0}, Lugh;->a(Ljava/lang/Object;)V
-
-    iget-object v1, p0, Lnrm;->j:Lugh;
-
-    move-object v2, v1
-
-    check-cast v2, Lufn;
-
-    iget-object v3, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v3, Ljava/lang/Float;
-
-    invoke-virtual {v3}, Ljava/lang/Float;->floatValue()F
-
-    move-result v3
-
-    const/4 v4, 0x0
-
-    cmpg-float v3, v3, v4
-
-    if-gez v3, :cond_3
-
-    const/high16 v3, 0x3f000000    # 0.5f
-
-    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
-
-    move-result-object v3
-
-    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
-
-    :cond_3
-    iget-object v1, p0, Lnrm;->h:Lugh;
-
-    invoke-interface {v1}, Lugh;->d()Ljava/lang/Object;
-
-    move-result-object v3
-
-    check-cast v3, Lnql;
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    iput-object v0, v3, Lnql;->e:Lj$/util/Optional;
-
-    iget-object v0, v2, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v0, Ljava/lang/Float;
-
-    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
-
-    move-result-object v0
-
-    iput-object v0, v3, Lnql;->b:Lj$/util/Optional;
-
-    invoke-interface {v1, v3}, Lugh;->a(Ljava/lang/Object;)V
-
-    iget-object v0, p0, Lnrm;->t:Lrpr;
-
-    const/4 v1, 0x3
-
-    float-to-double v2, p1
-
-    invoke-virtual {v0, p3, v1, v2, v3}, Lrpr;->E(Lsnw;ID)V
-
-    return-void
-.end method"""
-        if ".method public final s(FZLsnw;)V" in c:
-            m_s_start = c.find(".method public final s(FZLsnw;)V")
-            m_s_end = c.find(".end method", m_s_start) + len(".end method")
-            c = c[:m_s_start] + new_s_nrm + c[m_s_end:]
+    iput-boolean p4, p0, Lpzq;->c:Z"""
+        if forced_pzq in c:
+            c = c.replace(forced_pzq, orig_pzq)
+            with open(pzq_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] pzq.smali: pzq.c restored to feature flag (twilight AE bias eliminated).")
         else:
-            c += "\n" + new_s_nrm + "\n"
-
-        with open(nrm_path, "w", encoding="utf-8") as f:
-            f.write(c)
-        print("    [+] nrm.smali: Fully patched with rst field, h(), e(), and dual-EV s().")
-
-    # 5. Patch smali_classes2/nrc.smali: Delegate pswitch_8 and pswitch_3 directly to nrd and nrm
-    nrc_path = os.path.join(APKTOOL_DIR, "smali_classes2", "nrc.smali")
-    if os.path.exists(nrc_path):
-        with open(nrc_path, "r", encoding="utf-8") as f:
-            nrc_content = f.read()
-
-        pswitch_3_body = """    :pswitch_3
-    iget-object p0, p0, Lnrc;->a:Lnqu;
-
-    check-cast p0, Lnrm;
-
-    invoke-virtual {p0, p1, p2, p3}, Lnrm;->s(FZLsnw;)V
-
-    return-void"""
-
-        pswitch_8_body = """    :pswitch_8
-    iget-object p0, p0, Lnrc;->a:Lnqu;
-
-    check-cast p0, Lnrd;
-
-    invoke-virtual {p0, p1, p2, p3}, Lnrd;->s(FZLsnw;)V
-
-    return-void"""
-
-        start_p3 = nrc_content.find("    :pswitch_3\n")
-        end_p3 = nrc_content.find("    :pswitch_4\n", start_p3)
-        if start_p3 != -1 and end_p3 != -1:
-            nrc_content = nrc_content[:start_p3] + pswitch_3_body + "\n\n" + nrc_content[end_p3:]
-
-        start_p8 = nrc_content.find("    :pswitch_8\n")
-        end_p8 = nrc_content.find("    :cond_8\n", start_p8)
-        if start_p8 != -1 and end_p8 != -1:
-            nrc_content = nrc_content[:start_p8] + pswitch_8_body + "\n\n" + nrc_content[end_p8:]
-
-        with open(nrc_path, "w", encoding="utf-8") as f:
-            f.write(nrc_content)
-        print("    [+] nrc.smali: Delegated Brightness and Shadows directly to nrd and nrm.")
-
-    # 6. Patch ppn.smali: Ensure f and u fields are public
-    ppn_path = os.path.join(APKTOOL_DIR, "smali", "ppn.smali")
-    if os.path.exists(ppn_path):
-        with open(ppn_path, "r", encoding="utf-8") as f:
-            ppn_c = f.read()
-        ppn_c = ppn_c.replace(".field private final f:Losw;", ".field public final f:Losw;")
-        ppn_c = ppn_c.replace(".field private final u:Ljava/util/concurrent/atomic/AtomicBoolean;", ".field public final u:Ljava/util/concurrent/atomic/AtomicBoolean;")
-        with open(ppn_path, "w", encoding="utf-8") as f:
-            f.write(ppn_c)
-        print("    [+] ppn.smali: Verified f and u accessibility.")
-
-    # 7. Patch pfh.smali: Ensure osw.b exposure compensation updates are always applied via uoi.r()
-    pfh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pfh.smali")
-    if os.path.exists(pfh_path):
-        with open(pfh_path, "r", encoding="utf-8") as f:
-            pfh_c = f.read()
-        old_p8 = """:pswitch_8
-    iget-object p0, p0, Lpfh;->a:Ljava/lang/Object;
-
-    check-cast p0, Lpjo;
-
-    iget-object v0, p0, Lpjo;->d:Lppn;
-
-    check-cast p1, Ljava/lang/Integer;
-
-    invoke-virtual {v0}, Lppn;->i()Z
-
-    move-result v0
-
-    if-eqz v0, :cond_5
-
-    goto/16 :goto_3
-
-    :cond_5
-    iget-object p0, p0, Lpjo;->b:Luoi;
-
-    invoke-virtual {p1}, Ljava/lang/Integer;->intValue()I
-
-    move-result p1
-
-    invoke-static {p1}, Lpjo;->a(I)Lupd;
-
-    move-result-object p1
-
-    invoke-interface {p0, p1}, Luoi;->r(Lupd;)V
-
-    return-void"""
-
-        new_p8 = """:pswitch_8
-    iget-object p0, p0, Lpfh;->a:Ljava/lang/Object;
-
-    check-cast p0, Lpjo;
-
-    check-cast p1, Ljava/lang/Integer;
-
-    if-eqz p1, :cond_skip_pfh
-
-    iget-object p0, p0, Lpjo;->b:Luoi;
-
-    invoke-virtual {p1}, Ljava/lang/Integer;->intValue()I
-
-    move-result p1
-
-    invoke-static {p1}, Lpjo;->a(I)Lupd;
-
-    move-result-object p1
-
-    invoke-interface {p0, p1}, Luoi;->r(Lupd;)V
-
-    :cond_skip_pfh
-    return-void"""
-        if old_p8 in pfh_c:
-            pfh_c = pfh_c.replace(old_p8, new_p8, 1)
-            with open(pfh_path, "w", encoding="utf-8") as f:
-                f.write(pfh_c)
-            print("    [+] pfh.smali: Unblocked direct AE compensation pipeline (pswitch_8).")
-
-    # 8. Patch osw.smali: Add b()Z to check if brightness or shadow adjustments are active
-    osw_path = os.path.join(APKTOOL_DIR, "smali", "osw.smali")
-    if os.path.exists(osw_path):
-        with open(osw_path, "r", encoding="utf-8") as f:
-            osw_c = f.read()
-        if ".method public final b()Z" not in osw_c:
-            b_method = """.method public final b()Z
-    .locals 3
-
-    iget-object v0, p0, Losw;->c:Lugh;
-
-    check-cast v0, Lufn;
-
-    iget-object v0, v0, Lufn;->c:Ljava/lang/Object;
-
-    check-cast v0, Ljava/lang/Float;
-
-    invoke-virtual {v0}, Ljava/lang/Float;->floatValue()F
-
-    move-result v0
-
-    const/4 v1, 0x0
-
-    cmpl-float v0, v0, v1
-
-    if-ltz v0, :cond_0
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_0
-    iget-object p0, p0, Losw;->d:Lugh;
-
-    check-cast p0, Lufn;
-
-    iget-object p0, p0, Lufn;->c:Ljava/lang/Object;
-
-    check-cast p0, Ljava/lang/Float;
-
-    invoke-virtual {p0}, Ljava/lang/Float;->floatValue()F
-
-    move-result p0
-
-    cmpl-float p0, p0, v1
-
-    if-ltz p0, :cond_1
-
-    const/4 p0, 0x1
-
-    return p0
-
-    :cond_1
-    const/4 p0, 0x0
-
-    return p0
-.end method"""
-            osw_c = osw_c.rstrip() + "\n\n" + b_method + "\n"
-            with open(osw_path, "w", encoding="utf-8") as f:
-                f.write(osw_c)
-            print("    [+] osw.smali: Added b()Z query for active manual slider adjustments.")
-
-    # 9. Patch ppn.smali: Linearize shadow curve exponent r = 1.0f in o(FFF)V
-    if os.path.exists(ppn_path):
-        with open(ppn_path, "r", encoding="utf-8") as f:
-            ppn_c = f.read()
-        target_r = "const/high16 p1, 0x3f800000    # 1.0f\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
-        if target_r not in ppn_c:
-            full_old = "div-float/2addr p2, p1\n\n    invoke-direct {p0, p2}, Lppn;->l(F)F\n\n    move-result p1\n\n    invoke-static {p1}, Lppn;->k(F)F\n\n    move-result p1\n\n    float-to-double p1, p1\n\n    invoke-static {p1, p2}, Ljava/lang/Math;->log(D)D\n\n    move-result-wide p1\n\n    iget p3, p0, Lppn;->i:F\n\n    invoke-static {p3}, Lppn;->k(F)F\n\n    move-result p3\n\n    float-to-double v0, p3\n\n    invoke-static {v0, v1}, Ljava/lang/Math;->log(D)D\n\n    move-result-wide v0\n\n    div-double/2addr p1, v0\n\n    double-to-float p1, p1\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
-            if full_old in ppn_c:
-                ppn_c = ppn_c.replace(full_old, target_r, 1)
-            else:
-                old_div = "div-double/2addr p1, v0\n\n    double-to-float p1, p1\n\n    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lppn;->r:Ljava/lang/Float;"
-                if old_div in ppn_c:
-                    ppn_c = ppn_c.replace(old_div, target_r, 1)
-            with open(ppn_path, "w", encoding="utf-8") as f:
-                f.write(ppn_c)
-        print("    [+] ppn.smali: Linearized shadow transfer curve exponent r = 1.0f.")
-
-    # 10. Patch pkb.smali: Guard Losw.a() and ppn.f() on tap reset
-    pkb_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkb.smali")
-    if os.path.exists(pkb_path):
-        with open(pkb_path, "r", encoding="utf-8") as f:
-            pkb_c = f.read()
-        if "cond_skip_rst_pkb_h" not in pkb_c:
-            old_pkb_h = "invoke-virtual {2, v1}, Lpix;->p(Ltqz;)V\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    iget-object v1, p0, Lpkb;->b:Lzfr;"
-            new_pkb_h = "invoke-virtual {2, v1}, Lpix;->p(Ltqz;)V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->b()Z\n\n    move-result v1\n\n    if-nez v1, :cond_skip_rst_pkb_h\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    :cond_skip_rst_pkb_h\n\n    iget-object v1, p0, Lpkb;->b:Lzfr;"
-            if old_pkb_h in pkb_c:
-                pkb_c = pkb_c.replace(old_pkb_h, new_pkb_h, 1)
-        if "cond_skip_rst_pkb_i" not in pkb_c:
-            old_pkb_i = ":cond_1\n    iget-object v0, p0, Lpkb;->i:Lpkc;\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    iget-object v1, p0, Lpkb;->g:Lpjp;"
-            new_pkb_i = ":cond_1\n    iget-object v0, p0, Lpkb;->i:Lpkc;\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->b()Z\n\n    move-result v1\n\n    if-nez v1, :cond_skip_rst_pkb_i\n\n    iget-object v1, v0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v1}, Lppn;->f()V\n\n    iget-object v1, v0, Lpkc;->f:Losw;\n\n    invoke-virtual {v1}, Losw;->a()V\n\n    :cond_skip_rst_pkb_i\n\n    iget-object v1, p0, Lpkb;->g:Lpjp;"
-            if old_pkb_i in pkb_c:
-                pkb_c = pkb_c.replace(old_pkb_i, new_pkb_i, 1)
-        with open(pkb_path, "w", encoding="utf-8") as f:
-            f.write(pkb_c)
-        print("    [+] pkb.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
-
-    # 11. Patch pkn.smali: Guard resets on tap
-    pkn_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkn.smali")
-    if os.path.exists(pkn_path):
-        with open(pkn_path, "r", encoding="utf-8") as f:
-            pkn_c = f.read()
-        if "Losw;->b()Z" not in pkn_c:
-            old_pkn_b = "if-eqz p2, :cond_1\n\n    iget-object v0, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_1"
-            new_pkn_b = "if-eqz p2, :cond_1\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->b()Z\n\n    move-result v0\n\n    if-nez v0, :cond_1\n\n    iget-object v0, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_1"
-            if old_pkn_b in pkn_c:
-                pkn_c = pkn_c.replace(old_pkn_b, new_pkn_b, 1)
-            old_pkn_g = "if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V\n\n    :cond_1"
-            new_pkn_g = "if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->a:Losw;\n\n    invoke-virtual {v2}, Losw;->b()Z\n\n    move-result v2\n\n    if-nez v2, :cond_1\n\n    iget-object v2, p0, Lpss;->h:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V\n\n    :cond_1"
-            if old_pkn_g in pkn_c:
-                pkn_c = pkn_c.replace(old_pkn_g, new_pkn_g, 1)
-            with open(pkn_path, "w", encoding="utf-8") as f:
-                f.write(pkn_c)
-        print("    [+] pkn.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
-
-    # 12. Patch pkw.smali: Guard resets on tap
-    pkw_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkw.smali")
-    if os.path.exists(pkw_path):
-        with open(pkw_path, "r", encoding="utf-8") as f:
-            pkw_c = f.read()
-        if "cond_skip_rst_pkw_h" not in pkw_c:
-            old_pkw_h = "iget-object p0, p0, Lpkw;->d:Lpkx;\n\n    iget-object v0, p0, Lpkx;->m:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V"
-            new_pkw_h = "iget-object p0, p0, Lpkw;->d:Lpkx;\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->b()Z\n\n    move-result v0\n\n    if-nez v0, :cond_skip_rst_pkw_h\n\n    iget-object v0, p0, Lpkx;->m:Lppn;\n\n    invoke-virtual {v0}, Lppn;->f()V\n\n    iget-object v0, p0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_skip_rst_pkw_h"
-            if old_pkw_h in pkw_c:
-                pkw_c = pkw_c.replace(old_pkw_h, new_pkw_h, 1)
-        if "cond_skip_rst_pkw_i" not in pkw_c:
-            old_pkw_i = "invoke-interface {v1, v2}, Ljava/util/concurrent/Executor;->execute(Ljava/lang/Runnable;)V\n\n    iget-object p0, v0, Lpkx;->m:Lppn;\n\n    invoke-virtual {p0}, Lppn;->f()V\n\n    invoke-virtual {v0}, Lpkx;->c()V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V"
-            new_pkw_i = "invoke-interface {v1, v2}, Ljava/util/concurrent/Executor;->execute(Ljava/lang/Runnable;)V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {p0}, Losw;->b()Z\n\n    move-result p0\n\n    if-nez p0, :cond_skip_rst_pkw_i\n\n    iget-object p0, v0, Lpkx;->m:Lppn;\n\n    invoke-virtual {p0}, Lppn;->f()V\n\n    invoke-virtual {v0}, Lpkx;->c()V\n\n    iget-object p0, v0, Lpkx;->d:Losw;\n\n    invoke-virtual {v0}, Losw;->a()V\n\n    :cond_skip_rst_pkw_i"
-            if old_pkw_i in pkw_c:
-                pkw_c = pkw_c.replace(old_pkw_i, new_pkw_i, 1)
-        with open(pkw_path, "w", encoding="utf-8") as f:
-            f.write(pkw_c)
-        print("    [+] pkw.smali: Guarded tap resets to preserve active brightness/shadow sliders.")
-
-    # 13. Patch pkc.smali: Guard ppn.g() on tap
-    pkc_path = os.path.join(APKTOOL_DIR, "smali_classes2", "pkc.smali")
-    if os.path.exists(pkc_path):
-        with open(pkc_path, "r", encoding="utf-8") as f:
-            pkc_c = f.read()
-        if "Losw;->b()Z" not in pkc_c:
-            old_pkc_g = "if-nez v2, :cond_6\n\n    :try_start_9\n    iget-object v2, p0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V"
-            new_pkc_g = "if-nez v2, :cond_6\n\n    :try_start_9\n    iget-object v2, p0, Lpkc;->f:Losw;\n\n    invoke-virtual {v2}, Losw;->b()Z\n\n    move-result v2\n\n    if-nez v2, :cond_6\n\n    iget-object v2, p0, Lpkc;->g:Lppn;\n\n    invoke-virtual {v2}, Lppn;->g()V"
-            if old_pkc_g in pkc_c:
-                pkc_c = pkc_c.replace(old_pkc_g, new_pkc_g, 1)
-                with open(pkc_path, "w", encoding="utf-8") as f:
-                    f.write(pkc_c)
-        print("    [+] pkc.smali: Guarded ppn.g() on tap.")
-
-    # 14. Patch hxj.smali & hxh.smali: Guard AF/AE reset in hxh
-    hxj_path = os.path.join(APKTOOL_DIR, "smali", "hxj.smali")
-    if os.path.exists(hxj_path):
-        with open(hxj_path, "r", encoding="utf-8") as f:
-            hxj_c = f.read()
-        hxj_c = hxj_c.replace(".field private final A:Lnrf;", ".field public final A:Lnrf;")
-        with open(hxj_path, "w", encoding="utf-8") as f:
-            f.write(hxj_c)
-
-    hxh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "hxh.smali")
-    if os.path.exists(hxh_path):
-        with open(hxh_path, "r", encoding="utf-8") as f:
-            hxh_c = f.read()
-        old_hxh = ":cond_e\n    check-cast p0, Ligp;\n\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->i()V"
-        new_hxh = ":cond_e\n    check-cast p0, Ligp;\n\n    iget-object p1, p0, Ligp;->A:Lnrf;\n\n    iget-boolean p1, p1, Lnrf;->c:Z\n\n    if-eqz p1, :cond_hxh_reset\n\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->j()V\n\n    return-void\n\n    :cond_hxh_reset\n    iget-object p0, p0, Ligp;->g:Lhxp;\n\n    invoke-interface {p0}, Lhxp;->i()V"
-        if old_hxh in hxh_c:
-            hxh_c = hxh_c.replace(old_hxh, new_hxh, 1)
-            with open(hxh_path, "w", encoding="utf-8") as f:
-                f.write(hxh_c)
-            print("    [+] hxh.smali: Guarded focus completion reset.")
+            print("    [+] pzq.smali: standard pzq.c preserved.")
 
 
 patch_mzc_smali = patch_brightness_shadows_controllers
@@ -7098,36 +6157,43 @@ def patch_dual_ev_ctrl_and_slider_sync():
         with open(pzj_path, "r", encoding="utf-8") as f:
             content = f.read()
         
-        # 2a. Linear shadow curve in pzj.n
-        target_pow = """    if-eqz p1, :cond_2
+        # 2a. Linear shadow exponent r = 1.0f in pzj.n
+        target_r = """    iget p1, p0, Lpzj;->i:F
 
-    float-to-double p1, v1
+    invoke-static {p1, p3, p2}, Lyzu;->bn(FFF)F
 
-    invoke-static {v2, v3, p1, p2}, Ljava/lang/Math;->pow(DD)D
+    move-result p1
+
+    float-to-double p1, p1
+
+    invoke-static {p1, p2}, Ljava/lang/Math;->log(D)D
 
     move-result-wide p1
 
-    double-to-float p1, p1
+    div-double/2addr v0, p1
 
-    div-float/2addr v1, v0
+    double-to-float p1, v0
 
-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
-    move-result v6"""
-        replacement_pow = """    if-eqz p1, :cond_2
+    move-result-object p1
 
-    const/high16 p1, 0x3f800000    # 1.0f
+    iput-object p1, p0, Lpzj;->r:Ljava/lang/Float;"""
+        repl_r = """    const/high16 p1, 0x3f800000    # 1.0f
 
-    div-float/2addr v1, v0
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
-    invoke-static {v1}, Ljava/lang/Math;->round(F)I
+    move-result-object p1
 
-    move-result v6"""
-        if target_pow in content:
-            content = content.replace(target_pow, replacement_pow)
-            print("    [+] pzj.smali: Linear shadow response (1.0f) injected.")
+    iput-object p1, p0, Lpzj;->r:Ljava/lang/Float;"""
+        if target_r in content:
+            content = content.replace(target_r, repl_r)
+            print("    [+] pzj.smali: Linear shadow exponent (1.0f) injected.")
         elif "const/high16 p1, 0x3f800000" in content:
-            print("    [+] pzj.smali: shadow curve already linearized.")
+            print("    [+] pzj.smali: shadow exponent already linearized.")
+
+        # Ensure field f in pzj.smali is public
+        content = content.replace(".field private final f:Lpco;", ".field public final f:Lpco;")
 
         # 2b. pzj.i()Z return true
         target_i = """.method public final declared-synchronized i()Z
@@ -7211,6 +6277,147 @@ def patch_dual_ev_ctrl_and_slider_sync():
         elif "nop\\n\\n    nop\\n\\n    nop\\n\\n    :cond_0" in content:
             print("    [+] pzj.smali: g()V already patched.")
 
+        # 2d. pzj.a(FF)Lpzi: normalize p1, p2 < 0.0f to 0.5f neutral baseline
+        target_a_norm = """    invoke-static {p1}, Lpzj;->p(F)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_7
+
+    invoke-static {p2}, Lpzj;->p(F)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_7"""
+        repl_a_norm = """    invoke-static {p1}, Lpzj;->p(F)Z
+
+    move-result v1
+
+    if-nez v1, :cond_p1_ok
+
+    const/high16 p1, 0x3f000000    # 0.5f
+
+    :cond_p1_ok
+    invoke-static {p2}, Lpzj;->p(F)Z
+
+    move-result v1
+
+    if-nez v1, :cond_p2_ok
+
+    const/high16 p2, 0x3f000000    # 0.5f
+
+    :cond_p2_ok"""
+        if target_a_norm in content:
+            content = content.replace(target_a_norm, repl_a_norm)
+            print("    [+] pzj.smali: p1 & p2 input normalization to 0.5f injected.")
+        elif ":cond_p1_ok" in content:
+            print("    [+] pzj.smali: p1 & p2 input normalization already injected.")
+
+        # 2d_fallback. pzj.s (Lvgr;) null fallback
+        target_vgr = """    iget-object v0, p0, Lpzj;->s:Lvgr;
+
+    if-eqz v0, :cond_7"""
+        repl_vgr = """    iget-object v0, p0, Lpzj;->s:Lvgr;
+
+    if-nez v0, :cond_vgr_ok
+
+    const v0, 0x3e2aaaab    # 0.16666667f
+
+    const/high16 v1, -0x40000000    # -2.0f
+
+    const/high16 v2, 0x40000000    # 2.0f
+
+    goto :cond_vgr_done
+
+    :cond_vgr_ok"""
+        if target_vgr in content:
+            content = content.replace(target_vgr, repl_vgr)
+            content = content.replace("mul-float/2addr v2, v0\\n\\n    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;",
+                                      "mul-float/2addr v2, v0\\n\\n    :cond_vgr_done\\n    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;")
+            print("    [+] pzj.smali: Lvgr fallback injected for Dual EV when vgr is null.")
+        elif ":cond_vgr_done" in content:
+            print("    [+] pzj.smali: Lvgr fallback already injected.")
+
+        # 2e. pzj.a(FF)Lpzi: force dual-EV branch goto :cond_2
+        target_a_single = """    const-wide/high16 v2, 0x4000000000000000L    # 2.0
+
+    if-eqz p1, :cond_2"""
+        repl_a_single = """    const-wide/high16 v2, 0x4000000000000000L    # 2.0
+
+    goto :cond_2"""
+        if target_a_single in content:
+            content = content.replace(target_a_single, repl_a_single)
+            print("    [+] pzj.smali: forced dual-EV branch goto :cond_2.")
+        elif "goto :cond_2" in content:
+            print("    [+] pzj.smali: dual-EV branch already forced.")
+
+        # 2f. pzj.a(FF)Lpzi: remove 0 EV corruption to -1
+        target_a_ev0 = """    if-nez p2, :cond_3
+
+    const/4 p2, -0x1
+
+    :cond_3
+    move v6, p2"""
+        repl_a_ev0 = """    move v6, p2"""
+        if target_a_ev0 in content:
+            content = content.replace(target_a_ev0, repl_a_ev0)
+            print("    [+] pzj.smali: removed 0 EV corruption to -1.")
+
+        # 2g. pzj.a(FF)Lpzi: bypass u.get() early exit to ensure sliders always compute dual EV
+        target_a_u = """    iget-object v0, p0, Lpzj;->u:Ljava/util/concurrent/atomic/AtomicBoolean;
+
+    invoke-virtual {v0}, Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z
+
+    move-result v0
+
+    if-nez v0, :cond_0
+
+    goto/16 :goto_2"""
+        if target_a_u in content:
+            content = content.replace(target_a_u, "")
+            print("    [+] pzj.smali: u check bypassed in a(FF).")
+
+        # 2h. pzj.a(FF)Lpzi: preserve clean sensor baseline initialization on startup/resume
+        fake_a_null = """    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+
+    if-nez v3, :cond_1
+
+    const/high16 v3, 0x3f800000    # 1.0f
+
+    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v3
+
+    iput-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->p:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->q:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->r:Ljava/lang/Float;"""
+        clean_a_null = """    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+
+    if-eqz v3, :cond_4
+
+    iget-object v3, p0, Lpzj;->p:Ljava/lang/Float;
+
+    if-eqz v3, :cond_4
+
+    iget-object v3, p0, Lpzj;->q:Ljava/lang/Float;
+
+    if-nez v3, :cond_1
+
+    goto/16 :goto_0"""
+        if fake_a_null in content:
+            content = content.replace(fake_a_null, clean_a_null)
+            print("    [+] pzj.smali: clean sensor baseline initialization restored.")
+        else:
+            print("    [+] pzj.smali: clean sensor baseline initialization preserved.")
+
         with open(pzj_path, "w", encoding="utf-8") as f:
             f.write(content)
 
@@ -7240,6 +6447,17 @@ def patch_dual_ev_ctrl_and_slider_sync():
             print("    [+] lts.smali: rem-int/lit8 v0, v0, 0x2 injected.")
         elif "rem-int/lit8 v0, v0, 0x2" in content:
             print("    [+] lts.smali: ordinal already modulo-2 mapped.")
+
+        # Reset baseline in h()
+        target_lts_reset = """    iget-object v2, p0, Llts;->v:Lusf;
+
+    const/high16 v3, -0x40800000    # -1.0f"""
+        repl_lts_reset = """    iget-object v2, p0, Llts;->v:Lusf;
+
+    const/high16 v3, 0x3f000000    # 0.5f"""
+        if target_lts_reset in content:
+            content = content.replace(target_lts_reset, repl_lts_reset)
+            print("    [+] lts.smali: Reset baseline set to 0.5f.")
 
         # 3b. Sync in :cond_6 (Shadow knob)
         target_c6 = """    invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
@@ -7305,6 +6523,38 @@ def patch_dual_ev_ctrl_and_slider_sync():
 
         with open(lts_path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    # 4. ksf.smali: Intercept camera.dualev.* to return false
+    ksf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ksf.smali")
+    if os.path.exists(ksf_path):
+        with open(ksf_path, "r", encoding="utf-8") as f:
+            ksf_c = f.read()
+        target_dualev = """    if-eqz v0, :cond_check_orig
+
+    const-string v1, "camera.lasagna\""""
+        repl_dualev = """    if-eqz v0, :cond_check_orig
+
+    const-string v1, "camera.dualev"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_lasagna
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_lasagna
+    const-string v1, "camera.lasagna\""""
+        if target_dualev in ksf_c:
+            ksf_c = ksf_c.replace(target_dualev, repl_dualev)
+            with open(ksf_path, "w", encoding="utf-8") as f:
+                f.write(ksf_c)
+            print("    [+] ksf.smali: camera.dualev flags intercepted to return false.")
+        elif "camera.dualev" in ksf_c:
+            print("    [+] ksf.smali: camera.dualev flags already intercepted.")
 
 def inject_splits():
     print("[*] Injecting dynamic native libraries and neural assets from feature splits...")
@@ -7591,33 +6841,52 @@ def copy_to_desktop(signed_apk):
         shutil.copy2(signed_apk, dest_apk)
         dest_v104 = os.path.join(desktop_dir, "PixelCamera-1.0.4.apk")
         shutil.copy2(signed_apk, dest_v104)
+        dest_v105 = os.path.join(desktop_dir, "PixelCamera-1.0.5.apk")
+        shutil.copy2(signed_apk, dest_v105)
+        dest_v106 = os.path.join(desktop_dir, "PixelCamera-1.0.6.apk")
+        shutil.copy2(signed_apk, dest_v106)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v104} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk}, {dest_v105}, and {dest_v106} ({size_mb:.2f} MB)")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera_signed2.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.6.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.5.apk"))
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.4.apk"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.4.apk")
-        return dest_v104
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.6.apk")
+        return dest_v106
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
 
 def install_and_launch(signed_apk):
     res = subprocess.run(["adb", "devices"], stdout=subprocess.PIPE, text=True)
-    lines = [line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith("List of")]
+    lines = [line.split()[0] for line in res.stdout.splitlines() if line.strip() and not line.startswith("List of") and "device" in line]
     if not lines:
         print("[!] No ADB devices connected, skipping install.")
         return
-    print(f"[*] Installing {signed_apk} on connected device...")
-    res = subprocess.run(["adb", "install", "-r", "-d", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # Pick physical device first, then phone emulator, avoiding wear
+    target_device = lines[0]
+    physical_devices = [d for d in lines if not d.startswith("emulator-")]
+    if physical_devices:
+        target_device = physical_devices[0]
+    else:
+        for d in lines:
+            if "5554" in d or "phone" in d:
+                target_device = d
+                break
+            elif "wear" not in d and "5556" not in d:
+                target_device = d
+                break
+    print(f"[*] Installing {signed_apk} on connected device {target_device}...")
+    res = subprocess.run(["adb", "-s", target_device, "install", "-r", "-d", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(f"    {res.stdout.strip()}")
     if "Success" in res.stdout:
-        print("[*] Launching PixelCamera (com.google.android.GoogleCameraEng)...")
-        subprocess.run(["adb", "shell", "am", "force-stop", "com.google.android.GoogleCameraEng"])
-        subprocess.run(["adb", "shell", "am", "start", "-n", "com.google.android.GoogleCameraEng/com.android.camera.CameraLauncher"])
+        print(f"[*] Launching PixelCamera on {target_device} (com.google.android.GoogleCameraEng)...")
+        subprocess.run(["adb", "-s", target_device, "shell", "am", "force-stop", "com.google.android.GoogleCameraEng"])
+        subprocess.run(["adb", "-s", target_device, "shell", "am", "start", "-n", "com.google.android.GoogleCameraEng/com.android.camera.CameraLauncher"])
         print("    [+] App launched successfully!")
 
 def patch_looks_fine_tuning_and_grain():
@@ -7698,6 +6967,224 @@ def patch_looks_fine_tuning_and_grain():
         else:
             print("    [+] camera_preferences.xml: Film Grain preference already present.")
 
+def patch_display_max_brightness():
+    print("[*] Patching 100% Display Backlight / Max Screen Brightness toggle...")
+    # 1. Inject strings into strings.xml
+    strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
+    if os.path.exists(strings_path):
+        with open(strings_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_max_brightness_title" not in content:
+            content = content.replace("<resources>",
+                '<resources>\n    <string name="pref_camera_max_brightness_title">Max display brightness</string>\n    <string name="pref_camera_max_brightness_summary">Set display backlight to 100% in viewfinder for accurate low-light exposure preview</string>')
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: Max display brightness strings added.")
+        else:
+            print("    [+] strings.xml: Max display brightness strings already present.")
+
+    # 2. Inject toggle into camera_gm3_preferences.xml
+    gm3_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_gm3_preferences.xml")
+    if os.path.exists(gm3_path):
+        with open(gm3_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_max_brightness_key" not in content:
+            target_gm3 = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_water_lux_vd_theme_24" android:title="" android:key="pref_camera_acineta_enabled_key" android:summary="" android:order="2" android:defaultValue="false" />'
+            replacement_gm3 = target_gm3 + '\n        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_brightness_7_vd_theme_24" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:order="3" android:defaultValue="false" />'
+            if target_gm3 in content:
+                content = content.replace(target_gm3, replacement_gm3)
+                with open(gm3_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_gm3_preferences.xml: Max display brightness toggle injected.")
+        else:
+            print("    [+] camera_gm3_preferences.xml: Max display brightness preference already present.")
+
+    # 3. Inject toggle into camera_preferences.xml
+    cam_pref_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_preferences.xml")
+    if os.path.exists(cam_pref_path):
+        with open(cam_pref_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_max_brightness_key" not in content:
+            target_cam = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_grain_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_looks_film_grain_title" android:key="pref_camera_looks_film_grain_key" android:summary="@string/pref_camera_looks_film_grain_summary" android:defaultValue="true" />'
+            replacement_cam = target_cam + '\n            <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_brightness_7_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:defaultValue="false" />'
+            if target_cam in content:
+                content = content.replace(target_cam, replacement_cam)
+                with open(cam_pref_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_preferences.xml: Max display brightness toggle injected.")
+        else:
+            print("    [+] camera_preferences.xml: Max display brightness preference already present.")
+
+    # 4. Patch tcc.smali constructor and b()V reset
+    tcc_path = os.path.join(APKTOOL_DIR, "smali", "tcc.smali")
+    if os.path.exists(tcc_path):
+        with open(tcc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Patch <init>
+        tcc_init_target = """    iput-object p1, p0, Ltcc;->b:Ljava/lang/Object;
+
+    iput-object p2, p0, Ltcc;->c:Ljava/lang/Object;
+
+    return-void"""
+        tcc_init_repl = """    iput-object p1, p0, Ltcc;->b:Ljava/lang/Object;
+
+    iput-object p2, p0, Ltcc;->c:Ljava/lang/Object;
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_init_end
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-virtual {p0, v0}, Ltcc;->f(F)V
+
+    :cond_init_end
+    return-void"""
+        if tcc_init_target in content:
+            content = content.replace(tcc_init_target, tcc_init_repl)
+            print("    [+] tcc.smali: <init> patched to apply 100% brightness when enabled.")
+
+        # Patch b()V
+        tcc_b_target = """    if-nez v0, :cond_1
+
+    const/high16 v0, -0x40800000    # -1.0f
+
+    invoke-virtual {p0, v0}, Ltcc;->f(F)V
+
+    :cond_1"""
+        tcc_b_repl = """    if-nez v0, :cond_1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_reset_sys
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-virtual {p0, v0}, Ltcc;->f(F)V
+
+    goto :cond_1
+
+    :cond_reset_sys
+    const/high16 v0, -0x40800000    # -1.0f
+
+    invoke-virtual {p0, v0}, Ltcc;->f(F)V
+
+    :cond_1"""
+        if tcc_b_target in content:
+            content = content.replace(tcc_b_target, tcc_b_repl)
+            print("    [+] tcc.smali: b() patched to maintain 100% brightness when enabled.")
+
+        # Patch f(F)V central funnel to enforce 1.0f when max brightness is enabled
+        tcc_f_target = """.method public final f(F)V
+    .locals 1
+
+    iget-object p0, p0, Ltcc;->b:Ljava/lang/Object;"""
+        tcc_f_repl = """.method public final f(F)V
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_orig_f
+
+    const/high16 p1, 0x3f800000    # 1.0f
+
+    :cond_orig_f
+    iget-object p0, p0, Ltcc;->b:Ljava/lang/Object;"""
+        if tcc_f_target in content:
+            content = content.replace(tcc_f_target, tcc_f_repl)
+            print("    [+] tcc.smali: f(F)V patched to enforce 100% brightness when enabled.")
+
+        with open(tcc_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 4b. Patch rds.smali j(Ljava/lang/String;Z)V to immediately notify TomteInitHelper on preference change
+    rds_path = os.path.join(APKTOOL_DIR, "smali", "rds.smali")
+    if os.path.exists(rds_path):
+        with open(rds_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        rds_j_target = """.method public final j(Ljava/lang/String;Z)V
+    .locals 4
+
+    iget-object v0, p0, Lrds;->b:Ljava/lang/Object;"""
+        rds_j_repl = """.method public final j(Ljava/lang/String;Z)V
+    .locals 4
+
+    const-string v0, "pref_camera_max_brightness_key"
+
+    invoke-virtual {v0, p1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_skip_bright
+
+    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onBrightnessPrefChanged(Z)V
+
+    :cond_skip_bright
+    iget-object v0, p0, Lrds;->b:Ljava/lang/Object;"""
+        if rds_j_target in content:
+            content = content.replace(rds_j_target, rds_j_repl)
+            with open(rds_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] rds.smali: j() hooked to notify TomteInitHelper on max brightness toggle.")
+        elif "onBrightnessPrefChanged" in content:
+            print("    [+] rds.smali: already hooked with onBrightnessPrefChanged.")
+
+    # 4c. Patch CameraGm3SettingsActivity.smali onResume() to apply brightness in settings UI
+    settings_act_path = os.path.join(APKTOOL_DIR, "smali_classes2", "com", "google", "android", "apps", "camera", "settings", "activity", "CameraGm3SettingsActivity.smali")
+    if os.path.exists(settings_act_path):
+        with open(settings_act_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        gm3_target = """    invoke-super {p0}, Lhjg;->onResume()V
+
+    return-void"""
+        gm3_repl = """    invoke-super {p0}, Lhjg;->onResume()V
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
+
+    return-void"""
+        if gm3_target in content:
+            content = content.replace(gm3_target, gm3_repl)
+            with open(settings_act_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] CameraGm3SettingsActivity.smali: onResume() patched to invoke applyScreenBrightness.")
+        elif "applyScreenBrightness" in content:
+            print("    [+] CameraGm3SettingsActivity.smali: already hooked with applyScreenBrightness.")
+
+    # 5. Patch CameraActivity.smali onResume()
+    cam_act_path = os.path.join(APKTOOL_DIR, "smali", "com", "google", "android", "apps", "camera", "activity", "main", "CameraActivity.smali")
+    if os.path.exists(cam_act_path):
+        with open(cam_act_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        act_target = """    invoke-virtual {v0}, Llcz;->a()V
+
+    invoke-super {p0}, Lifi;->onResume()V
+
+    iget-object v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;->B:Lcom/google/android/apps/camera/stats/timing/CameraActivityTiming;"""
+
+        act_repl = """    invoke-virtual {v0}, Llcz;->a()V
+
+    invoke-super {p0}, Lifi;->onResume()V
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
+
+    iget-object v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;->B:Lcom/google/android/apps/camera/stats/timing/CameraActivityTiming;"""
+
+        if act_target in content:
+            content = content.replace(act_target, act_repl)
+            with open(cam_act_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] CameraActivity.smali: onResume() patched to invoke applyScreenBrightness.")
+        elif "applyScreenBrightness" in content:
+            print("    [+] CameraActivity.smali: already hooked with applyScreenBrightness.")
+
 def main():
     clean_build_artifacts()
     patch_manifest()
@@ -7721,7 +7208,10 @@ def main():
     patch_creator_suite_smali()
     patch_dual_exposure_viewfinder()
     patch_dual_ev_ctrl_and_slider_sync()
+    patch_brightness_shadows_controllers()
+    patch_pro_controls_live()
     patch_looks_fine_tuning_and_grain()
+    patch_display_max_brightness()
     patch_nzr_and_mpd_smali()
     patch_zoom_controllers()
     patch_mqs_smali()

@@ -18,6 +18,10 @@
 
 .field public static final PREF_FILM_GRAIN:Ljava/lang/String; = "pref_camera_looks_film_grain_key"
 
+.field public static final PREF_MAX_BRIGHTNESS:Ljava/lang/String; = "pref_camera_max_brightness_key"
+
+.field public static sCurrentActivity:Ljava/lang/ref/WeakReference;
+
 
 # direct methods
 .method static constructor <clinit>()V
@@ -42,6 +46,8 @@
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
 
     return-void
 .end method
@@ -83,41 +89,363 @@
     return-object v0
 .end method
 
-.method public static isGrainEnabled()Z
+.method private static checkPrefValue(Ljava/lang/Object;Z)Z
+    .locals 1
+
+    if-nez p0, :cond_not_null
+
+    return p1
+
+    :cond_not_null
+    instance-of v0, p0, Ljava/lang/Boolean;
+
+    if-eqz v0, :cond_check_str
+
+    check-cast p0, Ljava/lang/Boolean;
+
+    invoke-virtual {p0}, Ljava/lang/Boolean;->booleanValue()Z
+
+    move-result p0
+
+    return p0
+
+    :cond_check_str
+    instance-of v0, p0, Ljava/lang/CharSequence;
+
+    if-eqz v0, :cond_check_num
+
+    invoke-virtual {p0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object p0
+
+    const-string v0, "1"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_true
+
+    const-string v0, "true"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_false
+
+    :cond_true
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_check_false
+    const-string v0, "0"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_false
+
+    const-string v0, "false"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result p0
+
+    if-eqz p0, :cond_ret_def
+
+    :cond_false
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_num
+    instance-of v0, p0, Ljava/lang/Number;
+
+    if-eqz v0, :cond_ret_def
+
+    check-cast p0, Ljava/lang/Number;
+
+    invoke-virtual {p0}, Ljava/lang/Number;->intValue()I
+
+    move-result p0
+
+    if-eqz p0, :cond_false
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_ret_def
+    return p1
+.end method
+
+.method private static getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
     .locals 4
 
-    :try_start_0
+    :try_start_pref
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
 
     move-result-object v0
 
-    if-eqz v0, :cond_default
+    if-nez v0, :cond_has_ctx
 
+    const/4 p0, 0x0
+
+    return-object p0
+
+    :cond_has_ctx
+    new-instance v1, Ljava/lang/StringBuilder;
+
+    invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
+
+    invoke-virtual {v0}, Landroid/content/Context;->getPackageName()Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v2, "_preferences_camera"
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v1
+
+    const/4 v2, 0x0
+
+    invoke-virtual {v0, v1, v2}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+
+    move-result-object v1
+
+    if-eqz v1, :cond_check_def
+
+    invoke-interface {v1}, Landroid/content/SharedPreferences;->getAll()Ljava/util/Map;
+
+    move-result-object v1
+
+    if-eqz v1, :cond_check_def
+
+    invoke-interface {v1, p0}, Ljava/util/Map;->containsKey(Ljava/lang/Object;)Z
+
+    move-result v3
+
+    if-eqz v3, :cond_check_def
+
+    invoke-interface {v1, p0}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_check_def
     invoke-static {v0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object v0
 
-    const-string v1, "pref_camera_looks_film_grain_key"
+    if-eqz v0, :cond_ret_null
 
-    const/4 v2, 0x1
+    invoke-interface {v0}, Landroid/content/SharedPreferences;->getAll()Ljava/util/Map;
 
-    invoke-interface {v0, v1, v2}, Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z
+    move-result-object v0
+
+    if-eqz v0, :cond_ret_null
+
+    invoke-interface {v0, p0}, Ljava/util/Map;->containsKey(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_ret_null
+
+    invoke-interface {v0, p0}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_ret_null
+    const/4 p0, 0x0
+
+    return-object p0
+    :try_end_pref
+    .catchall {:try_start_pref .. :try_end_pref} :catch_pref
+
+    :catch_pref
+    const/4 p0, 0x0
+
+    return-object p0
+.end method
+
+.method public static isGrainEnabled()Z
+    .locals 2
+
+    const-string v0, "pref_camera_looks_film_grain_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    const/4 v1, 0x1
+
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->checkPrefValue(Ljava/lang/Object;Z)Z
 
     move-result v0
 
     return v0
+.end method
 
-    :cond_default
-    const/4 v0, 0x1
+.method public static isMaxBrightnessEnabled()Z
+    .locals 2
+
+    const-string v0, "pref_camera_max_brightness_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    const/4 v1, 0x0
+
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->checkPrefValue(Ljava/lang/Object;Z)Z
+
+    move-result v0
 
     return v0
+.end method
+
+.method public static applyScreenBrightness(Landroid/app/Activity;)V
+    .locals 3
+
+    if-nez p0, :cond_start
+
+    return-void
+
+    :cond_start
+    :try_start_0
+    new-instance v0, Ljava/lang/ref/WeakReference;
+
+    invoke-direct {v0, p0}, Ljava/lang/ref/WeakReference;-><init>(Ljava/lang/Object;)V
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
+
+    invoke-virtual {p0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
+
+    move-result-object v0
+
+    if-nez v0, :cond_win_ok
+
+    return-void
+
+    :cond_win_ok
+    invoke-virtual {v0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
+
+    move-result-object v1
+
+    if-nez v1, :cond_lp_ok
+
+    return-void
+
+    :cond_lp_ok
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_reset
+
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    iput v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
+
+    invoke-virtual {v0, v1}, Landroid/view/Window;->setAttributes(Landroid/view/WindowManager$LayoutParams;)V
+
+    return-void
+
+    :cond_reset
+    iget v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
+
+    const/4 p0, 0x0
+
+    cmpl-float p0, v2, p0
+
+    if-lez p0, :cond_ret
+
+    const/high16 p0, -0x40800000    # -1.0f
+
+    iput p0, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
+
+    invoke-virtual {v0, v1}, Landroid/view/Window;->setAttributes(Landroid/view/WindowManager$LayoutParams;)V
+
+    :cond_ret
+    return-void
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 
     :catchall_0
-    const/4 v0, 0x1
+    return-void
+.end method
 
-    return v0
+.method public static onBrightnessPrefChanged(Z)V
+    .locals 3
+
+    :try_start_0
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
+
+    if-nez v0, :cond_has_ref
+
+    return-void
+
+    :cond_has_ref
+    invoke-virtual {v0}, Ljava/lang/ref/WeakReference;->get()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Landroid/app/Activity;
+
+    if-nez v0, :cond_has_act
+
+    return-void
+
+    :cond_has_act
+    invoke-virtual {v0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
+
+    move-result-object v0
+
+    if-nez v0, :cond_has_win
+
+    return-void
+
+    :cond_has_win
+    invoke-virtual {v0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
+
+    move-result-object v1
+
+    if-nez v1, :cond_has_lp
+
+    return-void
+
+    :cond_has_lp
+    if-eqz p0, :cond_dim
+
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    iput v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
+
+    goto :cond_apply
+
+    :cond_dim
+    const/high16 v2, -0x40800000    # -1.0f
+
+    iput v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
+
+    :cond_apply
+    invoke-virtual {v0, v1}, Landroid/view/Window;->setAttributes(Landroid/view/WindowManager$LayoutParams;)V
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    :catchall_0
+    return-void
 .end method
 
 .method public constructor <init>()V

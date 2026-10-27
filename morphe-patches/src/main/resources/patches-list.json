@@ -57,7 +57,7 @@
     },
     {
       "name": "10x Viewfinder Quick Zoom",
-      "description": "Unlocks the discrete 10x quick zoom button on viewfinder in Photo mode.",
+      "description": "Unlocks the discrete 10x quick zoom button across Photo and Night Sight modes on Pro and telephoto Pixel devices, and dynamic 1x focal length cycling (1.0x -> 1.2x -> 1.5x) on the main camera.",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [

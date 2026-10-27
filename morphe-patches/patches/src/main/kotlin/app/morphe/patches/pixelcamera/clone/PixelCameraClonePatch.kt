@@ -98,7 +98,7 @@ val pixelCameraClonePatch = resourcePatch(
             root.removeAttribute("android:isSplitRequired")
         }
 
-        // Also update app name in strings.xml if present
+        // Also update app name and inject Max display brightness strings in strings.xml if present
         try {
             val stringsFile = get("res/values/strings.xml", false)
             if (stringsFile.exists()) {
@@ -107,7 +107,29 @@ val pixelCameraClonePatch = resourcePatch(
                     "<string name=\"app_name\">Camera</string>",
                     "<string name=\"app_name\">PixelCamera</string>"
                 )
+                if (!content.contains("pref_camera_max_brightness_title")) {
+                    content = content.replace(
+                        "<resources>",
+                        "<resources>\n    <string name=\"pref_camera_max_brightness_title\">Max display brightness</string>\n    <string name=\"pref_camera_max_brightness_summary\">Set display backlight to 100% in viewfinder for accurate low-light exposure preview</string>"
+                    )
+                }
                 stringsFile.writeText(content, Charsets.UTF_8)
+            }
+        } catch (_: Throwable) {}
+
+        // Inject 100% Display Backlight toggle into camera_gm3_preferences.xml if missing
+        try {
+            val gm3File = get("res/xml/camera_gm3_preferences.xml", false)
+            if (gm3File.exists()) {
+                var content = gm3File.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_max_brightness_key")) {
+                    val target = "<com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon=\"@drawable/gs_water_lux_vd_theme_24\" android:title=\"\" android:key=\"pref_camera_acineta_enabled_key\" android:summary=\"\" android:order=\"2\" android:defaultValue=\"false\" />"
+                    val repl = target + "\n        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon=\"@drawable/gs_brightness_7_vd_theme_24\" android:title=\"@string/pref_camera_max_brightness_title\" android:key=\"pref_camera_max_brightness_key\" android:summary=\"@string/pref_camera_max_brightness_summary\" android:order=\"3\" android:defaultValue=\"false\" />"
+                    if (content.contains(target)) {
+                        content = content.replace(target, repl)
+                        gm3File.writeText(content, Charsets.UTF_8)
+                    }
+                }
             }
         } catch (_: Throwable) {}
 

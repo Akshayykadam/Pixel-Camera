@@ -11977,3 +11977,92 @@
 +    .line 385
 +    return-void
 +.end method
+--- a/smali/guh.smali
++++ b/smali/guh.smali
+@@ -296,11 +296,86 @@
+ 
+     check-cast p0, Ljava/lang/Float;
+ 
++    const/high16 v1, 0x3f800000    # 1.0f
++
++    cmpl-float v1, v2, v1
++
++    if-nez v1, :cond_std_zoom_guh
++
++    if-nez p0, :cond_check_cur_zoom_guh
++
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    goto :cond_apply_focal_zoom_guh
++
++    :cond_check_cur_zoom_guh
++    invoke-virtual {p0}, Ljava/lang/Float;->floatValue()F
++
++    move-result v1
++
++    const v3, 0x3f733333    # 0.95f
++
++    cmpg-float v3, v1, v3
++
++    if-gez v3, :cond_focal_check_1_0x_guh
++
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    goto :cond_apply_focal_zoom_guh
++
++    :cond_focal_check_1_0x_guh
++    const v3, 0x3f933333    # 1.15f
++
++    cmpg-float v3, v1, v3
++
++    if-gez v3, :cond_focal_check_1_2x_guh
++
++    const v2, 0x3f99999a    # 1.2f (28mm)
++
++    goto :cond_apply_focal_zoom_guh
++
++    :cond_focal_check_1_2x_guh
++    const v3, 0x3faccccd    # 1.35f
++
++    cmpg-float v3, v1, v3
++
++    if-gez v3, :cond_focal_check_1_5x_guh
++
++    const/high16 v2, 0x3fc00000    # 1.5f (35mm)
++
++    goto :cond_apply_focal_zoom_guh
++
++    :cond_focal_check_1_5x_guh
++    const v3, 0x3feccccd    # 1.85f
++
++    cmpg-float v3, v1, v3
++
++    if-gez v3, :cond_focal_outside_guh
++
++    const/high16 v2, 0x3f800000    # 1.0f (24mm)
++
++    goto :cond_apply_focal_zoom_guh
++
++    :cond_focal_outside_guh
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    :cond_apply_focal_zoom_guh
+     invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
+ 
+     move-result p1
+ 
+     if-nez p1, :cond_3
++
++    goto :cond_exec_zoom_guh
++
++    :cond_std_zoom_guh
++    invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
++
++    move-result p1
++
++    if-nez p1, :cond_3
++
++    :cond_exec_zoom_guh
+ 
+     iget-object v1, v0, Lkmo;->g:Lnyx;
+ 
