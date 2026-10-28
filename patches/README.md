@@ -36,6 +36,9 @@ These patches allow exact git-style tracking and reproducible application onto a
 | [`ppn_field_access.patch`](ppn_field_access.patch) | `smali/ppn.smali` | Changes field access of `f:Losw` and `u:AtomicBoolean` to public. |
 | [`clone_authority.patch`](clone_authority.patch) | `smali/klh.smali` | SpecialTypesProvider authority synchronization for clone package. |
 | [`guh_focal_length_cycling.patch`](guh_focal_length_cycling.patch) | `smali/guh.smali` | 1x Main Camera Focal Length Cycling: tapping the 1x button repeatedly cycles through 1.0x (24mm) -> 1.2x (28mm) -> 1.5x (35mm) -> 1.0x. |
+| [`display_max_brightness.patch`](display_max_brightness.patch) | `smali/tcc.smali`, `rds.smali`, `CameraActivity.smali`, `CameraGm3SettingsActivity.smali`, `TomteInitHelper.smali` | Max Display Brightness: enforces 100% display backlight exclusively on viewfinder activities while preserving default system brightness in Settings. |
+| [`image_quality_preferences.patch`](image_quality_preferences.patch) | `smali/pbe.smali`, `smali_classes3/.../JpgEncodeOptions.smali`, `camera_gm3_preferences.xml` | In-App JPEG Quality & Spatial Noise Reduction Settings: adds interactive dropdown menus with persistence across restarts. |
+| [`video_exposure_control.patch`](video_exposure_control.patch) | `smali/lts.smali`, `smali_classes2/poo.smali` | Video Mode Exposure Control Fix: bypasses `pzj.i()` aborts so single-slider AE compensation changes dispatch directly to Camera2 HAL. |
 | [`tomte_init_helper.patch`](tomte_init_helper.patch) | `smali_patches/TomteInitHelper.smali` | Safe multi-file preferences parser, look selection tracking, and photo saving AE flags. |
 
 ---

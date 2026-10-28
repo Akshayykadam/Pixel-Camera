@@ -1,0 +1,37 @@
+--- a/smali/pbe.smali
++++ b/smali/pbe.smali
+@@ -620,3 +620,5 @@
+     sget-object p0, Landroid/hardware/camera2/CaptureRequest;->JPEG_QUALITY:Landroid/hardware/camera2/CaptureRequest$Key;
+ 
+-    const/16 v0, 0x5f
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
++
++    move-result v0
+@@ -632,3 +634,5 @@
+     sget-object p0, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+ 
+-    const/4 v0, 0x1
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
++
++    move-result v0
+--- a/smali_classes3/com/google/googlex/gcam/JpgEncodeOptions.smali
++++ b/smali_classes3/com/google/googlex/gcam/JpgEncodeOptions.smali
+@@ -14,2 +14,8 @@
+     iput-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J
+ 
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
++
++    move-result v2
++
++    invoke-virtual {p0, v2}, Lcom/google/googlex/gcam/JpgEncodeOptions;->b(I)V
++
+     return-void
+@@ -32,2 +38,6 @@
+ .method public final b(I)V
+     .locals 2
+ 
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
++
++    move-result p1
++
+     iget-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J

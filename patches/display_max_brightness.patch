@@ -1,0 +1,222 @@
+diff --git a/smali/tcc.smali b/smali/tcc.smali
+index a1b2c3d..e4f5a6b 100644
+--- a/smali/tcc.smali
++++ b/smali/tcc.smali
+@@ -69,6 +69,16 @@
+     iput-object p1, p0, Ltcc;->b:Ljava/lang/Object;
+ 
+     iput-object p2, p0, Ltcc;->c:Ljava/lang/Object;
++
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
++
++    move-result v0
++
++    if-eqz v0, :cond_init_end
++
++    const/high16 v0, 0x3f800000    # 1.0f
++
++    invoke-virtual {p0, v0}, Ltcc;->f(F)V
++
++    :cond_init_end
+     return-void
+ .end method
+ 
+@@ -153,6 +163,16 @@
+     if-nez v0, :cond_1
+ 
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
++
++    move-result v0
++
++    if-eqz v0, :cond_reset_sys
++
++    const/high16 v0, 0x3f800000    # 1.0f
++
++    invoke-virtual {p0, v0}, Ltcc;->f(F)V
++
++    goto :cond_1
++
++    :cond_reset_sys
+     const/high16 v0, -0x40800000    # -1.0f
+ 
+     invoke-virtual {p0, v0}, Ltcc;->f(F)V
+@@ -288,6 +308,12 @@
+ .method public final f(F)V
+     .locals 1
+ 
++    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
++
++    move-result v0
++
++    if-eqz v0, :cond_orig_f
++
++    const/high16 p1, 0x3f800000    # 1.0f
++
++    :cond_orig_f
+     iget-object p0, p0, Ltcc;->b:Ljava/lang/Object;
+diff --git a/smali/rds.smali b/smali/rds.smali
+index b2c3d4e..f5a6b7c 100644
+--- a/smali/rds.smali
++++ b/smali/rds.smali
+@@ -495,6 +495,14 @@
+ .method public final j(Ljava/lang/String;Z)V
+     .locals 4
+ 
++    const-string v0, "pref_camera_max_brightness_key"
++
++    invoke-virtual {v0, p1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++
++    move-result v0
++
++    if-eqz v0, :cond_skip_bright
++
++    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onBrightnessPrefChanged(Z)V
++
++    :cond_skip_bright
+     iget-object v0, p0, Lrds;->b:Ljava/lang/Object;
+diff --git a/smali/com/google/android/apps/camera/activity/main/CameraActivity.smali b/smali/com/google/android/apps/camera/activity/main/CameraActivity.smali
+index c3d4e5f..a6b7c8d 100644
+--- a/smali/com/google/android/apps/camera/activity/main/CameraActivity.smali
++++ b/smali/com/google/android/apps/camera/activity/main/CameraActivity.smali
+@@ -1555,6 +1555,8 @@
+     invoke-super {p0}, Lifi;->onResume()V
+ 
++    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
++
+     iget-object v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;->B:Lcom/google/android/apps/camera/stats/timing/CameraActivityTiming;
+diff --git a/smali_classes2/com/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity.smali b/smali_classes2/com/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity.smali
+index d4e5f6a..b7c8d9e 100644
+--- a/smali_classes2/com/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity.smali
++++ b/smali_classes2/com/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity.smali
+@@ -714,6 +714,8 @@
+     invoke-super {p0}, Lhjg;->onResume()V
+ 
++    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyScreenBrightness(Landroid/app/Activity;)V
++
+     return-void
+ .end method
+diff --git a/smali_patches/TomteInitHelper.smali b/smali_patches/TomteInitHelper.smali
+index ca0e58c..7305a48 100644
+--- a/smali_patches/TomteInitHelper.smali
++++ b/smali_patches/TomteInitHelper.smali
+@@ -324,6 +324,25 @@
+ 
+     :cond_start
+     :try_start_0
++    instance-of v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;
++
++    if-eqz v0, :cond_check_secure
++
++    goto :cond_is_viewfinder
++
++    :cond_check_secure
++    instance-of v0, p0, Lcom/google/android/apps/camera/activity/SecureCameraActivity;
++
++    if-eqz v0, :cond_check_capture
++
++    goto :cond_is_viewfinder
++
++    :cond_check_capture
++    instance-of v0, p0, Lcom/google/android/apps/camera/activity/CaptureActivity;
++
++    if-eqz v0, :cond_not_viewfinder
++
++    :cond_is_viewfinder
+     new-instance v0, Ljava/lang/ref/WeakReference;
+ 
+     invoke-direct {v0, p0}, Ljava/lang/ref/WeakReference;-><init>(Ljava/lang/Object;)V
+@@ -379,6 +398,72 @@
+ 
+     :cond_ret
+     return-void
++
++    :cond_not_viewfinder
++    invoke-virtual {p0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
++
++    move-result-object v0
++
++    if-nez v0, :cond_non_vf_win
++
++    return-void
++
++    :cond_non_vf_win
++    invoke-virtual {v0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
++
++    move-result-object v1
++
++    if-nez v1, :cond_non_vf_lp
++
++    return-void
++
++    :cond_non_vf_lp
++    const/high16 v2, -0x40800000    # -1.0f
++
++    iput v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
++
++    invoke-virtual {v0, v1}, Landroid/view/Window;->setAttributes(Landroid/view/WindowManager$LayoutParams;)V
++
++    return-void
++    :try_end_0
++    .catchall {:try_start_0 .. :try_end_0} :catchall_0
++
++    :catchall_0
++    return-void
++.end method
++
++.method public static resetScreenBrightness(Landroid/app/Activity;)V
++    .locals 3
++
++    if-nez p0, :cond_start
++
++    return-void
++
++    :cond_start
++    :try_start_0
++    invoke-virtual {p0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
++
++    move-result-object v0
++
++    if-nez v0, :cond_win_ok
++
++    return-void
++
++    :cond_win_ok
++    invoke-virtual {v0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
++
++    move-result-object v1
++
++    if-nez v1, :cond_lp_ok
++
++    return-void
++
++    :cond_lp_ok
++    const/high16 v2, -0x40800000    # -1.0f
++
++    iput v2, v1, Landroid/view/WindowManager$LayoutParams;->screenBrightness:F
++
++    invoke-virtual {v0, v1}, Landroid/view/Window;->setAttributes(Landroid/view/WindowManager$LayoutParams;)V
+     :try_end_0
+     .catchall {:try_start_0 .. :try_end_0} :catchall_0
+ 
+@@ -408,6 +493,21 @@
+     return-void
+ 
+     :cond_has_act
++    instance-of v1, v0, Lcom/google/android/apps/camera/activity/main/CameraActivity;
++
++    if-nez v1, :cond_is_vf
++
++    instance-of v1, v0, Lcom/google/android/apps/camera/activity/SecureCameraActivity;
++
++    if-nez v1, :cond_is_vf
++
++    instance-of v1, v0, Lcom/google/android/apps/camera/activity/CaptureActivity;
++
++    if-nez v1, :cond_is_vf
++
++    return-void
++
++    :cond_is_vf
+     invoke-virtual {v0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
+ 
+     move-result-object v0

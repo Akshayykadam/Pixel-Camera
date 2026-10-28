@@ -61,11 +61,12 @@ val proControlsPatch = bytecodePatch(
             }
         }
 
-        // ── 3. Camera2 AE Compensation Dispatch unblocking (pfh.smali) ────────────────
+        // ── 3. Camera2 AE Compensation Dispatch unblocking (poo.smali / pfh.smali) ────
+        mutableClassDefByOrNull("Lpoo;")?.let { clazz ->
+            PixelCameraPatchUtils.unblockAeCompensationDispatch(clazz)
+        }
         mutableClassDefByOrNull("Lpfh;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "apply" || it.name == "c" }?.let { method ->
-                // Ensure ppn.i() abort check does not block CONTROL_AE_EXPOSURE_COMPENSATION
-            }
+            PixelCameraPatchUtils.unblockAeCompensationDispatch(clazz)
         }
 
         // ── 4. Public access for ppn fields ───────────────────────────────────────────

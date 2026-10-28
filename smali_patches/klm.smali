@@ -4161,6 +4161,32 @@
 
     move-result v1
 
+    if-eqz v1, :cond_check_jellybean_setting
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_setting
+    const-string v1, "camcorder.jellybean_setting"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_jellybean_feature
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_feature
+    const-string v1, "camcorder_jellybean_feature"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_orig
 
     const/4 v0, 0x1
@@ -4798,6 +4824,32 @@
 
     :cond_check_creator_x_13
     const-string v1, "camera.ark_ISO_available"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_jellybean_setting_x
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_setting_x
+    const-string v1, "camcorder.jellybean_setting"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_jellybean_feature_x
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_feature_x
+    const-string v1, "camcorder_jellybean_feature"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 

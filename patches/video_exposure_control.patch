@@ -1,0 +1,37 @@
+--- a/smali/lts.smali
++++ b/smali/lts.smali
+@@ -470,7 +470,3 @@
+     if-ne v0, v1, :cond_3
+ 
+-    invoke-direct {p0}, Llts;->i()Z
+-
+-    move-result p2
+-
+-    if-eqz p2, :cond_2
++    goto :cond_2
+--- a/smali_classes2/poo.smali
++++ b/smali_classes2/poo.smali
+@@ -216,13 +216,4 @@
+     check-cast p0, Lptm;
+ 
+-    iget-object v0, p0, Lptm;->d:Lpzj;
+-
+     check-cast p1, Ljava/lang/Integer;
+ 
+-    invoke-virtual {v0}, Lpzj;->i()Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_4
+-
+-    goto/16 :goto_2
+-
+-    :cond_4
++    if-eqz p1, :cond_skip_poo
++
+     iget-object p0, p0, Lptm;->b:Lvae;
+@@ -239,2 +230,4 @@
+     invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V
+ 
++    :cond_skip_poo
+     return-void

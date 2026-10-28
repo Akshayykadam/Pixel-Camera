@@ -2,6 +2,7 @@ package app.morphe.patches.pixelcamera
 
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
+import app.morphe.patches.pixelcamera.brightness.maxBrightnessPatch
 import app.morphe.patches.pixelcamera.clone.pixelCameraClonePatch
 import app.morphe.patches.pixelcamera.creator.creatorSuitePatch
 import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
@@ -9,7 +10,9 @@ import app.morphe.patches.pixelcamera.photosaving.photoSavingFixPatch
 import app.morphe.patches.pixelcamera.portrait.portraitModeFixPatch
 import app.morphe.patches.pixelcamera.portrait.telephotoPortraitAndZoomPatch
 import app.morphe.patches.pixelcamera.pro.proControlsPatch
+import app.morphe.patches.pixelcamera.quality.proImageQualityPatch
 import app.morphe.patches.pixelcamera.quickaccess.quickAccessPatch
+import app.morphe.patches.pixelcamera.video.av1VideoEncodingPatch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -34,6 +37,9 @@ class PatcherExecutionTest {
             photoSavingFixPatch,
             proControlsPatch,
             creatorSuitePatch,
+            av1VideoEncodingPatch,
+            maxBrightnessPatch,
+            proImageQualityPatch,
             pixelCameraClonePatch
         )
         for (p in allPatches) {
@@ -75,6 +81,31 @@ class PatcherExecutionTest {
             println("Wrote ${dex.name} (${dexFile.length()} bytes)")
         }
         println("Done writing dex files!")
+
+        val gm3Xml = File(tmpDir, "apk/resources/package_1/res/xml/camera_gm3_preferences.xml")
+        if (gm3Xml.exists()) {
+            val content = gm3Xml.readText()
+            assertTrue(content.contains("pref_camera_max_brightness_key"), "camera_gm3_preferences.xml should contain pref_camera_max_brightness_key")
+            assertTrue(content.contains("pref_camera_jpeg_quality_key"), "camera_gm3_preferences.xml should contain pref_camera_jpeg_quality_key")
+            assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_gm3_preferences.xml should contain pref_camera_noise_reduction_key")
+            println("Verified: camera_gm3_preferences.xml contains brightness, jpeg quality, and noise reduction keys")
+        }
+        val camXml = File(tmpDir, "apk/resources/package_1/res/xml/camera_preferences.xml")
+        if (camXml.exists()) {
+            val content = camXml.readText()
+            assertTrue(content.contains("pref_camera_max_brightness_key"), "camera_preferences.xml should contain pref_camera_max_brightness_key")
+            assertTrue(content.contains("pref_camera_jpeg_quality_key"), "camera_preferences.xml should contain pref_camera_jpeg_quality_key")
+            assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_preferences.xml should contain pref_camera_noise_reduction_key")
+            println("Verified: camera_preferences.xml contains brightness, jpeg quality, and noise reduction keys")
+        }
+        val stringsXml = File(tmpDir, "apk/resources/package_1/res/values/strings.xml")
+        if (stringsXml.exists()) {
+            val content = stringsXml.readText()
+            assertTrue(content.contains("pref_camera_max_brightness_title"), "strings.xml should contain pref_camera_max_brightness_title")
+            assertTrue(content.contains("pref_camera_jpeg_quality_title"), "strings.xml should contain pref_camera_jpeg_quality_title")
+            assertTrue(content.contains("pref_camera_noise_reduction_title"), "strings.xml should contain pref_camera_noise_reduction_title")
+            println("Verified: strings.xml contains brightness, jpeg quality, and noise reduction titles")
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package app.morphe.patches.pixelcamera
 
+import app.morphe.patcher.patch.ResourcePatchContext
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import app.morphe.patcher.util.smali.toInstructions
@@ -114,6 +115,35 @@ object PixelCameraPatchUtils {
             impl.removeInstruction(0)
             if (impl.instructions.firstOrNull()?.opcode == Opcode.RETURN_VOID) {
                 impl.removeInstruction(0)
+            }
+        }
+    }
+
+    /**
+     * Unblocks Camera2 AE compensation dispatch in poo.smali (11.1) and pfh.smali (11.0)
+     * by eliminating the pzj.i() / ppn.i() abort check, ensuring Video mode and single-slider
+     * exposure adjustments are dispatched directly to the camera HAL request pipeline.
+     */
+    fun unblockAeCompensationDispatch(clazz: MutableClass?) {
+        if (clazz == null) return
+        val method = clazz.methods.firstOrNull {
+            (it.name == "a" || it.name == "apply" || it.name == "c") &&
+            it.parameterTypes == listOf("Ljava/lang/Object;") &&
+            it.returnType == "V"
+        } ?: return
+        val impl = method.implementation ?: return
+        for (i in 0 until impl.instructions.size) {
+            val ins = impl.instructions[i]
+            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+            if (ref.endsWith("->i()Z") && (ref.contains("pzj") || ref.contains("ppn"))) {
+                val nop = "nop".toInstructions(method).first()
+                if (i + 3 < impl.instructions.size) {
+                    impl.replaceInstruction(i, nop)
+                    impl.replaceInstruction(i + 1, nop)
+                    impl.replaceInstruction(i + 2, nop)
+                    impl.replaceInstruction(i + 3, nop)
+                }
+                break
             }
         }
     }
@@ -522,5 +552,251 @@ object PixelCameraPatchUtils {
                 )
             }
         }
+    }
+
+    /**
+     * Injects the Max display brightness strings and preference toggles into resources.
+     */
+    fun injectMaxBrightnessPreferences(context: ResourcePatchContext) {
+        // 1. Inject strings into strings.xml
+        try {
+            val stringsFile = context.get("res/values/strings.xml", false)
+            if (stringsFile.exists()) {
+                var content = stringsFile.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_max_brightness_title")) {
+                    val stringsToInject = """
+    <string name="pref_camera_max_brightness_title">Max display brightness</string>
+    <string name="pref_camera_max_brightness_summary">Set display backlight to 100% in viewfinder for accurate low-light exposure preview</string>
+                    """.trimIndent()
+                    content = content.replace("<resources>", "<resources>\n    $stringsToInject")
+                    stringsFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 2. Inject toggle into camera_gm3_preferences.xml
+        try {
+            val gm3File = context.get("res/xml/camera_gm3_preferences.xml", false)
+            if (gm3File.exists()) {
+                var content = gm3File.readText(Charsets.UTF_8)
+                val gm3Pref = """
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_brightness_7_vd_theme_24"
+                              android:title="@string/pref_camera_max_brightness_title"
+                              android:key="pref_camera_max_brightness_key"
+                              android:summary="@string/pref_camera_max_brightness_summary"
+                              android:order="3"
+                              android:defaultValue="false" />
+                """.trimIndent()
+
+                // If it was wrongly injected into pref_category_general previously, strip it out so it moves to pref_advanced_capture
+                if (content.contains("android:key=\"pref_category_general\"") && content.contains("pref_camera_max_brightness_key")) {
+                    val generalCatRegex = Regex("""(android:key="pref_category_general"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)""")
+                    val genMatch = generalCatRegex.find(content)
+                    if (genMatch != null && genMatch.value.contains("pref_camera_max_brightness_key")) {
+                        val cleaned = genMatch.value.replace(Regex("""\s*<com\.google\.android\.apps\.camera\.ui\.preference\.ManagedSwitchPreferenceCompat[^>]*android:key="pref_camera_max_brightness_key"[^>]*/>"""), "")
+                        content = content.replace(genMatch.value, cleaned)
+                    }
+                }
+
+                if (!content.contains("pref_camera_max_brightness_key")) {
+                    // Primary location: inside pref_advanced_capture ("Advanced" category)
+                    val advancedRegex = Regex("""(android:key="pref_advanced_capture"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)""")
+                    val advMatch = advancedRegex.find(content)
+                    content = if (advMatch != null) {
+                        val g1 = advMatch.groupValues[1]
+                        val g2 = advMatch.groupValues[2]
+                        content.substring(0, advMatch.range.first) + g1 + "\n        " + gm3Pref + "\n    " + g2 + content.substring(advMatch.range.last + 1)
+                    } else {
+                        val fallbackRegex = Regex("""(android:key="pref_category_general"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)""")
+                        val fbMatch = fallbackRegex.find(content)
+                        if (fbMatch != null) {
+                            val g1 = fbMatch.groupValues[1]
+                            val g2 = fbMatch.groupValues[2]
+                            content.substring(0, fbMatch.range.first) + g1 + "\n        " + gm3Pref + "\n    " + g2 + content.substring(fbMatch.range.last + 1)
+                        } else {
+                            content.replace("</androidx.preference.PreferenceScreen>", "    $gm3Pref\n</androidx.preference.PreferenceScreen>")
+                        }
+                    }
+                    gm3File.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 3. Inject toggle into camera_preferences.xml
+        try {
+            val camPrefFile = context.get("res/xml/camera_preferences.xml", false)
+            if (camPrefFile.exists()) {
+                var content = camPrefFile.readText(Charsets.UTF_8)
+                val camPref = """
+            <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_brightness_7_vd_theme_24"
+                                  android:layout="@layout/preference_with_margin"
+                                  android:title="@string/pref_camera_max_brightness_title"
+                                  android:key="pref_camera_max_brightness_key"
+                                  android:summary="@string/pref_camera_max_brightness_summary"
+                                  android:order="3"
+                                  android:defaultValue="false" />
+                """.trimIndent()
+
+                // If previously inside pref_category_general, clean it up
+                if (content.contains("android:key=\"pref_category_general\"") && content.contains("pref_camera_max_brightness_key")) {
+                    val generalCatRegex = Regex("""(android:key="pref_category_general"[^>]*>[\s\S]*?)(</PreferenceCategory>)""")
+                    val genMatch = generalCatRegex.find(content)
+                    if (genMatch != null && genMatch.value.contains("pref_camera_max_brightness_key")) {
+                        val cleaned = genMatch.value.replace(Regex("""\s*<com\.google\.android\.apps\.camera\.ui\.preference\.ManagedSwitchPreference[^>]*android:key="pref_camera_max_brightness_key"[^>]*/>"""), "")
+                        content = content.replace(genMatch.value, cleaned)
+                    }
+                }
+
+                if (!content.contains("pref_camera_max_brightness_key")) {
+                    // Primary location: inside pref_category_advanced ("Advanced" screen)
+                    val advancedRegex = Regex("""(android:key="pref_category_advanced"[^>]*>[\s\S]*?)(</PreferenceScreen>)""")
+                    val advMatch = advancedRegex.find(content)
+                    content = if (advMatch != null) {
+                        val g1 = advMatch.groupValues[1]
+                        val g2 = advMatch.groupValues[2]
+                        content.substring(0, advMatch.range.first) + g1 + "\n            " + camPref + "\n        " + g2 + content.substring(advMatch.range.last + 1)
+                    } else {
+                        val fallbackRegex = Regex("""(android:key="pref_category_general"[^>]*>[\s\S]*?)(</PreferenceCategory>)""")
+                        val fbMatch = fallbackRegex.find(content)
+                        if (fbMatch != null) {
+                            val g1 = fbMatch.groupValues[1]
+                            val g2 = fbMatch.groupValues[2]
+                            content.substring(0, fbMatch.range.first) + g1 + "\n            " + camPref + "\n        " + g2 + content.substring(fbMatch.range.last + 1)
+                        } else {
+                            content.replace("</PreferenceScreen>", "    $camPref\n</PreferenceScreen>")
+                        }
+                    }
+                    camPrefFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
+    /**
+     * Injects in-app JPEG Quality and Spatial Noise Reduction preference menus into camera_gm3_preferences.xml,
+     * camera_preferences.xml, arrays.xml, and strings.xml.
+     */
+    fun injectImageQualityPreferences(context: ResourcePatchContext) {
+        // 1. Inject strings into strings.xml
+        try {
+            val stringsFile = context.get("res/values/strings.xml", false)
+            if (stringsFile.exists()) {
+                var content = stringsFile.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_jpeg_quality_title")) {
+                    val stringsToInject = """
+    <string name="pref_camera_jpeg_quality_title">JPEG Quality</string>
+    <string name="pref_camera_jpeg_quality_entry_100">100% (Maximum Quality)</string>
+    <string name="pref_camera_jpeg_quality_entry_100_desc">Lossless quantization table for maximum fine texture preservation</string>
+    <string name="pref_camera_jpeg_quality_entry_98">98% (High Quality)</string>
+    <string name="pref_camera_jpeg_quality_entry_98_desc">High quality with lower compression artifacts</string>
+    <string name="pref_camera_jpeg_quality_entry_95">95% (Stock)</string>
+    <string name="pref_camera_jpeg_quality_entry_95_desc">Standard Google Camera JPEG compression</string>
+    <string name="pref_camera_noise_reduction_title">Spatial Noise Reduction</string>
+    <string name="pref_camera_noise_reduction_entry_stock">Stock (Standard)</string>
+    <string name="pref_camera_noise_reduction_entry_stock_desc">Standard Google Camera bilateral spatial smoothing</string>
+    <string name="pref_camera_noise_reduction_entry_minimal">Minimal</string>
+    <string name="pref_camera_noise_reduction_entry_minimal_desc">Subtle smoothing; retains shadow microtextures</string>
+    <string name="pref_camera_noise_reduction_entry_off">Off (Full Detail)</string>
+    <string name="pref_camera_noise_reduction_entry_off_desc">Disables aggressive spatial denoising; preserves grass and foliage textures</string>
+                    """.trimIndent()
+                    content = content.replace("<resources>", "<resources>\n    $stringsToInject")
+                    stringsFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 2. Inject arrays into arrays.xml
+        try {
+            val arraysFile = context.get("res/values/arrays.xml", false)
+            if (arraysFile.exists()) {
+                var content = arraysFile.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_jpeg_quality_entries")) {
+                    val arraysToInject = """
+    <string-array name="pref_camera_jpeg_quality_entries">
+        <item>@string/pref_camera_jpeg_quality_entry_100</item>
+        <item>@string/pref_camera_jpeg_quality_entry_98</item>
+        <item>@string/pref_camera_jpeg_quality_entry_95</item>
+    </string-array>
+    <string-array name="pref_camera_jpeg_quality_entrydescriptions">
+        <item>@string/pref_camera_jpeg_quality_entry_100_desc</item>
+        <item>@string/pref_camera_jpeg_quality_entry_98_desc</item>
+        <item>@string/pref_camera_jpeg_quality_entry_95_desc</item>
+    </string-array>
+    <string-array name="pref_camera_jpeg_quality_entryvalues">
+        <item>100</item>
+        <item>98</item>
+        <item>95</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entries">
+        <item>@string/pref_camera_noise_reduction_entry_stock</item>
+        <item>@string/pref_camera_noise_reduction_entry_minimal</item>
+        <item>@string/pref_camera_noise_reduction_entry_off</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entrydescriptions">
+        <item>@string/pref_camera_noise_reduction_entry_stock_desc</item>
+        <item>@string/pref_camera_noise_reduction_entry_minimal_desc</item>
+        <item>@string/pref_camera_noise_reduction_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entryvalues">
+        <item>stock</item>
+        <item>minimal</item>
+        <item>off</item>
+    </string-array>
+                    """.trimIndent()
+                    content = content.replace("<resources>", "<resources>\n    $arraysToInject")
+                    arraysFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 3. Inject preference list into camera_gm3_preferences.xml
+        try {
+            val gm3File = context.get("res/xml/camera_gm3_preferences.xml", false)
+            if (gm3File.exists()) {
+                var content = gm3File.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_jpeg_quality_key")) {
+                    val gm3Prefs = """
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+                    """.trimIndent()
+
+                    val targetRegex = Regex("""(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)""")
+                    val match = targetRegex.find(content)
+                    content = if (match != null) {
+                        val g1 = match.groupValues[1]
+                        val g2 = match.groupValues[2]
+                        content.substring(0, match.range.first) + g1 + "\n    " + gm3Prefs + "\n  " + g2 + content.substring(match.range.last + 1)
+                    } else {
+                        content.replace("</androidx.preference.PreferenceScreen>", "    $gm3Prefs\n</androidx.preference.PreferenceScreen>")
+                    }
+                    gm3File.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 4. Inject preference list into camera_preferences.xml
+        try {
+            val camPrefFile = context.get("res/xml/camera_preferences.xml", false)
+            if (camPrefFile.exists()) {
+                var content = camPrefFile.readText(Charsets.UTF_8)
+                if (!content.contains("pref_camera_jpeg_quality_key")) {
+                    val camPrefs = """
+            <ListPreference android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+            <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+                    """.trimIndent()
+
+                    val targetRegex = Regex("""(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</PreferenceCategory>)""")
+                    val match = targetRegex.find(content)
+                    content = if (match != null) {
+                        val g1 = match.groupValues[1]
+                        val g2 = match.groupValues[2]
+                        content.substring(0, match.range.first) + g1 + "\n    " + camPrefs + "\n  " + g2 + content.substring(match.range.last + 1)
+                    } else {
+                        content.replace("</PreferenceScreen>", "    $camPrefs\n</PreferenceScreen>")
+                    }
+                    camPrefFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
     }
 }

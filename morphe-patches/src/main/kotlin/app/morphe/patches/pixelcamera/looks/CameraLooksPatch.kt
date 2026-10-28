@@ -3,6 +3,11 @@ package app.morphe.patches.pixelcamera.looks
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.util.smali.toInstructions
 import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
+import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 
 val cameraLooksPatch = bytecodePatch(
     name = "Camera Looks Backport",
@@ -226,16 +231,13 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 13. Hook tcc.f(F)V to enforce 100% brightness when enabled ───────────────
+        // ── 13. Hook tcc.f(F)V for Display Max Brightness ───────────────────
         mutableClassDefByOrNull("Ltcc;")?.let { clazz ->
             clazz.methods.firstOrNull { it.name == "f" && it.parameterTypes == listOf("F") }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
-                    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
-                    move-result v0
-                    if-eqz v0, :cond_orig_f
-                    const/high16 p1, 0x3f800000
-                    :cond_orig_f
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterBrightness(F)F
+                    move-result p1
                 """.trimIndent()
                 try {
                     val instructions = hookSmali.toInstructions(method)
@@ -252,12 +254,7 @@ val cameraLooksPatch = bytecodePatch(
             clazz.methods.firstOrNull { it.name == "j" && it.parameterTypes == listOf("Ljava/lang/String;", "Z") }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
-                    const-string v0, "pref_camera_max_brightness_key"
-                    invoke-virtual {v0, p1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-                    move-result v0
-                    if-eqz v0, :cond_skip_bright
-                    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onBrightnessPrefChanged(Z)V
-                    :cond_skip_bright
+                    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onSharedPrefChanged(Ljava/lang/String;Z)V
                 """.trimIndent()
                 try {
                     val instructions = hookSmali.toInstructions(method)
@@ -281,6 +278,210 @@ val cameraLooksPatch = bytecodePatch(
                     var insertPos = 0
                     for (ins in instructions) {
                         impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 16. Hook msr / mjy for Gcam Tomte Grain model initialization and InitParams ─────
+        (mutableClassDefByOrNull("Lmsr;") ?: mutableClassDefByOrNull("Lmjy;"))?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+
+                // 16a. Hook finish_tomte_grain_enabled in InitParams
+                val grainEnabledIdx = impl.instructions.indexOfFirst {
+                    it.opcode == Opcode.INVOKE_STATIC &&
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("InitParams_finish_tomte_grain_enabled_set") == true
+                }
+                if (grainEnabledIdx != -1) {
+                    if (grainEnabledIdx >= 2 && impl.instructions[grainEnabledIdx - 2].opcode == Opcode.IF_EQZ) {
+                        impl.replaceInstruction(grainEnabledIdx - 2, BuilderInstruction10x(Opcode.NOP))
+                    }
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
+                        move-result v12
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var pos = grainEnabledIdx
+                        for (ins in instructions) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+
+                // 16b. Hook initTomteGrain on Gcam instantiation
+                val gcamInitIdx = impl.instructions.indexOfFirst {
+                    it.opcode == Opcode.INVOKE_DIRECT &&
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lcom/google/googlex/gcam/Gcam;-><init>(J)V") == true
+                }
+                if (gcamInitIdx != -1) {
+                    val fiveReg = impl.instructions[gcamInitIdx] as? FiveRegisterInstruction
+                    val reg = fiveReg?.registerD ?: 0
+                    val regHigh = reg + 1
+                    val hookSmali = """
+                        invoke-static {v$reg, v$regHigh}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var pos = gcamInitIdx + 1
+                        for (ins in instructions) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 17. Hook ndf / muh for TomteInitHelper.initTomteGrain before applyTomteImageFinalizer ──
+        (mutableClassDefByOrNull("Lndf;") ?: mutableClassDefByOrNull("Lmuh;"))?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "a" &&
+                it.parameterTypes.size == 2 &&
+                it.parameterTypes[0].contains("InterleavedWriteViewU8") &&
+                it.parameterTypes[1].contains("ShotMetadata")
+            }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val finalizerIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("applyTomteImageFinalizer") == true
+                }
+                if (finalizerIdx != -1) {
+                    val gcamAIdx = impl.instructions.subList(0, finalizerIdx).indexOfLast {
+                        (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lcom/google/googlex/gcam/Gcam;->a(Lcom/google/googlex/gcam/Gcam;)J") == true
+                    }
+                    if (gcamAIdx != -1) {
+                        val oneReg = (impl.instructions.getOrNull(gcamAIdx + 1) as? OneRegisterInstruction)?.registerA ?: 3
+                        val oneRegHigh = oneReg + 1
+                        val hookSmali = """
+                            invoke-static {v$oneReg, v$oneRegHigh}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
+                        """.trimIndent()
+                        try {
+                            val instructions = hookSmali.toInstructions(method)
+                            var pos = gcamAIdx + 2
+                            for (ins in instructions) {
+                                impl.addInstruction(pos++, ins)
+                            }
+                        } catch (_: Throwable) {}
+                    }
+                }
+            }
+        }
+
+        // ── 18. Hook sof.P(Ltbp;)V for Camera mode tracking in TomteInitHelper ────────
+        mutableClassDefByOrNull("Lsof;")?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "P" &&
+                it.parameterTypes.size == 1 &&
+                it.parameterTypes[0] == "Ltbp;" &&
+                it.returnType == "V"
+            }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onModeChanged(Ljava/lang/Object;)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var pos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(pos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 19. Hook mqs / mia for TomteGrain unconditional startup initialization ─
+        (mutableClassDefByOrNull("Lmqs;") ?: mutableClassDefByOrNull("Lmia;"))?.let { clazz ->
+            clazz.methods.firstOrNull {
+                it.name == "a" &&
+                (it.returnType == "Liuv;" || it.returnType == "Litv;")
+            }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    const/4 v0, 0x1
+                    iput-boolean v0, p0, ${clazz.type}->f:Z
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var pos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(pos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 20. Hook Lpbe; for In-App JPEG Quality & Spatial Noise Reduction ──
+        mutableClassDefByOrNull("Lpbe;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                // 20a. CaptureRequest.JPEG_QUALITY hook
+                val jpegIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("CaptureRequest;->JPEG_QUALITY") == true
+                }
+                if (jpegIdx != -1 && jpegIdx + 1 < impl.instructions.size) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+                        move-result v0
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        impl.replaceInstruction(jpegIdx + 1, insList[0])
+                        impl.addInstruction(jpegIdx + 2, insList[1])
+                    } catch (_: Throwable) {}
+                }
+
+                // 20b. CaptureRequest.NOISE_REDUCTION_MODE hook
+                val noiseIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("CaptureRequest;->NOISE_REDUCTION_MODE") == true
+                }
+                if (noiseIdx != -1 && noiseIdx + 1 < impl.instructions.size) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+                        move-result v0
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        impl.replaceInstruction(noiseIdx + 1, insList[0])
+                        impl.addInstruction(noiseIdx + 2, insList[1])
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 21. Hook JpgEncodeOptions for native Gcam JPEG quality override ──
+        mutableClassDefByOrNull("Lcom/google/googlex/gcam/JpgEncodeOptions;")?.let { clazz ->
+            // 21a. In <init>()V, invoke TomteInitHelper.getJpegQuality() and call b(I)
+            clazz.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.isEmpty() }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val returnIdx = impl.instructions.indexOfLast { it.opcode == Opcode.RETURN_VOID }
+                if (returnIdx != -1) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+                        move-result v2
+                        invoke-virtual {p0, v2}, Lcom/google/googlex/gcam/JpgEncodeOptions;->b(I)V
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        var pos = returnIdx
+                        for (ins in insList) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+
+            // 21b. In b(I)V, force argument p1 to TomteInitHelper.getJpegQuality()
+            clazz.methods.firstOrNull { it.name == "b" && it.parameterTypes == listOf("I") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+                    move-result p1
+                """.trimIndent()
+                try {
+                    val insList = hookSmali.toInstructions(method)
+                    var pos = 0
+                    for (ins in insList) {
+                        impl.addInstruction(pos++, ins)
                     }
                 } catch (_: Throwable) {}
             }

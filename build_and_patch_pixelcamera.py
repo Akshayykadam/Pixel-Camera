@@ -642,6 +642,32 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_jellybean_setting
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_setting
+    const-string v1, "camcorder.jellybean_setting"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_jellybean_feature
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_jellybean_feature
+    const-string v1, "camcorder_jellybean_feature"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_orig
 
     const/4 v0, 0x1
@@ -679,6 +705,8 @@ def patch_ksf_smali():
                 "camera.ark_edge_hex",
                 "camera.ark_shutter_speed_available",
                 "camera.ark_ISO_available",
+                "camcorder.jellybean_setting",
+                "camcorder_jellybean_feature",
             ]
             chain_x = ""
             for idx, flag in enumerate(flags_x):
@@ -825,7 +853,7 @@ def patch_ksf_smali():
     :cond_check_creator_x_0
 {chain_x}"""
             content = content[:x_start] + new_x + content[map_idx_x:]
-            print("    [+] klm.smali: x(Lkps;) patched (lasagna disabled, creator flags enabled, ark pro controls enabled).")
+            print("    [+] klm.smali: x(Lkps;) patched (lasagna disabled, creator flags enabled, ark pro controls, AV1 video encoding).")
 
     # 2. Patch h(Lkps;)Ljava/lang/String;
     h_start = content.find(".method public final h(Lkps;)Ljava/lang/String;")
@@ -6521,10 +6549,80 @@ def patch_dual_ev_ctrl_and_slider_sync():
             content = content.replace(target_c7_uninit, replacement_c7_uninit)
             print("    [+] lts.smali: :cond_7 updated with Twilight EVC sync.")
 
+        target_single = """    invoke-direct {p0}, Llts;->i()Z
+
+    move-result p2
+
+    if-eqz p2, :cond_2"""
+        repl_single = """    goto :cond_2"""
+        if target_single in content:
+            content = content.replace(target_single, repl_single)
+            print("    [+] lts.smali: single slider forced to :cond_2 (Video AE compensation enabled).")
+
         with open(lts_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # 4. ksf.smali: Intercept camera.dualev.* to return false
+    # 4. poo.smali (11.1) & pfh.smali (11.0): Unblock Camera2 AE compensation dispatch for Video mode
+    for rel_p in [os.path.join("smali_classes2", "poo.smali"), os.path.join("smali_classes2", "pfh.smali")]:
+        p_path = os.path.join(APKTOOL_DIR, rel_p)
+        if os.path.exists(p_path):
+            with open(p_path, "r", encoding="utf-8") as f:
+                c = f.read()
+
+            target_poo = """    iget-object v0, p0, Lptm;->d:Lpzj;
+
+    check-cast p1, Ljava/lang/Integer;
+
+    invoke-virtual {v0}, Lpzj;->i()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_4
+
+    goto/16 :goto_2
+
+    :cond_4
+    iget-object p0, p0, Lptm;->b:Lvae;"""
+            repl_poo = """    check-cast p1, Ljava/lang/Integer;
+
+    if-eqz p1, :cond_skip_poo
+
+    iget-object p0, p0, Lptm;->b:Lvae;"""
+            if target_poo in c:
+                c = c.replace(target_poo, repl_poo)
+                c = c.replace("    invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V\n\n    return-void",
+                              "    invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V\n\n    :cond_skip_poo\n    return-void")
+                print(f"    [+] {rel_p}: AE compensation dispatch unblocked (Video mode enabled).")
+
+            target_pfh = """    iget-object v0, p0, Lpjo;->d:Lppn;
+
+    check-cast p1, Ljava/lang/Integer;
+
+    invoke-virtual {v0}, Lppn;->i()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_5
+
+    goto/16 :goto_3
+
+    :cond_5
+    iget-object p0, p0, Lpjo;->b:Luoi;"""
+            repl_pfh = """    check-cast p1, Ljava/lang/Integer;
+
+    if-eqz p1, :cond_skip_pfh
+
+    iget-object p0, p0, Lpjo;->b:Luoi;"""
+            if target_pfh in c:
+                c = c.replace(target_pfh, repl_pfh)
+                c = c.replace("    invoke-interface {p0, p1}, Luoi;->r(Lupd;)V\n\n    return-void",
+                              "    invoke-interface {p0, p1}, Luoi;->r(Lupd;)V\n\n    :cond_skip_pfh\n    return-void")
+                print(f"    [+] {rel_p}: AE compensation dispatch unblocked (Video mode enabled).")
+
+            with open(p_path, "w", encoding="utf-8") as f:
+                f.write(c)
+
+    # 5. ksf.smali: Intercept camera.dualev.* to return false
     ksf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ksf.smali")
     if os.path.exists(ksf_path):
         with open(ksf_path, "r", encoding="utf-8") as f:
@@ -6839,24 +6937,17 @@ def copy_to_desktop(signed_apk):
     if os.path.isdir(desktop_dir):
         dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
         shutil.copy2(signed_apk, dest_apk)
-        dest_v104 = os.path.join(desktop_dir, "PixelCamera-1.0.4.apk")
-        shutil.copy2(signed_apk, dest_v104)
-        dest_v105 = os.path.join(desktop_dir, "PixelCamera-1.0.5.apk")
-        shutil.copy2(signed_apk, dest_v105)
-        dest_v106 = os.path.join(desktop_dir, "PixelCamera-1.0.6.apk")
-        shutil.copy2(signed_apk, dest_v106)
+        dest_v107 = os.path.join(desktop_dir, "PixelCamera-1.0.7.apk")
+        shutil.copy2(signed_apk, dest_v107)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk}, {dest_v105}, and {dest_v106} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v107} ({size_mb:.2f} MB)")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera_signed2.apk"))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.6.apk"))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.5.apk"))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.4.apk"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.6.apk")
-        return dest_v106
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.7.apk"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.7.apk")
+        return dest_v107
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
@@ -6867,19 +6958,13 @@ def install_and_launch(signed_apk):
     if not lines:
         print("[!] No ADB devices connected, skipping install.")
         return
-    # Pick physical device first, then phone emulator, avoiding wear
-    target_device = lines[0]
+    # Pick physical device first
     physical_devices = [d for d in lines if not d.startswith("emulator-")]
     if physical_devices:
         target_device = physical_devices[0]
     else:
-        for d in lines:
-            if "5554" in d or "phone" in d:
-                target_device = d
-                break
-            elif "wear" not in d and "5556" not in d:
-                target_device = d
-                break
+        print("[!] No physical phone connected yet (only emulators detected). Skipping auto-install.")
+        return
     print(f"[*] Installing {signed_apk} on connected device {target_device}...")
     res = subprocess.run(["adb", "-s", target_device, "install", "-r", "-d", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(f"    {res.stdout.strip()}")
@@ -6989,13 +7074,17 @@ def patch_display_max_brightness():
         with open(gm3_path, "r", encoding="utf-8") as f:
             content = f.read()
         if "pref_camera_max_brightness_key" not in content:
-            target_gm3 = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_water_lux_vd_theme_24" android:title="" android:key="pref_camera_acineta_enabled_key" android:summary="" android:order="2" android:defaultValue="false" />'
-            replacement_gm3 = target_gm3 + '\n        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_brightness_7_vd_theme_24" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:order="3" android:defaultValue="false" />'
-            if target_gm3 in content:
-                content = content.replace(target_gm3, replacement_gm3)
-                with open(gm3_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                print("    [+] camera_gm3_preferences.xml: Max display brightness toggle injected.")
+            gm3_pref = '    <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_brightness_7_vd_theme_24" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:order="3" android:defaultValue="false" />'
+            cat_match = re.search(r'(android:key="pref_advanced_capture"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)', content)
+            if not cat_match:
+                cat_match = re.search(r'(android:key="pref_category_general"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)', content)
+            if cat_match:
+                content = content[:cat_match.start()] + cat_match.group(1) + '\n    ' + gm3_pref + '\n  ' + cat_match.group(2) + content[cat_match.end():]
+            else:
+                content = content.replace("</androidx.preference.PreferenceScreen>", f"    {gm3_pref}\n</androidx.preference.PreferenceScreen>")
+            with open(gm3_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_gm3_preferences.xml: Max display brightness toggle injected into Advanced category.")
         else:
             print("    [+] camera_gm3_preferences.xml: Max display brightness preference already present.")
 
@@ -7005,81 +7094,31 @@ def patch_display_max_brightness():
         with open(cam_pref_path, "r", encoding="utf-8") as f:
             content = f.read()
         if "pref_camera_max_brightness_key" not in content:
-            target_cam = '<com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_grain_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_looks_film_grain_title" android:key="pref_camera_looks_film_grain_key" android:summary="@string/pref_camera_looks_film_grain_summary" android:defaultValue="true" />'
-            replacement_cam = target_cam + '\n            <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_brightness_7_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:defaultValue="false" />'
-            if target_cam in content:
-                content = content.replace(target_cam, replacement_cam)
-                with open(cam_pref_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                print("    [+] camera_preferences.xml: Max display brightness toggle injected.")
+            cam_pref = '    <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_brightness_7_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_max_brightness_title" android:key="pref_camera_max_brightness_key" android:summary="@string/pref_camera_max_brightness_summary" android:order="3" android:defaultValue="false" />'
+            cat_match = re.search(r'(android:key="pref_category_advanced"[^>]*>[\s\S]*?)(</PreferenceScreen>)', content)
+            if not cat_match:
+                cat_match = re.search(r'(android:key="pref_category_general"[^>]*>[\s\S]*?)(</PreferenceCategory>)', content)
+            if cat_match:
+                content = content[:cat_match.start()] + cat_match.group(1) + '\n    ' + cam_pref + '\n  ' + cat_match.group(2) + content[cat_match.end():]
+            else:
+                content = content.replace("</PreferenceScreen>", f"    {cam_pref}\n</PreferenceScreen>")
+            with open(cam_pref_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_preferences.xml: Max display brightness toggle injected into Advanced category.")
         else:
             print("    [+] camera_preferences.xml: Max display brightness preference already present.")
 
-    # 4. Patch tcc.smali constructor and b()V reset
+    # 4. Patch tcc.smali f(F)V to filter brightness
     tcc_path = os.path.join(APKTOOL_DIR, "smali", "tcc.smali")
     if os.path.exists(tcc_path):
         with open(tcc_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Patch <init>
-        tcc_init_target = """    iput-object p1, p0, Ltcc;->b:Ljava/lang/Object;
+        # Clean up any old <init> or b() hooks
+        content = re.sub(r'invoke-static \{\}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled\(\)Z\s+move-result v0\s+if-eqz v0, :cond_init_end\s+const/high16 v0, 0x3f800000\s+invoke-virtual \{p0, v0\}, Ltcc;->f\(F\)V\s+:cond_init_end\s+', '', content)
+        content = re.sub(r'invoke-static \{\}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled\(\)Z\s+move-result v0\s+if-eqz v0, :cond_reset_sys\s+const/high16 v0, 0x3f800000\s+invoke-virtual \{p0, v0\}, Ltcc;->f\(F\)V\s+goto :cond_1\s+:cond_reset_sys\s+', '', content)
 
-    iput-object p2, p0, Ltcc;->c:Ljava/lang/Object;
-
-    return-void"""
-        tcc_init_repl = """    iput-object p1, p0, Ltcc;->b:Ljava/lang/Object;
-
-    iput-object p2, p0, Ltcc;->c:Ljava/lang/Object;
-
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
-
-    move-result v0
-
-    if-eqz v0, :cond_init_end
-
-    const/high16 v0, 0x3f800000    # 1.0f
-
-    invoke-virtual {p0, v0}, Ltcc;->f(F)V
-
-    :cond_init_end
-    return-void"""
-        if tcc_init_target in content:
-            content = content.replace(tcc_init_target, tcc_init_repl)
-            print("    [+] tcc.smali: <init> patched to apply 100% brightness when enabled.")
-
-        # Patch b()V
-        tcc_b_target = """    if-nez v0, :cond_1
-
-    const/high16 v0, -0x40800000    # -1.0f
-
-    invoke-virtual {p0, v0}, Ltcc;->f(F)V
-
-    :cond_1"""
-        tcc_b_repl = """    if-nez v0, :cond_1
-
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
-
-    move-result v0
-
-    if-eqz v0, :cond_reset_sys
-
-    const/high16 v0, 0x3f800000    # 1.0f
-
-    invoke-virtual {p0, v0}, Ltcc;->f(F)V
-
-    goto :cond_1
-
-    :cond_reset_sys
-    const/high16 v0, -0x40800000    # -1.0f
-
-    invoke-virtual {p0, v0}, Ltcc;->f(F)V
-
-    :cond_1"""
-        if tcc_b_target in content:
-            content = content.replace(tcc_b_target, tcc_b_repl)
-            print("    [+] tcc.smali: b() patched to maintain 100% brightness when enabled.")
-
-        # Patch f(F)V central funnel to enforce 1.0f when max brightness is enabled
+        # Patch f(F)V central funnel to enforce 1.0f when max brightness is enabled via filterBrightness
         tcc_f_target = """.method public final f(F)V
     .locals 1
 
@@ -7087,19 +7126,16 @@ def patch_display_max_brightness():
         tcc_f_repl = """.method public final f(F)V
     .locals 1
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMaxBrightnessEnabled()Z
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterBrightness(F)F
 
-    move-result v0
+    move-result p1
 
-    if-eqz v0, :cond_orig_f
-
-    const/high16 p1, 0x3f800000    # 1.0f
-
-    :cond_orig_f
     iget-object p0, p0, Ltcc;->b:Ljava/lang/Object;"""
         if tcc_f_target in content:
             content = content.replace(tcc_f_target, tcc_f_repl)
-            print("    [+] tcc.smali: f(F)V patched to enforce 100% brightness when enabled.")
+            print("    [+] tcc.smali: f(F)V patched with filterBrightness.")
+        elif "filterBrightness" in content:
+            print("    [+] tcc.smali: f(F)V already patched with filterBrightness.")
 
         with open(tcc_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -7136,7 +7172,7 @@ def patch_display_max_brightness():
         elif "onBrightnessPrefChanged" in content:
             print("    [+] rds.smali: already hooked with onBrightnessPrefChanged.")
 
-    # 4c. Patch CameraGm3SettingsActivity.smali onResume() to apply brightness in settings UI
+    # 4c. Patch CameraGm3SettingsActivity.smali onResume() to ensure default system brightness in settings UI
     settings_act_path = os.path.join(APKTOOL_DIR, "smali_classes2", "com", "google", "android", "apps", "camera", "settings", "activity", "CameraGm3SettingsActivity.smali")
     if os.path.exists(settings_act_path):
         with open(settings_act_path, "r", encoding="utf-8") as f:
@@ -7153,7 +7189,7 @@ def patch_display_max_brightness():
             content = content.replace(gm3_target, gm3_repl)
             with open(settings_act_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] CameraGm3SettingsActivity.smali: onResume() patched to invoke applyScreenBrightness.")
+            print("    [+] CameraGm3SettingsActivity.smali: onResume() patched to invoke applyScreenBrightness (enforcing system brightness).")
         elif "applyScreenBrightness" in content:
             print("    [+] CameraGm3SettingsActivity.smali: already hooked with applyScreenBrightness.")
 
@@ -7185,6 +7221,294 @@ def patch_display_max_brightness():
         elif "applyScreenBrightness" in content:
             print("    [+] CameraActivity.smali: already hooked with applyScreenBrightness.")
 
+def patch_image_quality_preferences():
+    print("[*] Patching In-App JPEG Quality & Spatial Noise Reduction menus...")
+    # 1. Inject strings into strings.xml
+    strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
+    if os.path.exists(strings_path):
+        with open(strings_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_jpeg_quality_title" not in content:
+            strings_to_inject = """    <string name="pref_camera_jpeg_quality_title">JPEG Quality</string>
+    <string name="pref_camera_jpeg_quality_entry_100">100% (Maximum Quality)</string>
+    <string name="pref_camera_jpeg_quality_entry_100_desc">Lossless quantization table for maximum fine texture preservation</string>
+    <string name="pref_camera_jpeg_quality_entry_98">98% (High Quality)</string>
+    <string name="pref_camera_jpeg_quality_entry_98_desc">High quality with lower compression artifacts</string>
+    <string name="pref_camera_jpeg_quality_entry_95">95% (Stock)</string>
+    <string name="pref_camera_jpeg_quality_entry_95_desc">Standard Google Camera JPEG compression</string>
+    <string name="pref_camera_noise_reduction_title">Spatial Noise Reduction</string>
+    <string name="pref_camera_noise_reduction_entry_stock">Stock (Standard)</string>
+    <string name="pref_camera_noise_reduction_entry_stock_desc">Standard Google Camera bilateral spatial smoothing</string>
+    <string name="pref_camera_noise_reduction_entry_minimal">Minimal</string>
+    <string name="pref_camera_noise_reduction_entry_minimal_desc">Subtle smoothing; retains shadow microtextures</string>
+    <string name="pref_camera_noise_reduction_entry_off">Off (Full Detail)</string>
+    <string name="pref_camera_noise_reduction_entry_off_desc">Disables aggressive spatial denoising; preserves grass and foliage textures</string>"""
+            content = content.replace("<resources>", f"<resources>\n{strings_to_inject}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: JPEG Quality and Noise Reduction strings added.")
+        else:
+            print("    [+] strings.xml: JPEG Quality strings already present.")
+
+    # 2. Inject arrays into arrays.xml
+    arrays_path = os.path.join(APKTOOL_DIR, "res", "values", "arrays.xml")
+    if os.path.exists(arrays_path):
+        with open(arrays_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_jpeg_quality_entries" not in content:
+            arrays_to_inject = """    <string-array name="pref_camera_jpeg_quality_entries">
+        <item>@string/pref_camera_jpeg_quality_entry_100</item>
+        <item>@string/pref_camera_jpeg_quality_entry_98</item>
+        <item>@string/pref_camera_jpeg_quality_entry_95</item>
+    </string-array>
+    <string-array name="pref_camera_jpeg_quality_entrydescriptions">
+        <item>@string/pref_camera_jpeg_quality_entry_100_desc</item>
+        <item>@string/pref_camera_jpeg_quality_entry_98_desc</item>
+        <item>@string/pref_camera_jpeg_quality_entry_95_desc</item>
+    </string-array>
+    <string-array name="pref_camera_jpeg_quality_entryvalues">
+        <item>100</item>
+        <item>98</item>
+        <item>95</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entries">
+        <item>@string/pref_camera_noise_reduction_entry_stock</item>
+        <item>@string/pref_camera_noise_reduction_entry_minimal</item>
+        <item>@string/pref_camera_noise_reduction_entry_off</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entrydescriptions">
+        <item>@string/pref_camera_noise_reduction_entry_stock_desc</item>
+        <item>@string/pref_camera_noise_reduction_entry_minimal_desc</item>
+        <item>@string/pref_camera_noise_reduction_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_camera_noise_reduction_entryvalues">
+        <item>stock</item>
+        <item>minimal</item>
+        <item>off</item>
+    </string-array>"""
+            content = content.replace("<resources>", f"<resources>\n{arrays_to_inject}")
+            with open(arrays_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] arrays.xml: JPEG Quality and Noise Reduction arrays added.")
+        else:
+            print("    [+] arrays.xml: JPEG Quality arrays already present.")
+
+    # 3. Inject into camera_gm3_preferences.xml
+    gm3_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_gm3_preferences.xml")
+    if os.path.exists(gm3_path):
+        with open(gm3_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_jpeg_quality_key" not in content:
+            gm3_prefs = """        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />"""
+            cat_match = re.search(r'(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)', content)
+            if cat_match:
+                content = content[:cat_match.start()] + cat_match.group(1) + '\n' + gm3_prefs + '\n  ' + cat_match.group(2) + content[cat_match.end():]
+            else:
+                content = content.replace("</androidx.preference.PreferenceScreen>", f"    {gm3_prefs}\n</androidx.preference.PreferenceScreen>")
+            with open(gm3_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_gm3_preferences.xml: JPEG Quality & Noise Reduction menus injected.")
+        else:
+            print("    [+] camera_gm3_preferences.xml: JPEG Quality preference already present.")
+
+    # 4. Inject into camera_preferences.xml
+    cam_pref_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_preferences.xml")
+    if os.path.exists(cam_pref_path):
+        with open(cam_pref_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "pref_camera_jpeg_quality_key" not in content:
+            cam_prefs = """            <ListPreference android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+            <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />"""
+            cat_match = re.search(r'(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</PreferenceCategory>)', content)
+            if cat_match:
+                content = content[:cat_match.start()] + cat_match.group(1) + '\n' + cam_prefs + '\n  ' + cat_match.group(2) + content[cat_match.end():]
+            else:
+                content = content.replace("</PreferenceScreen>", f"    {cam_prefs}\n</PreferenceScreen>")
+            with open(cam_pref_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_preferences.xml: JPEG Quality & Noise Reduction menus injected.")
+        else:
+            print("    [+] camera_preferences.xml: JPEG Quality preference already present.")
+
+    # 5. Patch pbe.smali (Camera2 CaptureRequest providers)
+    pbe_path = os.path.join(APKTOOL_DIR, "smali", "pbe.smali")
+    if os.path.exists(pbe_path):
+        with open(pbe_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        pbe_jpeg_target = """    sget-object p0, Landroid/hardware/camera2/CaptureRequest;->JPEG_QUALITY:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/16 v0, 0x5f"""
+        pbe_jpeg_repl = """    sget-object p0, Landroid/hardware/camera2/CaptureRequest;->JPEG_QUALITY:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+
+    move-result v0"""
+        if pbe_jpeg_target in content:
+            content = content.replace(pbe_jpeg_target, pbe_jpeg_repl)
+            print("    [+] pbe.smali: JPEG_QUALITY hooked with TomteInitHelper.getJpegQuality().")
+
+        pbe_noise_target = """    sget-object p0, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v0, 0x1"""
+        pbe_noise_repl = """    sget-object p0, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0"""
+        if pbe_noise_target in content:
+            content = content.replace(pbe_noise_target, pbe_noise_repl)
+            print("    [+] pbe.smali: NOISE_REDUCTION_MODE hooked with TomteInitHelper.getNoiseReductionMode().")
+
+        with open(pbe_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 6. Patch JpgEncodeOptions.smali (Native Gcam JPEG Encoder)
+    jpg_options_path = os.path.join(APKTOOL_DIR, "smali_classes3", "com", "google", "googlex", "gcam", "JpgEncodeOptions.smali")
+    if os.path.exists(jpg_options_path):
+        with open(jpg_options_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        init_target = """    iput-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J
+
+    return-void"""
+        init_repl = """    iput-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+
+    move-result v2
+
+    invoke-virtual {p0, v2}, Lcom/google/googlex/gcam/JpgEncodeOptions;->b(I)V
+
+    return-void"""
+        if init_target in content:
+            content = content.replace(init_target, init_repl)
+            print("    [+] JpgEncodeOptions.smali: <init>() hooked with TomteInitHelper.getJpegQuality().")
+
+        b_target = """.method public final b(I)V
+    .locals 2
+
+    iget-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J"""
+        b_repl = """.method public final b(I)V
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getJpegQuality()I
+
+    move-result p1
+
+    iget-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J"""
+        if b_target in content:
+            content = content.replace(b_target, b_repl)
+            print("    [+] JpgEncodeOptions.smali: b(I)V hooked to override quality with TomteInitHelper.getJpegQuality().")
+
+        with open(jpg_options_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+def patch_fzf_smali():
+    print("[*] Patching fzf.smali (AV1 10-bit HDR graceful fallback to HEVC)...")
+    fzf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "fzf.smali")
+    if not os.path.exists(fzf_path):
+        print("    [!] Warning: fzf.smali not found.")
+        return
+    with open(fzf_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Patch fzf.d(Ljava/lang/String;I)Lyqc;
+    # Ensure video/av01 does not return profile 2 (Main 10) for HDR queries (p1 == 7 or 6)
+    target_d = """    :sswitch_3
+    const-string v0, "video/av01"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result p0
+
+    if-eqz p0, :cond_3
+
+    if-ne p1, v4, :cond_2
+
+    invoke-static {v1}, Lyqc;->l(Ljava/lang/Object;)Lyqc;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_2
+    if-ne p1, v2, :cond_3
+
+    invoke-static {v3}, Lyqc;->l(Ljava/lang/Object;)Lyqc;
+
+    move-result-object p0
+
+    return-object p0"""
+
+    repl_d = """    :sswitch_3
+    const-string v0, "video/av01"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result p0
+
+    goto :cond_3"""
+
+    if target_d in content:
+        content = content.replace(target_d, repl_d)
+        print("    [+] fzf.d: AV1 HDR profile request redirected to empty list.")
+    elif repl_d in content:
+        print("    [+] fzf.d: AV1 HDR profile already redirected.")
+
+    # 2. Patch fzf.h(Landroid/media/MediaCodecInfo;Ljava/lang/String;Lemu;)Z
+    # Explicitly return false (0) for video/av01 HDR capability checks
+    target_h = """.method public static h(Landroid/media/MediaCodecInfo;Ljava/lang/String;Lemu;)Z
+    .locals 3
+
+    const-string v0, "video/dolby-vision"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    const/4 v1, 0x0
+
+    if-eqz v0, :cond_0
+
+    goto :goto_0"""
+
+    repl_h = """.method public static h(Landroid/media/MediaCodecInfo;Ljava/lang/String;Lemu;)Z
+    .locals 3
+
+    const-string v0, "video/av01"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    const/4 v1, 0x0
+
+    if-eqz v0, :cond_av1_ok
+
+    return v1
+
+    :cond_av1_ok
+    const-string v0, "video/dolby-vision"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_0
+
+    goto :goto_0"""
+
+    if target_h in content:
+        content = content.replace(target_h, repl_h)
+        print("    [+] fzf.h: AV1 HDR capability check returns false (forcing HEVC fallback).")
+    elif "cond_av1_ok" in content:
+        print("    [+] fzf.h: AV1 HDR capability guard already present.")
+
+    with open(fzf_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
 def main():
     clean_build_artifacts()
     patch_manifest()
@@ -7197,6 +7521,7 @@ def main():
     patch_qus_smali()
     patch_qxg_smali()
     patch_ksf_smali()
+    patch_fzf_smali()
     patch_izk_smali()
     patch_msr_smali()
     patch_ndf_smali()
@@ -7212,6 +7537,7 @@ def main():
     patch_pro_controls_live()
     patch_looks_fine_tuning_and_grain()
     patch_display_max_brightness()
+    patch_image_quality_preferences()
     patch_nzr_and_mpd_smali()
     patch_zoom_controllers()
     patch_mqs_smali()

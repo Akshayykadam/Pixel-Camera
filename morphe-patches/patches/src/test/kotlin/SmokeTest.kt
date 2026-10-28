@@ -332,5 +332,202 @@ class SmokeTest {
             }
         }
     }
+
+    @Test
+    fun testInspectTomteGrainAndModeHooks() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        if (!dexDir.exists()) return
+        var foundMsrInitTomteGrain = false
+        var foundMsrGrainEnabled = false
+        var foundNdfInitTomteGrain = false
+        var foundSofSetCurrentMode = false
+        var foundMqsForceF = false
+        for (dexFile in dexDir.listFiles() ?: emptyArray()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Lmsr;") {
+                    val m = c.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->initTomteGrain")) foundMsrInitTomteGrain = true
+                        if (ref.contains("TomteInitHelper;->isGrainEnabled")) foundMsrGrainEnabled = true
+                    }
+                }
+                if (c.type == "Lndf;") {
+                    val m = c.methods.firstOrNull { it.name == "a" }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->initTomteGrain")) foundNdfInitTomteGrain = true
+                    }
+                }
+                if (c.type == "Lsof;") {
+                    val m = c.methods.firstOrNull { it.name == "P" }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->setCurrentMode") || ref.contains("TomteInitHelper;->onModeChanged")) foundSofSetCurrentMode = true
+                    }
+                }
+                if (c.type == "Lmqs;") {
+                    val m = c.methods.firstOrNull { it.name == "a" }
+                    val firstFew = m?.implementation?.instructions?.take(5) ?: emptyList()
+                    for (ins in firstFew) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("Lmqs;->f:Z")) foundMqsForceF = true
+                    }
+                }
+            }
+        }
+        println("Hooks verification: msr.initTomteGrain=$foundMsrInitTomteGrain, msr.isGrainEnabled=$foundMsrGrainEnabled, ndf.initTomteGrain=$foundNdfInitTomteGrain, sof.setCurrentMode=$foundSofSetCurrentMode, mqs.forceF=$foundMqsForceF")
+        assertTrue(foundMsrInitTomteGrain, "msr.a must contain TomteInitHelper.initTomteGrain")
+        assertTrue(foundMsrGrainEnabled, "msr.a must contain TomteInitHelper.isGrainEnabled")
+        assertTrue(foundNdfInitTomteGrain, "ndf.a must contain TomteInitHelper.initTomteGrain")
+        assertTrue(foundSofSetCurrentMode, "sof.P must contain TomteInitHelper.setCurrentMode or onModeChanged")
+        assertTrue(foundMqsForceF, "mqs.a must initialize f:Z to true")
+    }
+
+    @Test
+    fun testInspectMaxBrightnessHooks() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        if (!dexDir.exists()) return
+        var foundTccInit = false
+        var foundTccF = false
+        var foundTccB = false
+        var foundCameraActivity = false
+        var foundSettingsActivity = false
+        var foundRdsJ = false
+        for (dexFile in dexDir.listFiles() ?: emptyArray()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Ltcc;") {
+                    val initM = c.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.size == 2 }
+                    for (ins in initM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->isMaxBrightnessEnabled")) foundTccInit = true
+                    }
+                    val fM = c.methods.firstOrNull { it.name == "f" && it.parameterTypes == listOf("F") }
+                    for (ins in fM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->isMaxBrightnessEnabled") || ref.contains("TomteInitHelper;->filterBrightness")) foundTccF = true
+                    }
+                    val bM = c.methods.firstOrNull { it.name == "b" && it.parameterTypes.isEmpty() }
+                    for (ins in bM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->isMaxBrightnessEnabled")) foundTccB = true
+                    }
+                }
+                if (c.type == "Lcom/google/android/apps/camera/activity/main/CameraActivity;") {
+                    val m = c.methods.firstOrNull { it.name == "onResume" && it.parameterTypes.isEmpty() }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->applyScreenBrightness")) foundCameraActivity = true
+                    }
+                }
+                if (c.type == "Lcom/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity;") {
+                    val m = c.methods.firstOrNull { it.name == "onResume" && it.parameterTypes.isEmpty() }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->applyScreenBrightness")) foundSettingsActivity = true
+                    }
+                }
+                if (c.type == "Lrds;") {
+                    val m = c.methods.firstOrNull { it.name == "j" }
+                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->onBrightnessPrefChanged") || ref.contains("TomteInitHelper;->onSharedPrefChanged")) foundRdsJ = true
+                    }
+                }
+            }
+        }
+        println("Max Brightness hooks: tcc.<init>=$foundTccInit, tcc.f=$foundTccF, tcc.b=$foundTccB, CameraActivity=$foundCameraActivity, SettingsActivity=$foundSettingsActivity, rds.j=$foundRdsJ")
+    }
+
+    @Test
+    fun testInspectImageQualityHooks() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        if (!dexDir.exists()) return
+        var foundPbeJpeg = false
+        var foundPbeNoise = false
+        var foundJpgOptionsInit = false
+        var foundJpgOptionsB = false
+        for (dexFile in dexDir.listFiles() ?: emptyArray()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Lpbe;") {
+                    for (m in c.methods) {
+                        for (ins in m.implementation?.instructions ?: emptyList()) {
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (ref.contains("TomteInitHelper;->getJpegQuality")) foundPbeJpeg = true
+                            if (ref.contains("TomteInitHelper;->getNoiseReductionMode")) foundPbeNoise = true
+                        }
+                    }
+                }
+                if (c.type == "Lcom/google/googlex/gcam/JpgEncodeOptions;") {
+                    val initM = c.methods.firstOrNull { it.name == "<init>" }
+                    for (ins in initM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->getJpegQuality")) foundJpgOptionsInit = true
+                    }
+                    val bM = c.methods.firstOrNull { it.name == "b" }
+                    for (ins in bM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->getJpegQuality")) foundJpgOptionsB = true
+                    }
+                }
+            }
+        }
+        println("Image Quality hooks: pbe.jpeg=$foundPbeJpeg, pbe.noise=$foundPbeNoise, JpgEncodeOptions.<init>=$foundJpgOptionsInit, JpgEncodeOptions.b=$foundJpgOptionsB")
+        if (foundPbeJpeg || foundPbeNoise) {
+            assertTrue(foundPbeJpeg, "pbe must call TomteInitHelper.getJpegQuality")
+            assertTrue(foundPbeNoise, "pbe must call TomteInitHelper.getNoiseReductionMode")
+            assertTrue(foundJpgOptionsInit, "JpgEncodeOptions.<init> must call TomteInitHelper.getJpegQuality")
+            assertTrue(foundJpgOptionsB, "JpgEncodeOptions.b must call TomteInitHelper.getJpegQuality")
+        }
+    }
+
+    @Test
+    fun testInspectVideoExposureCompensation() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        if (!dexDir.exists()) return
+        var foundPoo = false
+        var pooHasPzjAbort = false
+        var foundLts = false
+        var ltsHasIAbort = false
+        for (dexFile in dexDir.listFiles() ?: emptyArray()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Lpoo;") {
+                    foundPoo = true
+                    val aM = c.methods.firstOrNull { it.name == "a" && it.parameterTypes == listOf("Ljava/lang/Object;") }
+                    for (ins in aM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("Lpzj;->i()Z") || ref.contains("Lppn;->i()Z")) {
+                            pooHasPzjAbort = true
+                        }
+                    }
+                }
+                if (c.type == "Llts;") {
+                    foundLts = true
+                    val nM = c.methods.firstOrNull { it.name == "n" && it.parameterTypes.size == 2 }
+                    for (ins in nM?.implementation?.instructions ?: emptyList()) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("Llts;->i()Z")) {
+                            ltsHasIAbort = true
+                        }
+                    }
+                }
+            }
+        }
+        println("Video exposure verification: foundPoo=$foundPoo, pooHasPzjAbort=$pooHasPzjAbort, foundLts=$foundLts, ltsHasIAbort=$ltsHasIAbort")
+        if (foundPoo) {
+            assertTrue(!pooHasPzjAbort, "poo.smali must not abort on pzj.i() in video AE compensation dispatch")
+        }
+        if (foundLts) {
+            assertTrue(!ltsHasIAbort, "lts.smali must not abort on lts.i() in single slider video mode")
+        }
+    }
 }
 
