@@ -63,39 +63,58 @@ val quickAccessPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "a", "Z", smaliA)
         }
 
-        // ── 3. Initial EV state in ldj.a() → default to DUAL_INDEPENDENT ─────────────
-        mutableClassDefByOrNull("Lldj;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
-                val impl = method.implementation ?: return@let
-                for (i in 0 until impl.instructions.size) {
-                    val ins = impl.instructions[i]
-                    if (ins.opcode == Opcode.SGET_OBJECT) {
-                        val ref = (ins as? Instruction21c)?.reference as? FieldReference
-                        if (ref?.definingClass == "Llsx;" && ref.name == "a") {
-                            val newIns = "sget-object v0, Llsx;->c:Llsx;".toInstructions(method).first()
-                            impl.replaceInstruction(i, newIns)
-                            break
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── 3b. Support dual exposure in nzr.e(lsx) ───────────────────────────────────
+        // ── 3. Support dual & single exposure modes in nzr.e(lsx) ─────────────────────
         mutableClassDefByOrNull("Lnzr;")?.let { clazz ->
             clazz.methods.firstOrNull { it.name == "e" && it.parameterTypes == listOf("Llsx;") }?.let { method ->
                 val smaliE = """
                     sget-object v0, Llsx;->a:Llsx;
                     invoke-virtual {p1, v0}, Llsx;->equals(Ljava/lang/Object;)Z
                     move-result v0
+                    sget-object v1, Llsx;->c:Llsx;
+                    invoke-virtual {p1, v1}, Llsx;->equals(Ljava/lang/Object;)Z
+                    move-result v1
+                    if-nez v1, :cond_dual_mode
+                    sget-object v1, Llsx;->b:Llsx;
+                    invoke-virtual {p1, v1}, Llsx;->equals(Ljava/lang/Object;)Z
+                    move-result v1
+                    if-eqz v1, :cond_not_dual_mode
+                    :cond_dual_mode
                     const/4 p1, 0x1
+                    goto :goto_dual_mode
+                    :cond_not_dual_mode
+                    const/4 p1, 0x0
+                    :goto_dual_mode
                     sget-object v1, Lnzx;->b:Lnzx;
                     invoke-virtual {p0, v1, v0}, Lnzr;->v(Lnzx;Z)V
-                    sget-object v1, Lnzx;->a:Lnzx;
-                    invoke-virtual {p0, v1, p1}, Lnzr;->v(Lnzx;Z)V
+                    sget-object v0, Lnzx;->a:Lnzx;
+                    invoke-virtual {p0, v0, p1}, Lnzr;->v(Lnzx;Z)V
                     return-void
                 """.trimIndent()
                 PixelCameraPatchUtils.replaceMethodBody(clazz, "e", "V", smaliE)
+            }
+        }
+
+        // ── 3b. Register Dual Exposure controls in nia.smali (bypass twilight check) ──
+        mutableClassDefByOrNull("Lnia;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                for (i in 0 until impl.instructions.size) {
+                    val ins = impl.instructions[i]
+                    if (ins.opcode == Opcode.SGET_OBJECT) {
+                        val ref = (ins as? Instruction21c)?.reference as? FieldReference
+                        if (ref?.definingClass == "Lkpf;" && ref.name == "f") {
+                            for (j in i + 1 until minOf(i + 5, impl.instructions.size)) {
+                                val nextIns = impl.instructions[j]
+                                if (nextIns.opcode == Opcode.MOVE_RESULT) {
+                                    val const1 = "const/4 v3, 0x1".toInstructions(method).first()
+                                    impl.replaceInstruction(j, const1)
+                                    break
+                                }
+                            }
+                            break
+                        }
+                    }
+                }
             }
         }
 
@@ -230,9 +249,7 @@ val quickAccessPatch = bytecodePatch(
                 check-cast v0, Llsx;
                 sget-object v1, Llsx;->a:Llsx;
                 if-ne v0, v1, :cond_3
-                invoke-direct {p0}, Llts;->i()Z
-                move-result p2
-                if-eqz p2, :cond_2
+                goto :cond_2
                 iget-object p2, p0, Llts;->a:Lcom/google/android/apps/camera/evcomp/EvCompView;
                 invoke-virtual {p2, p1}, Lcom/google/android/apps/camera/evcomp/EvCompView;->i(F)V
                 iget-boolean p2, p0, Llts;->s:Z
@@ -479,10 +496,9 @@ val quickAccessPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Ljava/lang/Object;", smaliB)
         }
 
-        // ── 8. Hook ltg.i(lsx) → Force dual exposure (lsx.c) and ensure brightness & shadow knobs are attached & interactive ──
+        // ── 8. Hook ltg.i(lsx) → Attach and configure sliders based on mode (dual or single) ──
         mutableClassDefByOrNull("Lltg;")?.let { clazz ->
             val smaliI = """
-                sget-object p1, Llsx;->c:Llsx;
                 iget-object v0, p0, Lltg;->o:Lusf;
                 if-eqz v0, :cond_skip_o
                 invoke-interface {v0, p1}, Lusf;->a(Ljava/lang/Object;)V
@@ -536,35 +552,66 @@ val quickAccessPatch = bytecodePatch(
                 :cond_3
                 invoke-virtual {v1}, Ljava/util/ArrayList;->clear()V
                 :cond_4
+                invoke-virtual {p1}, Llsx;->ordinal()I
+                move-result v2
+                if-eqz v2, :cond_6
+                const/4 v4, 0x2
+                if-eq v2, v4, :cond_5
+                goto :goto_2
+                :cond_5
                 invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->j()V
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
-                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
-                if-eqz p1, :cond_skip_add_e
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                iget-object v4, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
                 if-eqz v2, :cond_skip_add_e
-                invoke-virtual {p1, v2}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
+                if-eqz v4, :cond_skip_add_e
+                invoke-virtual {v2, v4}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
                 :cond_skip_add_e
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
-                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
-                if-eqz p1, :cond_skip_add_f
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                iget-object v4, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
                 if-eqz v2, :cond_skip_add_f
-                invoke-virtual {p1, v2}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
+                if-eqz v4, :cond_skip_add_f
+                invoke-virtual {v2, v4}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
                 :cond_skip_add_f
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
-                if-eqz p1, :cond_skip_list_g
-                invoke-virtual {v1, p1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
+                if-eqz v2, :cond_skip_list_g
+                invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
                 :cond_skip_list_g
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
-                if-eqz p1, :cond_skip_list_h
-                invoke-virtual {v1, p1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->h:Llsy;
+                if-eqz v2, :cond_skip_list_h
+                invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
                 :cond_skip_list_h
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
-                if-eqz p1, :cond_skip_vis_e
-                invoke-virtual {p1, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v2, :cond_skip_vis_e
+                invoke-virtual {v2, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
                 :cond_skip_vis_e
-                iget-object p1, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
-                if-eqz p1, :cond_skip_vis_f
-                invoke-virtual {p1, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v2, :cond_skip_vis_f
+                invoke-virtual {v2, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
                 :cond_skip_vis_f
+                goto :goto_2
+                :cond_6
+                invoke-virtual {v0}, Lcom/google/android/apps/camera/evcomp/EvCompView;->n()V
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                iget-object v4, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
+                if-eqz v2, :cond_skip_add_g
+                if-eqz v4, :cond_skip_add_g
+                invoke-virtual {v2, v4}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->addView(Landroid/view/View;)V
+                :cond_skip_add_g
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->g:Llsy;
+                if-eqz v2, :cond_skip_list_g_single
+                invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+                :cond_skip_list_g_single
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->e:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v2, :cond_skip_vis_e_single
+                invoke-virtual {v2, v3}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                :cond_skip_vis_e_single
+                iget-object v2, v0, Lcom/google/android/apps/camera/evcomp/EvCompView;->f:Lcom/google/android/apps/camera/evcomp/EvCompSlider;
+                if-eqz v2, :cond_goto_2
+                const/16 v4, 0x8
+                invoke-virtual {v2, v4}, Lcom/google/android/apps/camera/evcomp/EvCompSlider;->setVisibility(I)V
+                :cond_goto_2
+                goto :goto_2
+                :goto_2
                 invoke-interface {v1}, Ljava/util/List;->size()I
                 move-result p1
                 move v2, v3
