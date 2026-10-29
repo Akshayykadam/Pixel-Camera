@@ -96,19 +96,20 @@ val pixelCameraClonePatch = resourcePatch(
             root.removeAttribute("android:requiredSplitTypes")
             root.removeAttribute("android:splitTypes")
             root.removeAttribute("android:isSplitRequired")
+
+            // 6. Ensure launcher activity-alias explicitly carries app_name label
+            val aliases = doc.getElementsByTagName("activity-alias")
+            for (i in 0 until aliases.length) {
+                val elem = aliases.item(i) as? Element ?: continue
+                if (elem.getAttribute("android:name") == "com.android.camera.CameraLauncher") {
+                    elem.setAttribute("android:label", "@string/app_name")
+                }
+            }
         }
 
-        // 6. Update app name
+        // 6. Update app name with comprehensive international localization
         try {
-            val stringsFile = get("res/values/strings.xml", false)
-            if (stringsFile.exists()) {
-                var content = stringsFile.readText(Charsets.UTF_8)
-                content = content.replace(
-                    "<string name=\"app_name\">Camera</string>",
-                    "<string name=\"app_name\">PixelCamera</string>"
-                )
-                stringsFile.writeText(content, Charsets.UTF_8)
-            }
+            app.morphe.patches.pixelcamera.PixelCameraPatchUtils.injectLocalizedAppNames(this)
         } catch (_: Throwable) {}
 
         // 7. Inject Max display brightness strings and preference toggles into resources

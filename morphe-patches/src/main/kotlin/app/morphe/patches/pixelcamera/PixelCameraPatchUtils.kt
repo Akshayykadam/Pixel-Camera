@@ -799,4 +799,153 @@ object PixelCameraPatchUtils {
             }
         } catch (_: Throwable) {}
     }
+
+    /**
+     * Injects the localized application name 'Pixel Camera' (and native variants like
+     * 'Pixel Kamera' for German, 'Cámara Pixel' for Spanish, 'Appareil photo Pixel' for French, etc.)
+     * into all res/values and res/values-xxx/strings.xml resource folders.
+     */
+    fun injectLocalizedAppNames(context: ResourcePatchContext) {
+        val langMap = mapOf(
+            "values" to "Pixel Camera",
+            "values-en-rGB" to "Pixel Camera",
+            "values-en-rXA" to "[Þîxéļ Çåméŕå one]",
+            "values-ar-rXB" to "‏‮Pixel Camera‬‏",
+            "values-de" to "Pixel Kamera",
+            "values-de-rAT" to "Pixel Kamera",
+            "values-de-rCH" to "Pixel Kamera",
+            "values-gsw" to "Pixel Kamera",
+            "values-fr" to "Appareil photo Pixel",
+            "values-fr-rCA" to "Appareil photo Pixel",
+            "values-fr-rCH" to "Appareil photo Pixel",
+            "values-es" to "Cámara Pixel",
+            "values-es-rUS" to "Cámara Pixel",
+            "values-b+es+419" to "Cámara Pixel",
+            "values-es-rAR" to "Cámara Pixel",
+            "values-es-rBO" to "Cámara Pixel",
+            "values-es-rCL" to "Cámara Pixel",
+            "values-es-rCO" to "Cámara Pixel",
+            "values-es-rCR" to "Cámara Pixel",
+            "values-es-rDO" to "Cámara Pixel",
+            "values-es-rEC" to "Cámara Pixel",
+            "values-es-rGT" to "Cámara Pixel",
+            "values-es-rHN" to "Cámara Pixel",
+            "values-es-rMX" to "Cámara Pixel",
+            "values-es-rNI" to "Cámara Pixel",
+            "values-es-rPA" to "Cámara Pixel",
+            "values-es-rPE" to "Cámara Pixel",
+            "values-es-rPR" to "Cámara Pixel",
+            "values-es-rPY" to "Cámara Pixel",
+            "values-es-rSV" to "Cámara Pixel",
+            "values-es-rUY" to "Cámara Pixel",
+            "values-es-rVE" to "Cámara Pixel",
+            "values-it" to "Fotocamera Pixel",
+            "values-pt" to "Câmera Pixel",
+            "values-pt-rBR" to "Câmera Pixel",
+            "values-pt-rPT" to "Câmara Pixel",
+            "values-nl" to "Pixel Camera",
+            "values-pl" to "Aparat Pixel",
+            "values-ru" to "Камера Pixel",
+            "values-uk" to "Камера Pixel",
+            "values-cs" to "Fotoaparát Pixel",
+            "values-sk" to "Kamera Pixel",
+            "values-sl" to "Fotoaparat Pixel",
+            "values-ro" to "Camera Pixel",
+            "values-mo" to "Camera Pixel",
+            "values-bg" to "Камера Pixel",
+            "values-hr" to "Pixel kamera",
+            "values-sr" to "Pixel камера",
+            "values-b+sr+Latn" to "Pixel kamera",
+            "values-bs" to "Pixel kamera",
+            "values-hu" to "Pixel kamera",
+            "values-el" to "Κάμερα Pixel",
+            "values-tr" to "Pixel Kamera",
+            "values-sv" to "Pixel Kamera",
+            "values-da" to "Pixel Kamera",
+            "values-nb" to "Pixel Kamera",
+            "values-no" to "Pixel Kamera",
+            "values-fi" to "Pixel Kamera",
+            "values-ca" to "Càmera Pixel",
+            "values-gl" to "Cámara Pixel",
+            "values-eu" to "Pixel kamera",
+            "values-is" to "Pixel Myndavél",
+            "values-lt" to "Pixel fotoaparatas",
+            "values-lv" to "Pixel kamera",
+            "values-et" to "Pixel kaamera",
+            "values-be" to "Камера Pixel",
+            "values-mk" to "Камера Pixel",
+            "values-sq" to "Pixel Kamera",
+            "values-ga" to "Pixel Camera",
+            "values-cy" to "Pixel Camera",
+            "values-hy" to "Pixel տեսախցիկ",
+            "values-ka" to "Pixel კამერა",
+            "values-az" to "Pixel Kamera",
+            "values-kk" to "Pixel камерасы",
+            "values-ky" to "Pixel камера",
+            "values-uz" to "Pixel Kamera",
+            "values-af" to "Pixel Kamera",
+            "values-zu" to "Ikhamera yePixel",
+            "values-sw" to "Kamera ya Pixel",
+            "values-am" to "Pixel ካሜራ",
+            "values-ar" to "كاميرا Pixel",
+            "values-ar-rEG" to "كاميرا Pixel",
+            "values-ar-rSA" to "كاميرا Pixel",
+            "values-iw" to "מצלמת Pixel",
+            "values-he" to "מצלמת Pixel",
+            "values-fa" to "دوربین Pixel",
+            "values-ur" to "Pixel کیمرا",
+            "values-hi" to "Pixel कैमरा",
+            "values-mr" to "Pixel Camera",
+            "values-gu" to "Pixel Camera",
+            "values-bn" to "Pixel ক্যামেরা",
+            "values-pa" to "Pixel ਕੈਮਰਾ",
+            "values-ta" to "Pixel கேமரா",
+            "values-te" to "Pixel కెమెరా",
+            "values-kn" to "Pixel ಕ್ಯಾಮರಾ",
+            "values-ml" to "Pixel ക്യാമറ",
+            "values-or" to "Pixel କେମେରା",
+            "values-as" to "Pixel কেমেৰা",
+            "values-ne" to "Pixel क्यामेरा",
+            "values-si" to "Pixel කැමරාව",
+            "values-my" to "Pixel ကင်မရာ",
+            "values-km" to "កាមេរ៉ា Pixel",
+            "values-lo" to "ກ້ອງ Pixel",
+            "values-th" to "กล้อง Pixel",
+            "values-vi" to "Camera Pixel",
+            "values-in" to "Kamera Pixel",
+            "values-id" to "Kamera Pixel",
+            "values-ms" to "Kamera Pixel",
+            "values-tl" to "Pixel Camera",
+            "values-fil" to "Pixel Camera",
+            "values-ja" to "Pixel カメラ",
+            "values-ko" to "Pixel 카메라",
+            "values-zh" to "Pixel 相機",
+            "values-zh-rCN" to "Pixel 相机",
+            "values-zh-rHK" to "Pixel 相機",
+            "values-zh-rTW" to "Pixel 相機",
+            "values-mn" to "Pixel Камер",
+            "values-en-rAU" to "Pixel Camera",
+            "values-en-rCA" to "Pixel Camera",
+            "values-en-rIE" to "Pixel Camera",
+            "values-en-rIN" to "Pixel Camera",
+            "values-en-rSG" to "Pixel Camera",
+            "values-en-rXC" to "Pixel Camera",
+            "values-en-rZA" to "Pixel Camera"
+        )
+        val appNameRegex = Regex("""<string name="app_name">.*?</string>""")
+        for ((dir, label) in langMap) {
+            try {
+                val f = context.get("res/$dir/strings.xml", false)
+                if (f.exists()) {
+                    var c = f.readText(Charsets.UTF_8)
+                    if (c.contains("""<string name="app_name">""")) {
+                        c = appNameRegex.replace(c, """<string name="app_name">$label</string>""")
+                    } else {
+                        c = c.replace("<resources>", "<resources>\n    <string name=\"app_name\">$label</string>")
+                    }
+                    f.writeText(c, Charsets.UTF_8)
+                }
+            } catch (_: Throwable) {}
+        }
+    }
 }

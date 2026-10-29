@@ -451,6 +451,7 @@ class SmokeTest {
         var foundPbeNoise = false
         var foundJpgOptionsInit = false
         var foundJpgOptionsB = false
+        var foundAaeiNoise = false
         for (dexFile in dexDir.listFiles() ?: emptyArray()) {
             if (!dexFile.name.endsWith(".dex")) continue
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
@@ -476,14 +477,23 @@ class SmokeTest {
                         if (ref.contains("TomteInitHelper;->getJpegQuality")) foundJpgOptionsB = true
                     }
                 }
+                if (c.type == "Laaei;") {
+                    for (m in c.methods) {
+                        for (ins in m.implementation?.instructions ?: emptyList()) {
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (ref.contains("TomteInitHelper;->filterNoiseScale")) foundAaeiNoise = true
+                        }
+                    }
+                }
             }
         }
-        println("Image Quality hooks: pbe.jpeg=$foundPbeJpeg, pbe.noise=$foundPbeNoise, JpgEncodeOptions.<init>=$foundJpgOptionsInit, JpgEncodeOptions.b=$foundJpgOptionsB")
+        println("Image Quality hooks: pbe.jpeg=$foundPbeJpeg, pbe.noise=$foundPbeNoise, JpgOptions.init=$foundJpgOptionsInit, JpgOptions.b=$foundJpgOptionsB, aaei.noise=$foundAaeiNoise")
         if (foundPbeJpeg || foundPbeNoise) {
             assertTrue(foundPbeJpeg, "pbe must call TomteInitHelper.getJpegQuality")
             assertTrue(foundPbeNoise, "pbe must call TomteInitHelper.getNoiseReductionMode")
             assertTrue(foundJpgOptionsInit, "JpgEncodeOptions.<init> must call TomteInitHelper.getJpegQuality")
             assertTrue(foundJpgOptionsB, "JpgEncodeOptions.b must call TomteInitHelper.getJpegQuality")
+            assertTrue(foundAaeiNoise, "aaei must call TomteInitHelper.filterNoiseScale")
         }
     }
 
@@ -527,6 +537,39 @@ class SmokeTest {
         }
         if (foundLts) {
             assertTrue(!ltsHasIAbort, "lts.smali must not abort on lts.i() in single slider video mode")
+        }
+    }
+
+    @Test
+    fun testLocalizedAppNameMapping() {
+        // Verify key locale app names
+        val apktoolResDir = java.io.File("../apktool_full/res")
+        if (!apktoolResDir.exists()) {
+            println("Skipping testLocalizedAppNameMapping: apktool_full/res does not exist in test runner context")
+            return
+        }
+        val expected = mapOf(
+            "values" to "Pixel Camera",
+            "values-de" to "Pixel Kamera",
+            "values-fr" to "Appareil photo Pixel",
+            "values-es" to "Cámara Pixel",
+            "values-it" to "Fotocamera Pixel",
+            "values-pt-rBR" to "Câmera Pixel",
+            "values-pt-rPT" to "Câmara Pixel",
+            "values-nl" to "Pixel Camera",
+            "values-pl" to "Aparat Pixel",
+            "values-ru" to "Камера Pixel",
+            "values-ja" to "Pixel カメラ"
+        )
+        val appNameRegex = Regex("""<string name="app_name">([^<]+)</string>""")
+        for ((loc, expectedLabel) in expected) {
+            val f = java.io.File(apktoolResDir, "$loc/strings.xml")
+            if (f.exists()) {
+                val match = appNameRegex.find(f.readText(Charsets.UTF_8))
+                val label = match?.groupValues?.get(1)
+                println("Checking $loc: expected '$expectedLabel', got '$label'")
+                assertTrue(label == expectedLabel, "Expected app_name for $loc to be '$expectedLabel', but got '$label'")
+            }
         }
     }
 }

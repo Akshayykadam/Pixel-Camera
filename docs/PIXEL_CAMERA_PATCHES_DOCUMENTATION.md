@@ -7,7 +7,7 @@ This document provides a comprehensive technical record of the engineering work,
 ### Target Package
 - **Package Name:** `com.google.android.GoogleCamera`
 - **Target Version:** `11.1.040.982810059.19`
-- **Output Artifact:** [patches-1.0.7.mpp](file:///Users/akshaykadam/Desktop/patches-1.0.7.mpp) (Morphe Patch Bundle on Desktop)
+- **Output Artifact:** [patches-1.0.8.mpp](file:///Users/akshaykadam/Desktop/patches-1.0.8.mpp) (Morphe Patch Bundle on Desktop)
 
 ---
 

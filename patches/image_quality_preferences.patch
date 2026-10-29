@@ -35,3 +35,21 @@
 +    move-result p1
 +
      iget-wide v0, p0, Lcom/google/googlex/gcam/JpgEncodeOptions;->a:J
+--- a/smali/aaei.smali
++++ b/smali/aaei.smali
+@@ -8584,3 +8584,5 @@
+     invoke-virtual {v4}, Ljava/lang/Double;->floatValue()F
+
+     move-result v4
++
++    invoke-static {v4}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterNoiseScale(F)F
++
++    move-result v4
+@@ -8596,3 +8598,5 @@
+     invoke-virtual {v4}, Ljava/lang/Double;->floatValue()F
+
+     move-result v4
++
++    invoke-static {v4}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterNoiseScale(F)F
++
+     move-result v4

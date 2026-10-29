@@ -486,5 +486,31 @@ val cameraLooksPatch = bytecodePatch(
                 } catch (_: Throwable) {}
             }
         }
+
+        // ── 22. Hook Laaei; for Gcam HDR+ NoiseModel tuning ──
+        mutableClassDefByOrNull("Laaei;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.returnType == "Lcom/google/googlex/gcam/FrameMetadata;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val cCallIndices = impl.instructions.mapIndexedNotNull { idx, ins ->
+                    if ((ins as? ReferenceInstruction)?.reference?.toString() == "Lcom/google/googlex/gcam/FloatVector;->c(F)V") idx else null
+                }
+                for (idx in cCallIndices.reversed()) {
+                    val ins = impl.instructions[idx] as? FiveRegisterInstruction
+                    val reg = ins?.registerD ?: 4
+                    val hookSmali = """
+                        invoke-static {v$reg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterNoiseScale(F)F
+                        move-result v$reg
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        var pos = idx
+                        for (hookIns in insList) {
+                            impl.addInstruction(pos++, hookIns)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
     }
 }
+
