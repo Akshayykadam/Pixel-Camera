@@ -2969,7 +2969,7 @@ def patch_camera_app_smali():
     print("    [+] CameraApp.smali patched successfully.")
 
 def inject_tomte_init_helper():
-    print("[*] Injecting TomteInitHelper...")
+    print("[*] Injecting TomteInitHelper and ProSettingsPanel...")
     helper_src = os.path.join(ROOT_DIR, "smali_patches", "TomteInitHelper.smali")
     if not os.path.exists(helper_src):
         helper_src = os.path.join(ROOT_DIR, "scratch", "smali_out", "smali", "com", "google", "android", "patch", "cameralooks", "TomteInitHelper.smali")
@@ -2981,6 +2981,12 @@ def inject_tomte_init_helper():
         print(f"    [+] Injected {helper_dst}")
     else:
         print(f"    [!] Warning: {helper_src} not found!")
+
+    import glob
+    for smali_file in glob.glob(os.path.join(ROOT_DIR, "smali_patches", "TomteProSettingsPanel*.smali")):
+        dst = os.path.join(helper_dst_dir, os.path.basename(smali_file))
+        shutil.copyfile(smali_file, dst)
+        print(f"    [+] Injected {os.path.basename(smali_file)}")
 
 def patch_mkm_smali():
     print("[*] Patching mkm.smali (Make Flare Removal a safe no-op to prevent FinishShot crashes)...")
@@ -4046,6 +4052,77 @@ def patch_ons_smali():
         print("    [+] ons.smali: e() patched to keep 50MP option enabled in UI.")
     elif "const/4 v0, 0x1\n\n    sget-object v1, Lpph;->m:Lpph;" in content:
         print("    [+] ons.smali: 50MP UI already kept enabled.")
+    else:
+        print("    [!] Warning: target not found in ons.smali")
+
+def patch_poy_smali():
+    print("[*] Patching poy.smali (Inject TomteProSettingsPanel in bottomsheet M(I))...")
+    poy_path = os.path.join(APKTOOL_DIR, "smali", "poy.smali")
+    if not os.path.exists(poy_path):
+        print("    [!] Warning: poy.smali not found.")
+        return
+    with open(poy_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """.method public final M(I)V
+    .locals 3
+
+    iget-object v0, p0, Lpoy;->B:Lusf;"""
+    replacement = """.method public final M(I)V
+    .locals 3
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->injectProSettings(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Lpoy;->B:Lusf;"""
+
+    if target in content and "invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->injectProSettings" not in content[:content.find(target) + 200]:
+        content = content.replace(target, replacement)
+        print("    [+] poy.smali patched M(I) with TomteProSettingsPanel.injectProSettings.")
+
+    target_r = """.method public final r(I)V
+    .locals 1
+
+    iget-boolean v0, p0, Lpoy;->U:Z"""
+    replacement_r = """.method public final r(I)V
+    .locals 1
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->injectProSettings(Ljava/lang/Object;)V
+
+    iget-boolean v0, p0, Lpoy;->U:Z"""
+
+    if target_r in content:
+        content = content.replace(target_r, replacement_r)
+        print("    [+] poy.smali patched r(I) with TomteProSettingsPanel.injectProSettings.")
+
+    with open(poy_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_pji_smali():
+    print("[*] Patching pji.smali (Inject TomteProSettingsPanel at end of wire loop)...")
+    pji_path = os.path.join(APKTOOL_DIR, "smali", "pji.smali")
+    if not os.path.exists(pji_path):
+        print("    [!] Warning: pji.smali not found.")
+        return
+    with open(pji_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """    :cond_6
+    if-eqz v5, :cond_7"""
+    replacement = """    :cond_6
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->injectProSettings(Ljava/lang/Object;)V
+
+    if-eqz v5, :cond_7"""
+
+    if "TomteProSettingsPanel;->injectProSettings" not in content:
+        if target in content:
+            content = content.replace(target, replacement)
+            with open(pji_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] pji.smali patched with TomteProSettingsPanel.injectProSettings.")
+        else:
+            print("    [!] Warning: target not found in pji.smali")
+    else:
+        print("    [+] pji.smali already contains TomteProSettingsPanel.")
 
 
 def patch_qfr_smali():
@@ -8272,6 +8349,8 @@ def main():
     patch_pyp_smali()
     patch_rdb_smali()
     patch_ons_smali()
+    patch_poy_smali()
+    patch_pji_smali()
     patch_sauce_onboarding()
     patch_sof_smali()
     patch_creator_suite_smali()
