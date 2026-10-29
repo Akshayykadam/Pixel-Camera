@@ -1975,6 +1975,50 @@ def patch_libgcastartup():
         elif orig5 == bytes.fromhex("20008052c0035fd6"):
             print("    [+] 0x2420880 already patched.")
 
+        # 6. 0x442ef3c: cbz x8, #0x442ef68 (68 01 00 b4) -> b #0x442ef68 (0b 00 00 14)
+        # Bypasses Halide pyramidal Luma denoiser kernel in finish_raw, jumping straight to operator delete(runner)
+        f.seek(0x442ef3c)
+        orig6 = f.read(4)
+        if orig6 == bytes.fromhex("680100b4"):
+            f.seek(0x442ef3c)
+            f.write(bytes.fromhex("0b000014"))
+            print("    [+] Patched 0x442ef3c: cbz -> b (bypass Halide Luma denoiser kernel)")
+        elif orig6 == bytes.fromhex("0b000014"):
+            print("    [+] 0x442ef3c already patched.")
+
+        # 7. 0x442efb4: cbz x8, #0x442efe4 (88 01 00 b4) -> b #0x442efe4 (0c 00 00 14)
+        # Bypasses Halide pyramidal Chroma denoiser kernel in finish_raw
+        f.seek(0x442efb4)
+        orig7 = f.read(4)
+        if orig7 == bytes.fromhex("880100b4"):
+            f.seek(0x442efb4)
+            f.write(bytes.fromhex("0c000014"))
+            print("    [+] Patched 0x442efb4: cbz -> b (bypass Halide Chroma denoiser kernel)")
+        elif orig7 == bytes.fromhex("0c000014"):
+            print("    [+] 0x442efb4 already patched.")
+
+        # 8. 0x534f36c: cbz w9, #0x534f424 (c9 05 00 34) -> nop (1f 20 03 d5)
+        # Forces Pecan neural RAW denoiser into PecanNoOpCopy mode (skips TPU/GPU neural network inference, copying raw sensor pixels directly)
+        f.seek(0x534f36c)
+        orig8 = f.read(4)
+        if orig8 == bytes.fromhex("c9050034"):
+            f.seek(0x534f36c)
+            f.write(bytes.fromhex("1f2003d5"))
+            print("    [+] Patched 0x534f36c: cbz -> nop (force PecanNoOpCopy)")
+        elif orig8 == bytes.fromhex("1f2003d5"):
+            print("    [+] 0x534f36c already patched.")
+
+        # 9. 0x534f5f4: fmov s10, #1.00000000 (0a 10 2e 1e) -> fmov s10, wzr (ea 03 27 1e)
+        # Sets Pecan residual_scaling_factor to 0.0f (no noise residual subtraction)
+        f.seek(0x534f5f4)
+        orig9 = f.read(4)
+        if orig9 == bytes.fromhex("0a102e1e"):
+            f.seek(0x534f5f4)
+            f.write(bytes.fromhex("ea03271e"))
+            print("    [+] Patched 0x534f5f4: fmov s10, #1.0 -> fmov s10, wzr (0.0f residual scaling)")
+        elif orig9 == bytes.fromhex("ea03271e"):
+            print("    [+] 0x534f5f4 already patched.")
+
 
 def patch_msr_smali():
     print("[*] Patching msr.smali (Enabling native Tomte model in InitParams and Gcam creation, was mjy)...")
@@ -3607,9 +3651,260 @@ def patch_mtt_smali():
     if target_metadata in content:
         content = content.replace(target_metadata, repl_metadata, 1)
 
+    # Hook Pecan ML Denoiser in ShotParams
+    pecan_target = """    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget-boolean v3, v2, Lmvg;->b:Z
+
+    invoke-static {v10, v11, v9, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_pecan_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget-object v2, v2, Lmvg;->a:Laaaa;
+
+    iget v2, v2, Laaaa;->h:I
+
+    invoke-static {v10, v11, v9, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_pecan_model_type_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
+
+    pecan_repl = """    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget-boolean v3, v2, Lmvg;->b:Z
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterPecanForce(Z)Z
+
+    move-result v3
+
+    invoke-static {v10, v11, v9, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_pecan_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget-object v2, v2, Lmvg;->a:Laaaa;
+
+    iget v2, v2, Laaaa;->h:I
+
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterPecanModelType(I)I
+
+    move-result v2
+
+    invoke-static {v10, v11, v9, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_pecan_model_type_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
+
+    if pecan_target in content:
+        content = content.replace(pecan_target, pecan_repl, 1)
+        print("    [+] mtt.smali: ShotParams Pecan ML denoiser hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterPecanForce" in content:
+        print("    [+] mtt.smali: ShotParams Pecan ML denoiser already hooked.")
+
+    # Hook Sky Denoise Strengthener in ShotParams
+    sky_target = """    iget-wide v11, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v11, v12, v9, v10}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_strengthen_denoise_for_sky_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    sky_repl = """    iget-wide v11, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v10}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterSkyDenoise(Z)Z
+
+    move-result v10
+
+    invoke-static {v11, v12, v9, v10}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_strengthen_denoise_for_sky_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    if sky_target in content:
+        content = content.replace(sky_target, sky_repl, 1)
+        print("    [+] mtt.smali: ShotParams Sky denoise strengthener hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterSkyDenoise" in content:
+        print("    [+] mtt.smali: ShotParams Sky denoise strengthener already hooked.")
+
+    # Hook Chess in ShotParams
+    chess_target = """    iget-wide v3, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3, v4, v9, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_chess_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    chess_repl = """    iget-wide v3, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterChessEnabled(Z)Z
+
+    move-result v2
+
+    invoke-static {v3, v4, v9, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_chess_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    if chess_target in content:
+        content = content.replace(chess_target, chess_repl, 1)
+        print("    [+] mtt.smali: ShotParams Chess denoiser hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterChessEnabled" in content:
+        print("    [+] mtt.smali: ShotParams Chess denoiser already hooked.")
+
     with open(mtt_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] mtt.smali patched: getEffectiveLookId hooked for ShotParams and TomteMetadata.")
+    print("    [+] mtt.smali patched: getEffectiveLookId & denoiser filters hooked.")
+
+
+def patch_pyp_smali():
+    print("[*] Patching pyp.smali (ShotParams Walnut, Chess, Edamame, Almond, and Mochi ML models)...")
+    pyp_path = os.path.join(APKTOOL_DIR, "smali", "pyp.smali")
+    if not os.path.exists(pyp_path):
+        print("    [!] Warning: pyp.smali not found.")
+        return
+    with open(pyp_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    walnut_target = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    walnut_repl = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterWalnutEnabled(Z)Z
+
+    move-result v3
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    walnut_opt_target = """    iget-wide v7, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget v6, v6, Laaam;->c:I
+
+    invoke-static {v7, v8, v1, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_option_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
+
+    walnut_opt_repl = """    iget-wide v7, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    iget v6, v6, Laaam;->c:I
+
+    invoke-static {v6}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterWalnutOption(I)I
+
+    move-result v6
+
+    invoke-static {v7, v8, v1, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_option_set(JLcom/google/googlex/gcam/ShotParams;I)V"""
+
+    chess_force_target = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_chess_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    chess_force_repl = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterChessEnabled(Z)Z
+
+    move-result v3
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_chess_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    edamame_target = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    edamame_repl = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterEdamameEnabled(Z)Z
+
+    move-result v3
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterEdamameEnabled(Z)Z
+
+    move-result v5
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    almond_target = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_force_apply_limited_by_times_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    almond_repl = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterAlmondEnabled(Z)Z
+
+    move-result v3
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterAlmondEnabled(Z)Z
+
+    move-result v5
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_force_apply_limited_by_times_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    mochi_target = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    mochi_repl = """    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterMochiEnabled(Z)Z
+
+    move-result v3
+
+    invoke-static {v6, v7, v1, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    iget-wide v6, v1, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterMochiEnabled(Z)Z
+
+    move-result v5
+
+    invoke-static {v6, v7, v1, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V"""
+
+    modified = False
+    if walnut_target in content:
+        content = content.replace(walnut_target, walnut_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Walnut ML denoiser hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterWalnutEnabled" in content:
+        print("    [+] pyp.smali: Walnut ML denoiser already hooked.")
+
+    if walnut_opt_target in content:
+        content = content.replace(walnut_opt_target, walnut_opt_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Walnut option hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterWalnutOption" in content:
+        print("    [+] pyp.smali: Walnut option already hooked.")
+
+    if chess_force_target in content:
+        content = content.replace(chess_force_target, chess_force_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Force Chess denoiser hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterChessEnabled" in content:
+        print("    [+] pyp.smali: Force Chess denoiser already hooked.")
+
+    if edamame_target in content:
+        content = content.replace(edamame_target, edamame_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Bento Edamame hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterEdamameEnabled" in content:
+        print("    [+] pyp.smali: Bento Edamame already hooked.")
+
+    if almond_target in content:
+        content = content.replace(almond_target, almond_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Almond texture filter hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterAlmondEnabled" in content:
+        print("    [+] pyp.smali: Almond texture filter already hooked.")
+
+    if mochi_target in content:
+        content = content.replace(mochi_target, mochi_repl, 1)
+        modified = True
+        print("    [+] pyp.smali: Mochi filter hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->filterMochiEnabled" in content:
+        print("    [+] pyp.smali: Mochi filter already hooked.")
+
+    if modified:
+        with open(pyp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] pyp.smali patched successfully.")
 
 
 def patch_qfr_smali():
@@ -7768,6 +8063,7 @@ def main():
     patch_jex_smali()
     patch_rfx_smali()
     patch_mtt_smali()
+    patch_pyp_smali()
     patch_sauce_onboarding()
     patch_sof_smali()
     patch_creator_suite_smali()

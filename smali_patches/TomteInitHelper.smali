@@ -701,67 +701,21 @@
 
     move-result v1
 
-    if-eqz v1, :cond_default
-
-    :cond_ret_off
-    const/4 v0, 0x0
-
-    return v0
-    :try_end_nr
-    .catch Ljava/lang/Throwable; {:try_start_nr .. :try_end_nr} :catch_nr
-
-    :catch_nr
-    :cond_default
-    const/4 v0, 0x1
-
-    return v0
-.end method
-
-.method public static filterNoiseScale(F)F
-    .locals 2
-
-    :try_start_fns
-    const-string v0, "pref_camera_noise_reduction_key"
-
-    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
-
-    move-result-object v0
-
-    if-eqz v0, :cond_ret_stock
-
-    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
-
-    move-result-object v0
-
-    const-string v1, "off"
-
-    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-nez v1, :cond_ret_off
-
-    const-string v1, "0"
-
-    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_minimal
+    if-eqz v1, :cond_check_min
 
     :cond_ret_off
     const/4 v0, 0x0
 
     return v0
 
-    :cond_check_minimal
+    :cond_check_min
     const-string v1, "minimal"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
 
     move-result v1
 
-    if-nez v1, :cond_ret_minimal
+    if-nez v1, :cond_ret_min
 
     const-string v1, "3"
 
@@ -769,10 +723,196 @@
 
     move-result v0
 
-    if-eqz v0, :cond_ret_stock
+    if-eqz v0, :cond_default
 
-    :cond_ret_minimal
-    const/high16 v0, 0x3e800000    # 0.25f
+    :cond_ret_min
+    const/4 v0, 0x1
+
+    return v0
+
+    :try_end_nr
+    .catch Ljava/lang/Throwable; {:try_start_nr .. :try_end_nr} :catch_nr
+
+    :catch_nr
+    :cond_default
+    const/4 v0, 0x2
+
+    return v0
+.end method
+
+.method public static filterPecanForce(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterPecanModelType(I)I
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterWalnutEnabled(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterWalnutOption(I)I
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterChessEnabled(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterEdamameEnabled(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterAlmondEnabled(Z)Z
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    if-nez v0, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterMochiEnabled(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterSkyDenoise(Z)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_ret_orig
+
+    const/4 p0, 0x0
+
+    :cond_ret_orig
+    return p0
+.end method
+
+.method public static filterNoiseScale(F)F
+    .locals 2
+
+    :try_start_fns
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    if-nez v0, :cond_check_min
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_min
+    const/4 v1, 0x1
+
+    if-ne v0, v1, :cond_ret_stock
+
+    const/high16 v0, 0x3f000000    # 0.5f
 
     mul-float/2addr p0, v0
 
