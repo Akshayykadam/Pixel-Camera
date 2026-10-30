@@ -1918,6 +1918,58 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_lobster
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_lobster
+    const-string v0, "camera.lobster"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_crawfish
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_crawfish
+    const-string v0, "camera.crawfish"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_raw_mode
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_raw_mode
+    const-string v0, "camera.raw_mode"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_enable_raw_setting
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_enable_raw_setting
+    const-string v0, "camera.enable_raw_setting"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_check_chameleon
 
     const/4 v0, 0x1

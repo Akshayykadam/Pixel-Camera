@@ -20,9 +20,11 @@
 # instance fields
 .field final synthetic val$target:Landroid/widget/LinearLayout;
 
+.field final synthetic val$targetObj:Ljava/lang/Object;
+
 
 # direct methods
-.method constructor <init>(Landroid/widget/LinearLayout;)V
+.method constructor <init>(Ljava/lang/Object;Landroid/widget/LinearLayout;)V
     .locals 0
     .annotation system Ldalvik/annotation/Signature;
         value = {
@@ -31,7 +33,9 @@
     .end annotation
 
     .line 61
-    iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$target:Landroid/widget/LinearLayout;
+    iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$targetObj:Ljava/lang/Object;
+
+    iput-object p2, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$target:Landroid/widget/LinearLayout;
 
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
 
@@ -45,9 +49,11 @@
 
     .line 65
     :try_start_0
-    iget-object v0, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$target:Landroid/widget/LinearLayout;
+    iget-object v0, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$targetObj:Ljava/lang/Object;
 
-    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smbuildOrUpdatePanel(Landroid/widget/LinearLayout;)V
+    iget-object v1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$1;->val$target:Landroid/widget/LinearLayout;
+
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smbuildOrUpdatePanel(Ljava/lang/Object;Landroid/widget/LinearLayout;)V
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 

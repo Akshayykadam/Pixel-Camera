@@ -55,7 +55,9 @@
     if-eqz v0, :cond_0
 
     .line 89
-    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smbuildOrUpdatePanel(Landroid/widget/LinearLayout;)V
+    iget-object v1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$2;->val$targetObj:Ljava/lang/Object;
+
+    invoke-static {v1, v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smbuildOrUpdatePanel(Ljava/lang/Object;Landroid/widget/LinearLayout;)V
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 
