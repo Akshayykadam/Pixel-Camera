@@ -935,33 +935,33 @@
 
     move-result-object v0
 
-    if-eqz v0, :cond_default_uncompressed
+    if-eqz v0, :cond_default_compressed
 
     invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
     move-result-object v0
 
-    const-string v1, "compressed"
+    const-string v1, "uncompressed"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
 
     move-result v0
 
-    if-eqz v0, :cond_default_uncompressed
+    if-eqz v0, :cond_default_compressed
 
-    const/4 p0, 0x1
+    const/4 p0, 0x0
 
     return p0
 
-    :cond_default_uncompressed
-    const/4 p0, 0x0
+    :cond_default_compressed
+    const/4 p0, 0x1
 
     return p0
     :try_end_fcd
     .catch Ljava/lang/Throwable; {:try_start_fcd .. :try_end_fcd} :catch_fcd
 
     :catch_fcd
-    const/4 p0, 0x0
+    const/4 p0, 0x1
     return p0
 .end method
 
@@ -975,7 +975,7 @@
 
     move-result-object v0
 
-    if-eqz v0, :cond_em_natural
+    if-eqz v0, :cond_em_standard
 
     invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
@@ -995,35 +995,35 @@
 
     move-result v1
 
-    if-eqz v1, :cond_em_standard
+    if-eqz v1, :cond_check_natural
 
     :cond_em_soft
     const/4 v0, 0x0
 
     return v0
 
-    :cond_em_standard
-    const-string v1, "standard"
+    :cond_check_natural
+    const-string v1, "natural"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
 
     move-result v0
 
-    if-eqz v0, :cond_em_natural
+    if-eqz v0, :cond_em_standard
 
-    const/4 v0, 0x2
+    const/4 v0, 0x1
 
     return v0
 
-    :cond_em_natural
-    const/4 v0, 0x1
+    :cond_em_standard
+    const/4 v0, 0x2
 
     return v0
     :try_end_gem
     .catch Ljava/lang/Throwable; {:try_start_gem .. :try_end_gem} :catch_gem
 
     :catch_gem
-    const/4 v0, 0x1
+    const/4 v0, 0x2
 
     return v0
 .end method
@@ -1038,7 +1038,7 @@
 
     move-result-object v0
 
-    if-eqz v0, :cond_ret_natural
+    if-eqz v0, :cond_ret_standard
 
     invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
@@ -1058,35 +1058,35 @@
 
     move-result v1
 
-    if-eqz v1, :cond_check_standard
+    if-eqz v1, :cond_check_natural
 
     :cond_ret_soft
     const/4 v0, 0x0
 
     return v0
 
-    :cond_check_standard
-    const-string v1, "standard"
+    :cond_check_natural
+    const-string v1, "natural"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
 
     move-result v0
 
-    if-eqz v0, :cond_ret_natural
+    if-eqz v0, :cond_ret_standard
 
-    const/high16 v0, 0x3f800000    # 1.0f
+    const/high16 v0, 0x3f000000    # 0.5f
 
     return v0
 
-    :cond_ret_natural
-    const/high16 v0, 0x3f000000    # 0.5f
+    :cond_ret_standard
+    const/high16 v0, 0x3f800000    # 1.0f
 
     return v0
     :try_end_gsf
     .catch Ljava/lang/Throwable; {:try_start_gsf .. :try_end_gsf} :catch_gsf
 
     :catch_gsf
-    const/high16 v0, 0x3f000000    # 0.5f
+    const/high16 v0, 0x3f800000    # 1.0f
 
     return v0
 .end method
