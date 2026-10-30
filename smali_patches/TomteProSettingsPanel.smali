@@ -98,12 +98,12 @@
 .method private static applyPillState(Landroid/content/Context;Landroid/widget/TextView;ZLcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
     .locals 2
 
-    .line 863
+    .line 852
     new-instance v0, Landroid/graphics/drawable/GradientDrawable;
 
     invoke-direct {v0}, Landroid/graphics/drawable/GradientDrawable;-><init>()V
 
-    .line 865
+    .line 854
     const/16 v1, 0x64
 
     invoke-static {p0, v1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
@@ -114,49 +114,49 @@
 
     invoke-virtual {v0, p0}, Landroid/graphics/drawable/GradientDrawable;->setCornerRadius(F)V
 
-    .line 866
+    .line 855
     if-eqz p2, :cond_0
 
-    .line 867
+    .line 856
     iget p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorSelectedBg:I
 
     invoke-virtual {v0, p0}, Landroid/graphics/drawable/GradientDrawable;->setColor(I)V
 
-    .line 868
+    .line 857
     invoke-virtual {p1, v0}, Landroid/widget/TextView;->setBackground(Landroid/graphics/drawable/Drawable;)V
 
-    .line 869
+    .line 858
     iget p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorSelectedText:I
 
     invoke-virtual {p1, p0}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 870
+    .line 859
     iget-object p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->valueTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {p1, p0}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
     goto :goto_0
 
-    .line 872
+    .line 861
     :cond_0
     iget p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorUnselectedBg:I
 
     invoke-virtual {v0, p0}, Landroid/graphics/drawable/GradientDrawable;->setColor(I)V
 
-    .line 873
+    .line 862
     invoke-virtual {p1, v0}, Landroid/widget/TextView;->setBackground(Landroid/graphics/drawable/Drawable;)V
 
-    .line 874
+    .line 863
     iget p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorUnselectedText:I
 
     invoke-virtual {p1, p0}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 875
+    .line 864
     iget-object p0, p3, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->labelTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {p1, p0}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
-    .line 877
+    .line 866
     :goto_0
     return-void
 .end method
@@ -164,24 +164,24 @@
 .method private static attachStockRawObserver(Landroid/widget/LinearLayout;)V
     .locals 4
 
-    .line 602
+    .line 591
     if-nez p0, :cond_0
 
     return-void
 
-    .line 604
+    .line 593
     :cond_0
     :try_start_0
     invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->findStockRawRow(Landroid/view/ViewGroup;)Landroid/view/View;
 
     move-result-object v0
 
-    .line 605
+    .line 594
     if-nez v0, :cond_1
 
     return-void
 
-    .line 607
+    .line 596
     :cond_1
     sget-object v1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->observedRows:Ljava/util/WeakHashMap;
 
@@ -189,7 +189,7 @@
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_1
 
-    .line 608
+    .line 597
     :try_start_1
     sget-object v2, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->observedRows:Ljava/util/WeakHashMap;
 
@@ -199,12 +199,12 @@
 
     if-eqz v2, :cond_2
 
-    .line 609
+    .line 598
     monitor-exit v1
 
     return-void
 
-    .line 611
+    .line 600
     :cond_2
     sget-object v2, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->observedRows:Ljava/util/WeakHashMap;
 
@@ -212,12 +212,12 @@
 
     invoke-virtual {v2, v0, v3}, Ljava/util/WeakHashMap;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
 
-    .line 612
+    .line 601
     monitor-exit v1
     :try_end_1
     .catchall {:try_start_1 .. :try_end_1} :catchall_0
 
-    .line 615
+    .line 604
     :try_start_2
     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
@@ -229,27 +229,27 @@
 
     move-result-object v1
 
-    .line 616
+    .line 605
     if-eqz v1, :cond_3
 
-    .line 617
+    .line 606
     invoke-virtual {v1, v0}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
 
     move-result-object v1
 
     check-cast v1, Landroid/widget/TextView;
 
-    .line 618
+    .line 607
     if-eqz v1, :cond_3
 
-    .line 619
+    .line 608
     new-instance v2, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$4;
 
     invoke-direct {v2, p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$4;-><init>(Landroid/widget/LinearLayout;)V
 
     invoke-virtual {v1, v2}, Landroid/widget/TextView;->addTextChangedListener(Landroid/text/TextWatcher;)V
 
-    .line 638
+    .line 627
     :cond_3
     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
@@ -261,20 +261,20 @@
 
     move-result-object v1
 
-    .line 639
+    .line 628
     if-eqz v1, :cond_5
 
-    .line 640
+    .line 629
     invoke-virtual {v1, v0}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
 
     move-result-object v0
 
     check-cast v0, Ljava/util/List;
 
-    .line 641
+    .line 630
     if-eqz v0, :cond_5
 
-    .line 642
+    .line 631
     invoke-interface {v0}, Ljava/util/List;->iterator()Ljava/util/Iterator;
 
     move-result-object v0
@@ -290,32 +290,32 @@
 
     move-result-object v1
 
-    .line 643
+    .line 632
     instance-of v2, v1, Landroid/view/ViewGroup;
 
     if-eqz v2, :cond_4
 
-    .line 644
+    .line 633
     check-cast v1, Landroid/view/ViewGroup;
 
-    .line 645
+    .line 634
     invoke-virtual {v1}, Landroid/view/ViewGroup;->getChildCount()I
 
     move-result v2
 
     if-lez v2, :cond_4
 
-    .line 646
+    .line 635
     const/4 v2, 0x0
 
     invoke-virtual {v1, v2}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v1
 
-    .line 647
+    .line 636
     if-eqz v1, :cond_4
 
-    .line 648
+    .line 637
     new-instance v2, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;
 
     invoke-direct {v2, p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;-><init>(Landroid/widget/LinearLayout;)V
@@ -324,15 +324,15 @@
     :try_end_2
     .catchall {:try_start_2 .. :try_end_2} :catchall_1
 
-    .line 665
+    .line 654
     :cond_4
     goto :goto_0
 
-    .line 670
+    .line 659
     :cond_5
     goto :goto_1
 
-    .line 612
+    .line 601
     :catchall_0
     move-exception p0
 
@@ -346,18 +346,18 @@
     :try_end_4
     .catchall {:try_start_4 .. :try_end_4} :catchall_1
 
-    .line 668
+    .line 657
     :catchall_1
     move-exception p0
 
-    .line 669
+    .line 658
     const-string v0, "TomteProSettings"
 
     const-string v1, "Error attaching stock raw observer"
 
     invoke-static {v0, v1, p0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
 
-    .line 671
+    .line 660
     :goto_1
     return-void
 .end method
@@ -471,28 +471,16 @@
     .line 412
     new-instance p0, Landroid/widget/LinearLayout$LayoutParams;
 
-    const/4 v2, -0x2
+    const/4 v2, -0x1
 
-    const/4 v3, -0x1
+    const/4 v3, -0x2
 
-    invoke-direct {p0, v3, v2}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
+    invoke-direct {p0, v2, v3}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
 
     .line 416
-    const/4 v2, 0x4
-
-    invoke-static {v0, v2}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v2
-
-    const/4 v4, 0x6
-
-    invoke-static {v0, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v4
-
     const/4 v10, 0x0
 
-    invoke-virtual {p0, v10, v2, v10, v4}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
+    invoke-virtual {p0, v10, v10, v10, v10}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
 
     .line 417
     invoke-virtual {v9, p0}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
@@ -500,48 +488,7 @@
     .line 419
     invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->getHorizontalMargin(Landroid/content/Context;)I
 
-    move-result p0
-
     .line 422
-    new-instance v2, Landroid/view/View;
-
-    invoke-direct {v2, v0}, Landroid/view/View;-><init>(Landroid/content/Context;)V
-
-    .line 423
-    new-instance v4, Landroid/widget/LinearLayout$LayoutParams;
-
-    .line 425
-    invoke-static {v0, v8}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v5
-
-    invoke-direct {v4, v3, v5}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
-
-    .line 427
-    const/16 v3, 0x8
-
-    invoke-static {v0, v3}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v5
-
-    invoke-static {v0, v3}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v3
-
-    invoke-virtual {v4, p0, v5, p0, v3}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
-
-    .line 428
-    invoke-virtual {v2, v4}, Landroid/view/View;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
-
-    .line 429
-    const p0, 0x1fffffff
-
-    invoke-virtual {v2, p0}, Landroid/view/View;->setBackgroundColor(I)V
-
-    .line 430
-    invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
-
-    .line 433
     const/4 p0, 0x3
 
     new-array v5, p0, [Ljava/lang/String;
@@ -600,7 +547,7 @@
 
     invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 445
+    .line 434
     new-array v5, p0, [Ljava/lang/String;
 
     const-string v2, "off"
@@ -655,7 +602,7 @@
 
     invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 457
+    .line 446
     new-array v5, v11, [Ljava/lang/String;
 
     const-string v2, "uncompressed"
@@ -696,7 +643,7 @@
 
     invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 469
+    .line 458
     new-array v5, p0, [Ljava/lang/String;
 
     const-string v2, "soft"
@@ -749,16 +696,16 @@
 
     invoke-virtual {v9, p0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 480
+    .line 469
     invoke-virtual {p1, v9}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 482
+    .line 471
     invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->attachStockRawObserver(Landroid/widget/LinearLayout;)V
 
-    .line 483
+    .line 472
     invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->updateRawFormatRowState(Landroid/view/ViewGroup;)V
 
-    .line 484
+    .line 473
     new-instance p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$3;
 
     invoke-direct {p0, p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$3;-><init>(Landroid/widget/LinearLayout;)V
@@ -767,14 +714,14 @@
 
     invoke-virtual {p1, p0, v0, v1}, Landroid/widget/LinearLayout;->postDelayed(Ljava/lang/Runnable;J)Z
 
-    .line 490
+    .line 479
     return-void
 .end method
 
 .method private static createSettingRow(Landroid/content/Context;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;)Landroid/view/View;
     .locals 16
 
-    .line 732
+    .line 721
     move-object/from16 v8, p0
 
     move-object/from16 v9, p1
@@ -787,12 +734,12 @@
 
     move-result v0
 
-    .line 733
+    .line 722
     new-instance v11, Landroid/widget/LinearLayout;
 
     invoke-direct {v11, v8}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
 
-    .line 734
+    .line 723
     new-instance v2, Ljava/lang/StringBuilder;
 
     invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
@@ -813,67 +760,63 @@
 
     invoke-virtual {v11, v2}, Landroid/widget/LinearLayout;->setTag(Ljava/lang/Object;)V
 
-    .line 735
+    .line 724
     const/4 v12, 0x0
 
     invoke-virtual {v11, v12}, Landroid/widget/LinearLayout;->setOrientation(I)V
 
-    .line 736
+    .line 725
     const/16 v2, 0x10
 
     invoke-virtual {v11, v2}, Landroid/widget/LinearLayout;->setGravity(I)V
 
-    .line 738
-    const/16 v3, 0x38
+    .line 727
+    new-instance v3, Landroid/widget/LinearLayout$LayoutParams;
 
-    invoke-static {v8, v3}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+    .line 729
+    const/16 v4, 0x38
+
+    invoke-static {v8, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v5
+
+    const/4 v6, -0x1
+
+    invoke-direct {v3, v6, v5}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
+
+    .line 727
+    invoke-virtual {v11, v3}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
+
+    .line 731
+    invoke-static {v8, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
 
     move-result v3
 
     invoke-virtual {v11, v3}, Landroid/widget/LinearLayout;->setMinimumHeight(I)V
 
-    .line 739
-    const/4 v13, 0x6
+    .line 732
+    invoke-virtual {v11, v0, v12, v0, v12}, Landroid/widget/LinearLayout;->setPadding(IIII)V
 
-    invoke-static {v8, v13}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v3
-
-    invoke-static {v8, v13}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v4
-
-    invoke-virtual {v11, v0, v3, v0, v4}, Landroid/widget/LinearLayout;->setPadding(IIII)V
-
-    .line 740
-    new-instance v0, Landroid/widget/LinearLayout$LayoutParams;
-
-    const/4 v3, -0x1
-
-    const/4 v14, -0x2
-
-    invoke-direct {v0, v3, v14}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
-
-    invoke-virtual {v11, v0}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
-
-    .line 746
+    .line 735
     new-instance v0, Landroid/widget/LinearLayout;
 
     invoke-direct {v0, v8}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
 
-    .line 747
-    const/4 v15, 0x1
+    .line 736
+    const/4 v13, 0x1
 
-    invoke-virtual {v0, v15}, Landroid/widget/LinearLayout;->setOrientation(I)V
+    invoke-virtual {v0, v13}, Landroid/widget/LinearLayout;->setOrientation(I)V
 
-    .line 748
+    .line 737
     new-instance v3, Landroid/widget/LinearLayout$LayoutParams;
 
     const/high16 v4, 0x3f800000    # 1.0f
 
+    const/4 v14, -0x2
+
     invoke-direct {v3, v12, v14, v4}, Landroid/widget/LinearLayout$LayoutParams;-><init>(IIF)V
 
-    .line 751
+    .line 740
     const/16 v4, 0x8
 
     invoke-static {v8, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
@@ -882,135 +825,129 @@
 
     invoke-virtual {v3, v4}, Landroid/widget/LinearLayout$LayoutParams;->setMarginEnd(I)V
 
-    .line 752
+    .line 741
     invoke-virtual {v0, v3}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
 
-    .line 755
+    .line 744
     new-instance v3, Landroid/widget/TextView;
 
     invoke-direct {v3, v8}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
 
-    .line 756
+    .line 745
     const-string v4, "label_text"
 
     invoke-virtual {v3, v4}, Landroid/widget/TextView;->setTag(Ljava/lang/Object;)V
 
-    .line 757
+    .line 746
     move-object/from16 v4, p3
 
     invoke-virtual {v3, v4}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
 
-    .line 758
+    .line 747
     iget v4, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->labelTextSizePx:F
 
     invoke-virtual {v3, v12, v4}, Landroid/widget/TextView;->setTextSize(IF)V
 
-    .line 759
+    .line 748
     iget v4, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorLabelText:I
 
     invoke-virtual {v3, v4}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 760
+    .line 749
     iget-object v4, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->labelTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {v3, v4}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
-    .line 761
+    .line 750
     invoke-virtual {v3, v12, v12, v12, v12}, Landroid/widget/TextView;->setPadding(IIII)V
 
-    .line 762
+    .line 751
     invoke-virtual {v0, v3}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 765
+    .line 754
     new-instance v4, Landroid/widget/TextView;
 
     invoke-direct {v4, v8}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
 
-    .line 766
+    .line 755
     const-string v3, "value_text"
 
     invoke-virtual {v4, v3}, Landroid/widget/TextView;->setTag(Ljava/lang/Object;)V
 
-    .line 767
+    .line 756
     iget v3, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->valueTextSizePx:F
 
     invoke-virtual {v4, v12, v3}, Landroid/widget/TextView;->setTextSize(IF)V
 
-    .line 768
+    .line 757
     iget v3, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorValueText:I
 
     invoke-virtual {v4, v3}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 769
+    .line 758
     iget-object v3, v9, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->valueTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {v4, v3}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
-    .line 770
+    .line 759
     invoke-virtual {v4, v12, v12, v12, v12}, Landroid/widget/TextView;->setPadding(IIII)V
 
-    .line 771
+    .line 760
     new-instance v3, Landroid/widget/LinearLayout$LayoutParams;
 
     invoke-direct {v3, v14, v14}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
 
-    .line 774
-    const/4 v5, 0x4
+    .line 763
+    invoke-virtual {v3, v12, v12, v12, v12}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
 
-    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v5
-
-    invoke-virtual {v3, v12, v5, v12, v12}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
-
-    .line 775
+    .line 764
     invoke-virtual {v4, v3}, Landroid/widget/TextView;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
 
-    .line 776
+    .line 765
     invoke-virtual {v0, v4}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 778
+    .line 767
     invoke-virtual {v11, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 781
+    .line 770
     new-instance v7, Landroid/widget/LinearLayout;
 
     invoke-direct {v7, v8}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
 
-    .line 782
+    .line 771
     const-string v0, "button_group"
 
     invoke-virtual {v7, v0}, Landroid/widget/LinearLayout;->setTag(Ljava/lang/Object;)V
 
-    .line 783
+    .line 772
     invoke-virtual {v7, v12}, Landroid/widget/LinearLayout;->setOrientation(I)V
 
-    .line 784
+    .line 773
     invoke-virtual {v7, v2}, Landroid/widget/LinearLayout;->setGravity(I)V
 
-    .line 785
+    .line 774
     new-instance v0, Landroid/widget/LinearLayout$LayoutParams;
 
     invoke-direct {v0, v14, v14}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
 
     invoke-virtual {v7, v0}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
 
-    .line 789
+    .line 778
     invoke-static {v8}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object v2
 
-    .line 790
+    .line 779
     move-object/from16 v0, p4
 
     invoke-interface {v2, v1, v0}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v0
 
-    .line 791
+    .line 780
     nop
 
-    .line 792
+    .line 781
     const/4 v3, 0x0
 
     :goto_0
@@ -1018,7 +955,7 @@
 
     if-ge v3, v5, :cond_1
 
-    .line 793
+    .line 782
     aget-object v5, v10, v3
 
     invoke-virtual {v5, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
@@ -1027,178 +964,170 @@
 
     if-eqz v5, :cond_0
 
-    .line 794
+    .line 783
     nop
 
-    .line 795
-    move v0, v3
+    .line 784
+    move v15, v3
 
     goto :goto_1
 
-    .line 792
+    .line 781
     :cond_0
     add-int/lit8 v3, v3, 0x1
 
     goto :goto_0
 
     :cond_1
-    const/4 v0, 0x0
+    const/4 v15, 0x0
 
-    .line 798
+    .line 787
     :goto_1
-    aget-object v3, p6, v0
+    aget-object v0, p6, v15
 
-    invoke-virtual {v4, v3}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+    invoke-virtual {v4, v0}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
 
-    .line 800
+    .line 789
     const/4 v6, 0x0
 
     :goto_2
-    array-length v3, v10
+    array-length v0, v10
 
-    if-ge v6, v3, :cond_4
+    if-ge v6, v0, :cond_4
 
-    .line 801
+    .line 790
     nop
 
-    .line 802
+    .line 791
     aget-object v3, v10, v6
 
-    .line 803
-    new-instance v5, Landroid/widget/TextView;
+    .line 792
+    new-instance v0, Landroid/widget/TextView;
 
-    invoke-direct {v5, v8}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
+    invoke-direct {v0, v8}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
 
-    .line 804
-    new-instance v13, Ljava/lang/StringBuilder;
+    .line 793
+    new-instance v5, Ljava/lang/StringBuilder;
 
-    invoke-direct {v13}, Ljava/lang/StringBuilder;-><init>()V
+    invoke-direct {v5}, Ljava/lang/StringBuilder;-><init>()V
 
     const-string v14, "btn_"
 
-    invoke-virtual {v13, v14}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v5, v14}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    move-result-object v13
+    move-result-object v5
 
-    invoke-virtual {v13, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v5, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    move-result-object v13
+    move-result-object v5
 
-    invoke-virtual {v13}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    invoke-virtual {v5}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
 
-    move-result-object v13
+    move-result-object v5
 
-    invoke-virtual {v5, v13}, Landroid/widget/TextView;->setTag(Ljava/lang/Object;)V
+    invoke-virtual {v0, v5}, Landroid/widget/TextView;->setTag(Ljava/lang/Object;)V
 
-    .line 805
-    aget-object v13, p7, v6
+    .line 794
+    aget-object v5, p7, v6
 
-    invoke-virtual {v5, v13}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+    invoke-virtual {v0, v5}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
 
-    .line 806
-    const/4 v13, 0x2
+    .line 795
+    const/4 v5, 0x2
 
-    const/high16 v14, 0x41500000    # 13.0f
+    const/high16 v14, 0x41480000    # 12.5f
 
-    invoke-virtual {v5, v13, v14}, Landroid/widget/TextView;->setTextSize(IF)V
+    invoke-virtual {v0, v5, v14}, Landroid/widget/TextView;->setTextSize(IF)V
 
-    .line 807
-    const/16 v13, 0x11
+    .line 796
+    const/16 v5, 0x11
 
-    invoke-virtual {v5, v13}, Landroid/widget/TextView;->setGravity(I)V
+    invoke-virtual {v0, v5}, Landroid/widget/TextView;->setGravity(I)V
 
-    .line 808
-    invoke-virtual {v5, v15}, Landroid/widget/TextView;->setSingleLine(Z)V
+    .line 797
+    invoke-virtual {v0, v13}, Landroid/widget/TextView;->setSingleLine(Z)V
 
-    .line 809
-    const/16 v13, 0xe
+    .line 798
+    const/16 v5, 0xc
 
-    invoke-static {v8, v13}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v14
+
+    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v5
+
+    invoke-virtual {v0, v14, v12, v5, v12}, Landroid/widget/TextView;->setPadding(IIII)V
+
+    .line 799
+    const/16 v5, 0x28
+
+    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
 
     move-result v14
 
-    invoke-static {v8, v13}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+    invoke-virtual {v0, v14}, Landroid/widget/TextView;->setMinimumWidth(I)V
 
-    move-result v13
+    .line 802
+    new-instance v14, Landroid/widget/LinearLayout$LayoutParams;
 
-    invoke-virtual {v5, v14, v12, v13, v12}, Landroid/widget/TextView;->setPadding(IIII)V
+    .line 804
+    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
 
-    .line 810
-    const/16 v13, 0x28
-
-    invoke-static {v8, v13}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v13
-
-    invoke-virtual {v5, v13}, Landroid/widget/TextView;->setMinimumWidth(I)V
-
-    .line 813
-    new-instance v13, Landroid/widget/LinearLayout$LayoutParams;
-
-    .line 815
-    const/16 v14, 0x26
-
-    invoke-static {v8, v14}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
-
-    move-result v14
+    move-result v5
 
     const/4 v12, -0x2
 
-    invoke-direct {v13, v12, v14}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
+    invoke-direct {v14, v12, v5}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
 
-    .line 817
+    .line 806
     if-lez v6, :cond_2
 
-    .line 818
-    const/4 v14, 0x6
+    .line 807
+    const/4 v5, 0x4
 
-    invoke-static {v8, v14}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+    invoke-static {v8, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
 
-    move-result v12
+    move-result v5
 
-    invoke-virtual {v13, v12}, Landroid/widget/LinearLayout$LayoutParams;->setMarginStart(I)V
+    invoke-virtual {v14, v5}, Landroid/widget/LinearLayout$LayoutParams;->setMarginStart(I)V
+
+    .line 809
+    :cond_2
+    invoke-virtual {v0, v14}, Landroid/widget/TextView;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
+
+    .line 811
+    if-ne v6, v15, :cond_3
+
+    const/4 v5, 0x1
 
     goto :goto_3
 
-    .line 817
-    :cond_2
-    const/4 v14, 0x6
-
-    .line 820
-    :goto_3
-    invoke-virtual {v5, v13}, Landroid/widget/TextView;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
-
-    .line 822
-    if-ne v6, v0, :cond_3
-
-    const/4 v12, 0x1
-
-    goto :goto_4
-
     :cond_3
-    const/4 v12, 0x0
+    const/4 v5, 0x0
 
-    .line 823
-    :goto_4
-    invoke-static {v8, v5, v12, v9}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->applyPillState(Landroid/content/Context;Landroid/widget/TextView;ZLcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
+    .line 812
+    :goto_3
+    invoke-static {v8, v0, v5, v9}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->applyPillState(Landroid/content/Context;Landroid/widget/TextView;ZLcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
 
-    .line 825
-    move v12, v0
+    .line 814
+    move-object v5, v0
 
     new-instance v0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;
 
-    move-object v13, v5
+    move-object v14, v5
 
     move-object/from16 v5, p6
 
     invoke-direct/range {v0 .. v9}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;-><init>(Ljava/lang/String;Landroid/content/SharedPreferences;Ljava/lang/String;Landroid/widget/TextView;[Ljava/lang/String;ILandroid/widget/LinearLayout;Landroid/content/Context;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
 
-    invoke-virtual {v13, v0}, Landroid/widget/TextView;->setOnClickListener(Landroid/view/View$OnClickListener;)V
+    invoke-virtual {v14, v0}, Landroid/widget/TextView;->setOnClickListener(Landroid/view/View$OnClickListener;)V
 
-    .line 850
-    invoke-virtual {v7, v13}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
+    .line 839
+    invoke-virtual {v7, v14}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 800
+    .line 789
     add-int/lit8 v6, v6, 0x1
 
     move-object/from16 v8, p0
@@ -1207,31 +1136,27 @@
 
     move-object/from16 v1, p2
 
-    move v0, v12
-
     const/4 v12, 0x0
-
-    const/4 v13, 0x6
 
     const/4 v14, -0x2
 
     goto/16 :goto_2
 
-    .line 853
+    .line 842
     :cond_4
     invoke-virtual {v11, v7}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
 
-    .line 854
+    .line 843
     return-object v11
 .end method
 
 .method private static dpToPx(Landroid/content/Context;I)I
     .locals 1
 
-    .line 944
+    .line 933
     int-to-float p1, p1
 
-    .line 947
+    .line 936
     invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
 
     move-result-object p0
@@ -1240,7 +1165,7 @@
 
     move-result-object p0
 
-    .line 944
+    .line 933
     const/4 v0, 0x1
 
     invoke-static {v0, p1, p0}, Landroid/util/TypedValue;->applyDimension(IFLandroid/util/DisplayMetrics;)F
@@ -1255,52 +1180,52 @@
 .method private static enforceSolidBackground(Landroid/view/View;)V
     .locals 3
 
-    .line 706
+    .line 695
     :try_start_0
     invoke-virtual {p0}, Landroid/view/View;->getRootView()Landroid/view/View;
 
     move-result-object p0
 
-    .line 707
+    .line 696
     if-eqz p0, :cond_1
 
-    .line 708
+    .line 697
     const v0, 0x7f0a03fd
 
     invoke-virtual {p0, v0}, Landroid/view/View;->findViewById(I)Landroid/view/View;
 
     move-result-object p0
 
-    .line 709
+    .line 698
     if-eqz p0, :cond_1
 
-    .line 710
+    .line 699
     invoke-virtual {p0}, Landroid/view/View;->getBackground()Landroid/graphics/drawable/Drawable;
 
     move-result-object v0
 
-    .line 711
+    .line 700
     instance-of v1, v0, Landroid/graphics/drawable/GradientDrawable;
 
     const/high16 v2, -0x1000000
 
     if-eqz v1, :cond_0
 
-    .line 712
+    .line 701
     move-object p0, v0
 
     check-cast p0, Landroid/graphics/drawable/GradientDrawable;
 
     invoke-virtual {p0, v2}, Landroid/graphics/drawable/GradientDrawable;->setColor(I)V
 
-    .line 713
+    .line 702
     const/16 p0, 0xff
 
     invoke-virtual {v0, p0}, Landroid/graphics/drawable/Drawable;->setAlpha(I)V
 
     goto :goto_0
 
-    .line 715
+    .line 704
     :cond_0
     invoke-virtual {p0, v2}, Landroid/view/View;->setBackgroundColor(I)V
     :try_end_0
@@ -1308,7 +1233,7 @@
 
     goto :goto_0
 
-    .line 719
+    .line 708
     :catchall_0
     move-exception p0
 
@@ -1316,7 +1241,7 @@
     :goto_0
     nop
 
-    .line 720
+    .line 709
     return-void
 .end method
 
@@ -1598,14 +1523,14 @@
 .method private static findStockRawRow(Landroid/view/ViewGroup;)Landroid/view/View;
     .locals 6
 
-    .line 493
+    .line 482
     const/4 v0, 0x0
 
     if-nez p0, :cond_0
 
     return-object v0
 
-    .line 495
+    .line 484
     :cond_0
     const/4 v1, 0x0
 
@@ -1623,13 +1548,13 @@
 
     if-ge v2, v3, :cond_3
 
-    .line 496
+    .line 485
     :try_start_1
     invoke-virtual {p0, v2}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v3
 
-    .line 497
+    .line 486
     if-eqz v3, :cond_2
 
     invoke-virtual {v3}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
@@ -1646,7 +1571,7 @@
 
     if-eqz v4, :cond_2
 
-    .line 498
+    .line 487
     invoke-virtual {v3}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
     move-result-object v4
@@ -1657,7 +1582,7 @@
 
     move-result-object v4
 
-    .line 499
+    .line 488
     if-eqz v4, :cond_1
 
     invoke-virtual {v4, v3}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
@@ -1671,7 +1596,7 @@
     :cond_1
     move-object v4, v0
 
-    .line 500
+    .line 489
     :goto_1
     if-eqz v4, :cond_2
 
@@ -1681,7 +1606,7 @@
 
     if-eqz v5, :cond_2
 
-    .line 501
+    .line 490
     invoke-virtual {v4}, Landroid/widget/TextView;->getText()Ljava/lang/CharSequence;
 
     move-result-object v4
@@ -1694,7 +1619,7 @@
 
     move-result-object v4
 
-    .line 502
+    .line 491
     const-string v5, "RAW"
 
     invoke-virtual {v4, v5}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
@@ -1703,16 +1628,16 @@
 
     if-eqz v4, :cond_2
 
-    .line 503
+    .line 492
     return-object v3
 
-    .line 495
+    .line 484
     :cond_2
     add-int/lit8 v2, v2, 0x1
 
     goto :goto_0
 
-    .line 508
+    .line 497
     :cond_3
     nop
 
@@ -1723,12 +1648,12 @@
 
     if-ge v1, v2, :cond_5
 
-    .line 509
+    .line 498
     invoke-virtual {p0, v1}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v2
 
-    .line 510
+    .line 499
     if-eqz v2, :cond_4
 
     invoke-virtual {v2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
@@ -1747,31 +1672,31 @@
 
     if-eqz v3, :cond_4
 
-    .line 511
+    .line 500
     return-object v2
 
-    .line 508
+    .line 497
     :cond_4
     add-int/lit8 v1, v1, 0x1
 
     goto :goto_2
 
-    .line 516
+    .line 505
     :cond_5
     goto :goto_3
 
-    .line 514
+    .line 503
     :catchall_0
     move-exception p0
 
-    .line 515
+    .line 504
     const-string v1, "TomteProSettings"
 
     const-string v2, "Error finding stock RAW row"
 
     invoke-static {v1, v2, p0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
 
-    .line 517
+    .line 506
     :goto_3
     return-object v0
 .end method
@@ -1833,7 +1758,7 @@
 .method private static getFont(Landroid/content/Context;ILjava/lang/String;I)Landroid/graphics/Typeface;
     .locals 0
 
-    .line 935
+    .line 924
     :try_start_0
     invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
 
@@ -1847,11 +1772,11 @@
 
     return-object p0
 
-    .line 936
+    .line 925
     :catchall_0
     move-exception p0
 
-    .line 938
+    .line 927
     :try_start_1
     invoke-static {p2, p3}, Landroid/graphics/Typeface;->create(Ljava/lang/String;I)Landroid/graphics/Typeface;
 
@@ -1861,11 +1786,11 @@
 
     return-object p0
 
-    .line 939
+    .line 928
     :catchall_1
     move-exception p0
 
-    .line 940
+    .line 929
     invoke-static {p3}, Landroid/graphics/Typeface;->defaultFromStyle(I)Landroid/graphics/Typeface;
 
     move-result-object p0
@@ -1876,7 +1801,7 @@
 .method private static getHorizontalMargin(Landroid/content/Context;)I
     .locals 4
 
-    .line 925
+    .line 914
     :try_start_0
     invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
 
@@ -1894,10 +1819,10 @@
 
     move-result v0
 
-    .line 926
+    .line 915
     if-eqz v0, :cond_0
 
-    .line 927
+    .line 916
     invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
 
     move-result-object v1
@@ -1910,14 +1835,14 @@
 
     return p0
 
-    .line 929
+    .line 918
     :catchall_0
     move-exception v0
 
     :cond_0
     nop
 
-    .line 930
+    .line 919
     const/16 v0, 0x10
 
     invoke-static {p0, v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
@@ -2401,14 +2326,14 @@
 .method private static isRawCaptureEnabled(Landroid/view/ViewGroup;)Z
     .locals 7
 
-    .line 521
+    .line 510
     const/4 v0, 0x0
 
     if-nez p0, :cond_0
 
     return v0
 
-    .line 523
+    .line 512
     :cond_0
     const/4 v1, 0x1
 
@@ -2417,10 +2342,10 @@
 
     move-result-object v2
 
-    .line 524
+    .line 513
     if-eqz v2, :cond_6
 
-    .line 526
+    .line 515
     invoke-virtual {v2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
     move-result-object v3
@@ -2431,17 +2356,17 @@
 
     move-result-object v3
 
-    .line 527
+    .line 516
     if-eqz v3, :cond_2
 
-    .line 528
+    .line 517
     invoke-virtual {v3, v2}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
 
     move-result-object v3
 
     check-cast v3, Ljava/util/List;
 
-    .line 529
+    .line 518
     if-eqz v3, :cond_2
 
     invoke-interface {v3}, Ljava/util/List;->size()I
@@ -2452,20 +2377,20 @@
 
     if-lt v4, v5, :cond_2
 
-    .line 531
+    .line 520
     invoke-interface {v3, v1}, Ljava/util/List;->get(I)Ljava/lang/Object;
 
     move-result-object v4
 
-    .line 532
+    .line 521
     instance-of v5, v4, Landroid/view/ViewGroup;
 
     if-eqz v5, :cond_1
 
-    .line 533
+    .line 522
     check-cast v4, Landroid/view/ViewGroup;
 
-    .line 534
+    .line 523
     invoke-virtual {v4}, Landroid/view/ViewGroup;->getChildCount()I
 
     move-result v5
@@ -2478,7 +2403,7 @@
 
     if-eqz v5, :cond_1
 
-    .line 535
+    .line 524
     invoke-virtual {v4, v0}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v4
@@ -2489,24 +2414,24 @@
 
     if-eqz v4, :cond_1
 
-    .line 536
+    .line 525
     return v1
 
-    .line 540
+    .line 529
     :cond_1
     invoke-interface {v3, v0}, Ljava/util/List;->get(I)Ljava/lang/Object;
 
     move-result-object v3
 
-    .line 541
+    .line 530
     instance-of v4, v3, Landroid/view/ViewGroup;
 
     if-eqz v4, :cond_2
 
-    .line 542
+    .line 531
     check-cast v3, Landroid/view/ViewGroup;
 
-    .line 543
+    .line 532
     invoke-virtual {v3}, Landroid/view/ViewGroup;->getChildCount()I
 
     move-result v4
@@ -2519,7 +2444,7 @@
 
     if-eqz v4, :cond_2
 
-    .line 544
+    .line 533
     invoke-virtual {v3, v0}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v3
@@ -2530,10 +2455,10 @@
 
     if-eqz v3, :cond_2
 
-    .line 545
+    .line 534
     return v0
 
-    .line 553
+    .line 542
     :cond_2
     invoke-virtual {v2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
@@ -2545,7 +2470,7 @@
 
     move-result-object v3
 
-    .line 554
+    .line 543
     if-eqz v3, :cond_3
 
     invoke-virtual {v3, v2}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
@@ -2559,7 +2484,7 @@
     :cond_3
     const/4 v2, 0x0
 
-    .line 555
+    .line 544
     :goto_0
     if-eqz v2, :cond_6
 
@@ -2569,7 +2494,7 @@
 
     if-eqz v3, :cond_6
 
-    .line 556
+    .line 545
     invoke-virtual {v2}, Landroid/widget/TextView;->getText()Ljava/lang/CharSequence;
 
     move-result-object v2
@@ -2586,7 +2511,7 @@
 
     move-result-object v2
 
-    .line 557
+    .line 546
     const-string v3, "raw"
 
     invoke-virtual {v2, v3}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
@@ -2595,10 +2520,10 @@
 
     if-eqz v3, :cond_4
 
-    .line 558
+    .line 547
     return v1
 
-    .line 560
+    .line 549
     :cond_4
     const-string v3, "jpeg only"
 
@@ -2618,36 +2543,36 @@
 
     if-eqz v2, :cond_6
 
-    .line 561
+    .line 550
     :cond_5
     return v0
 
-    .line 567
+    .line 556
     :cond_6
     goto :goto_1
 
-    .line 565
+    .line 554
     :catchall_0
     move-exception v2
 
-    .line 566
+    .line 555
     const-string v3, "TomteProSettings"
 
     const-string v4, "Error checking isRawCaptureEnabled from view"
 
     invoke-static {v3, v4, v2}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
 
-    .line 571
+    .line 560
     :goto_1
     :try_start_1
     invoke-virtual {p0}, Landroid/view/ViewGroup;->getContext()Landroid/content/Context;
 
     move-result-object p0
 
-    .line 572
+    .line 561
     nop
 
-    .line 573
+    .line 562
     invoke-virtual {p0}, Landroid/content/Context;->getPackageName()Ljava/lang/String;
 
     move-result-object v2
@@ -2670,14 +2595,14 @@
 
     move-result-object v2
 
-    .line 572
+    .line 561
     invoke-virtual {p0, v2, v0}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
 
     move-result-object v2
     :try_end_1
     .catchall {:try_start_1 .. :try_end_1} :catchall_1
 
-    .line 575
+    .line 564
     const-string v3, "true"
 
     const-string v4, "1"
@@ -2693,7 +2618,7 @@
 
     if-eqz v6, :cond_c
 
-    .line 576
+    .line 565
     invoke-interface {v2}, Landroid/content/SharedPreferences;->getAll()Ljava/util/Map;
 
     move-result-object v2
@@ -2702,12 +2627,12 @@
 
     move-result-object v2
 
-    .line 577
+    .line 566
     instance-of v6, v2, Ljava/lang/Boolean;
 
     if-eqz v6, :cond_7
 
-    .line 578
+    .line 567
     check-cast v2, Ljava/lang/Boolean;
 
     invoke-virtual {v2}, Ljava/lang/Boolean;->booleanValue()Z
@@ -2716,13 +2641,13 @@
 
     return p0
 
-    .line 579
+    .line 568
     :cond_7
     instance-of v6, v2, Ljava/lang/String;
 
     if-eqz v6, :cond_a
 
-    .line 580
+    .line 569
     invoke-virtual {v4, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
     move-result p0
@@ -2743,13 +2668,13 @@
     :cond_9
     return v0
 
-    .line 581
+    .line 570
     :cond_a
     instance-of v6, v2, Ljava/lang/Integer;
 
     if-eqz v6, :cond_c
 
-    .line 582
+    .line 571
     check-cast v2, Ljava/lang/Integer;
 
     invoke-virtual {v2}, Ljava/lang/Integer;->intValue()I
@@ -2763,13 +2688,13 @@
     :cond_b
     return v0
 
-    .line 585
+    .line 574
     :cond_c
     invoke-static {p0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object p0
 
-    .line 586
+    .line 575
     if-eqz p0, :cond_12
 
     invoke-interface {p0, v5}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
@@ -2778,7 +2703,7 @@
 
     if-eqz v2, :cond_12
 
-    .line 587
+    .line 576
     invoke-interface {p0}, Landroid/content/SharedPreferences;->getAll()Ljava/util/Map;
 
     move-result-object p0
@@ -2787,12 +2712,12 @@
 
     move-result-object p0
 
-    .line 588
+    .line 577
     instance-of v2, p0, Ljava/lang/Boolean;
 
     if-eqz v2, :cond_d
 
-    .line 589
+    .line 578
     check-cast p0, Ljava/lang/Boolean;
 
     invoke-virtual {p0}, Ljava/lang/Boolean;->booleanValue()Z
@@ -2801,13 +2726,13 @@
 
     return p0
 
-    .line 590
+    .line 579
     :cond_d
     instance-of v2, p0, Ljava/lang/String;
 
     if-eqz v2, :cond_10
 
-    .line 591
+    .line 580
     invoke-virtual {v4, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
     move-result v2
@@ -2828,13 +2753,13 @@
     :cond_f
     return v0
 
-    .line 592
+    .line 581
     :cond_10
     instance-of v2, p0, Ljava/lang/Integer;
 
     if-eqz v2, :cond_12
 
-    .line 593
+    .line 582
     check-cast p0, Ljava/lang/Integer;
 
     invoke-virtual {p0}, Ljava/lang/Integer;->intValue()I
@@ -2850,39 +2775,39 @@
     :cond_11
     return v0
 
-    .line 596
+    .line 585
     :catchall_1
     move-exception p0
 
     :cond_12
     nop
 
-    .line 598
+    .line 587
     return v0
 .end method
 
 .method private static refreshPanel(Landroid/view/View;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
     .locals 11
 
-    .line 880
+    .line 869
     instance-of v0, p0, Landroid/view/ViewGroup;
 
     if-nez v0, :cond_0
 
     return-void
 
-    .line 881
+    .line 870
     :cond_0
     invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
 
     move-result-object v0
 
-    .line 882
+    .line 871
     move-object v1, p0
 
     check-cast v1, Landroid/view/ViewGroup;
 
-    .line 883
+    .line 872
     const/4 v2, 0x0
 
     const/4 v3, 0x0
@@ -2894,12 +2819,12 @@
 
     if-ge v3, v4, :cond_5
 
-    .line 884
+    .line 873
     invoke-virtual {v1, v3}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v4
 
-    .line 885
+    .line 874
     instance-of v5, v4, Landroid/view/ViewGroup;
 
     if-eqz v5, :cond_4
@@ -2926,12 +2851,12 @@
 
     if-eqz v5, :cond_4
 
-    .line 886
+    .line 875
     move-object v5, v4
 
     check-cast v5, Landroid/view/ViewGroup;
 
-    .line 887
+    .line 876
     const-string v6, "label_text"
 
     invoke-virtual {v5, v6}, Landroid/view/ViewGroup;->findViewWithTag(Ljava/lang/Object;)Landroid/view/View;
@@ -2940,7 +2865,7 @@
 
     check-cast v6, Landroid/widget/TextView;
 
-    .line 888
+    .line 877
     const-string v7, "value_text"
 
     invoke-virtual {v5, v7}, Landroid/view/ViewGroup;->findViewWithTag(Ljava/lang/Object;)Landroid/view/View;
@@ -2949,44 +2874,44 @@
 
     check-cast v7, Landroid/widget/TextView;
 
-    .line 889
+    .line 878
     if-eqz v6, :cond_1
 
-    .line 890
+    .line 879
     iget v8, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorLabelText:I
 
     invoke-virtual {v6, v8}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 891
+    .line 880
     iget v8, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->labelTextSizePx:F
 
     invoke-virtual {v6, v2, v8}, Landroid/widget/TextView;->setTextSize(IF)V
 
-    .line 892
+    .line 881
     iget-object v8, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->labelTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {v6, v8}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
-    .line 894
+    .line 883
     :cond_1
     if-eqz v7, :cond_2
 
-    .line 895
+    .line 884
     iget v6, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->colorValueText:I
 
     invoke-virtual {v7, v6}, Landroid/widget/TextView;->setTextColor(I)V
 
-    .line 896
+    .line 885
     iget v6, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->valueTextSizePx:F
 
     invoke-virtual {v7, v2, v6}, Landroid/widget/TextView;->setTextSize(IF)V
 
-    .line 897
+    .line 886
     iget-object v6, p1, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;->valueTypeface:Landroid/graphics/Typeface;
 
     invoke-virtual {v7, v6}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;)V
 
-    .line 899
+    .line 888
     :cond_2
     const-string v6, "button_group"
 
@@ -2996,10 +2921,10 @@
 
     check-cast v5, Landroid/view/ViewGroup;
 
-    .line 900
+    .line 889
     if-eqz v5, :cond_4
 
-    .line 901
+    .line 890
     invoke-virtual {v4}, Landroid/view/View;->getTag()Ljava/lang/Object;
 
     move-result-object v4
@@ -3008,26 +2933,26 @@
 
     move-result-object v4
 
-    .line 902
+    .line 891
     const/4 v6, 0x4
 
     invoke-virtual {v4, v6}, Ljava/lang/String;->substring(I)Ljava/lang/String;
 
     move-result-object v4
 
-    .line 903
+    .line 892
     invoke-static {v0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object v6
 
-    .line 904
+    .line 893
     const-string v7, ""
 
     invoke-interface {v6, v4, v7}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v4
 
-    .line 906
+    .line 895
     const/4 v6, 0x0
 
     :goto_1
@@ -3037,12 +2962,12 @@
 
     if-ge v6, v8, :cond_4
 
-    .line 907
+    .line 896
     invoke-virtual {v5, v6}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v8
 
-    .line 908
+    .line 897
     instance-of v9, v8, Landroid/widget/TextView;
 
     if-eqz v9, :cond_3
@@ -3053,10 +2978,10 @@
 
     if-eqz v9, :cond_3
 
-    .line 909
+    .line 898
     check-cast v8, Landroid/widget/TextView;
 
-    .line 910
+    .line 899
     invoke-virtual {v8}, Landroid/widget/TextView;->getTag()Ljava/lang/Object;
 
     move-result-object v9
@@ -3071,27 +2996,27 @@
 
     move-result-object v9
 
-    .line 911
+    .line 900
     invoke-virtual {v9, v4}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
 
     move-result v9
 
-    .line 912
+    .line 901
     invoke-static {v0, v8, v9, p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->applyPillState(Landroid/content/Context;Landroid/widget/TextView;ZLcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
 
-    .line 906
+    .line 895
     :cond_3
     add-int/lit8 v6, v6, 0x1
 
     goto :goto_1
 
-    .line 883
+    .line 872
     :cond_4
     add-int/lit8 v3, v3, 0x1
 
     goto/16 :goto_0
 
-    .line 918
+    .line 907
     :cond_5
     invoke-virtual {p0}, Landroid/view/View;->getParent()Landroid/view/ViewParent;
 
@@ -3101,7 +3026,7 @@
 
     if-eqz p1, :cond_6
 
-    .line 919
+    .line 908
     invoke-virtual {p0}, Landroid/view/View;->getParent()Landroid/view/ViewParent;
 
     move-result-object p0
@@ -3110,7 +3035,7 @@
 
     invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->updateRawFormatRowState(Landroid/view/ViewGroup;)V
 
-    .line 921
+    .line 910
     :cond_6
     return-void
 .end method
@@ -3803,12 +3728,12 @@
 .method private static updateRawFormatRowState(Landroid/view/ViewGroup;)V
     .locals 3
 
-    .line 674
+    .line 663
     if-nez p0, :cond_0
 
     return-void
 
-    .line 676
+    .line 665
     :cond_0
     :try_start_0
     const-string v0, "tomte_pro_panel"
@@ -3817,14 +3742,14 @@
 
     move-result-object v0
 
-    .line 677
+    .line 666
     instance-of v1, v0, Landroid/view/ViewGroup;
 
     if-nez v1, :cond_1
 
     return-void
 
-    .line 678
+    .line 667
     :cond_1
     check-cast v0, Landroid/view/ViewGroup;
 
@@ -3834,18 +3759,18 @@
 
     move-result-object v0
 
-    .line 679
+    .line 668
     if-nez v0, :cond_2
 
     return-void
 
-    .line 681
+    .line 670
     :cond_2
     invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->isRawCaptureEnabled(Landroid/view/ViewGroup;)Z
 
     move-result p0
 
-    .line 684
+    .line 673
     const/4 v1, 0x0
 
     if-eqz p0, :cond_3
@@ -3860,7 +3785,7 @@
     :goto_0
     invoke-virtual {v0, v2}, Landroid/view/View;->setVisibility(I)V
 
-    .line 685
+    .line 674
     if-eqz p0, :cond_4
 
     const/high16 v2, 0x3f800000    # 1.0f
@@ -3873,25 +3798,25 @@
     :goto_1
     invoke-virtual {v0, v2}, Landroid/view/View;->setAlpha(F)V
 
-    .line 686
+    .line 675
     invoke-virtual {v0, p0}, Landroid/view/View;->setEnabled(Z)V
 
-    .line 688
+    .line 677
     const-string v2, "button_group"
 
     invoke-virtual {v0, v2}, Landroid/view/View;->findViewWithTag(Ljava/lang/Object;)Landroid/view/View;
 
     move-result-object v0
 
-    .line 689
+    .line 678
     instance-of v2, v0, Landroid/view/ViewGroup;
 
     if-eqz v2, :cond_6
 
-    .line 690
+    .line 679
     check-cast v0, Landroid/view/ViewGroup;
 
-    .line 691
+    .line 680
     nop
 
     :goto_2
@@ -3901,44 +3826,44 @@
 
     if-ge v1, v2, :cond_6
 
-    .line 692
+    .line 681
     invoke-virtual {v0, v1}, Landroid/view/ViewGroup;->getChildAt(I)Landroid/view/View;
 
     move-result-object v2
 
-    .line 693
+    .line 682
     if-eqz v2, :cond_5
 
-    .line 694
+    .line 683
     invoke-virtual {v2, p0}, Landroid/view/View;->setEnabled(Z)V
 
-    .line 695
+    .line 684
     invoke-virtual {v2, p0}, Landroid/view/View;->setClickable(Z)V
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 
-    .line 691
+    .line 680
     :cond_5
     add-int/lit8 v1, v1, 0x1
 
     goto :goto_2
 
-    .line 701
+    .line 690
     :cond_6
     goto :goto_3
 
-    .line 699
+    .line 688
     :catchall_0
     move-exception p0
 
-    .line 700
+    .line 689
     const-string v0, "TomteProSettings"
 
     const-string v1, "Error updating raw format row state"
 
     invoke-static {v0, v1, p0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
 
-    .line 702
+    .line 691
     :goto_3
     return-void
 .end method

@@ -30,7 +30,7 @@
         }
     .end annotation
 
-    .line 484
+    .line 473
     iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$3;->val$parent:Landroid/widget/LinearLayout;
 
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
@@ -43,11 +43,11 @@
 .method public run()V
     .locals 1
 
-    .line 487
+    .line 476
     iget-object v0, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$3;->val$parent:Landroid/widget/LinearLayout;
 
     invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smupdateRawFormatRowState(Landroid/view/ViewGroup;)V
 
-    .line 488
+    .line 477
     return-void
 .end method

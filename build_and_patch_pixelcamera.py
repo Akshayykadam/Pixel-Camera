@@ -331,11 +331,10 @@ def patch_vku_smali():
         return src[:m_start] + new_m + src[m_end:]
 
     content = replace_method(content, "l()Z", "const/4 v0, 0x1\n\n    return v0")
-    content = replace_method(content, "e()Z", "const/4 v0, 0x1\n\n    return v0")
 
     with open(vku_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] vku.smali patched: l() and e() return true (sauce and pro eligible). g() and f() preserved.")
+    print("    [+] vku.smali patched: l() returns true (sauce eligible). e(), g() and f() preserved.")
 
 def patch_ksf_smali():
     print("[*] Patching ksf.smali (Gouda flags, Mantis, Looks, Segmenter model interception, was klm)...")
@@ -784,58 +783,6 @@ def patch_ksf_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_lobster
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_check_lobster
-    const-string v1, "camera.lobster"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_crawfish
-
-    const/4 v0, 0x0
-
-    return v0
-
-    :cond_check_crawfish
-    const-string v1, "camera.crawfish"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_raw_mode
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_check_raw_mode
-    const-string v1, "camera.raw_mode"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_enable_raw_setting
-
-    const/4 v0, 0x1
-
-    return v0
-
-    :cond_check_enable_raw_setting
-    const-string v1, "camera.enable_raw_setting"
-
-    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
-
-    move-result v1
-
     if-eqz v1, :cond_check_jellybean_setting
 
     const/4 v0, 0x1
@@ -901,9 +848,6 @@ def patch_ksf_smali():
                 "camera.ark_ISO_available",
                 "camera.ark_lens_selector_available",
                 "camera.ark_lens_selector",
-                "camera.crawfish",
-                "camera.raw_mode",
-                "camera.enable_raw_setting",
                 "camcorder.jellybean_setting",
                 "camcorder_jellybean_feature",
             ]
@@ -1043,9 +987,46 @@ def patch_ksf_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_creator_x_0
+    if-eqz v1, :cond_check_lobster_x
 
     const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_lobster_x
+    const-string v1, "camera.lobster"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_creator_x_0
+
+    invoke-static {{}}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v1
+
+    if-eqz v1, :cond_lobster_disabled_x
+
+    const-string v1, "camera.lobster.default"
+
+    invoke-virtual {{v0, v1}}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_lobster_enabled_x
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_lobster_enabled_x
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_lobster_disabled_x
+    const/4 v0, 0x0
 
     return v0
 
@@ -2499,6 +2480,92 @@ def patch_msr_smali():
     if opt_d_target in content:
         content = content.replace(opt_d_target, opt_d_repl)
         print("    [+] mjy.smali: khw.d guarded with isPresent().")
+
+    # Guard SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION in msr.smali
+    max_res_target = """    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v1}, Lvgr;->p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v1
+
+    check-cast v1, Landroid/util/Size;
+
+    invoke-virtual {v1}, Landroid/util/Size;->getWidth()I
+
+    move-result v7
+
+    invoke-virtual {v5, v7}, Lcom/google/googlex/gcam/StaticMetadata;->t(I)V
+
+    invoke-virtual {v1}, Landroid/util/Size;->getHeight()I
+
+    move-result v7
+
+    invoke-virtual {v5, v7}, Lcom/google/googlex/gcam/StaticMetadata;->s(I)V
+
+    sget-object v7, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v7}, Lvgr;->p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v7
+
+    check-cast v7, Landroid/graphics/Rect;"""
+
+    max_res_repl = """    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v1}, Lvgr;->n(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v1
+
+    check-cast v1, Landroid/util/Size;
+
+    if-nez v1, :cond_has_pixel_max
+
+    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PIXEL_ARRAY_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v1}, Lvgr;->p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v1
+
+    check-cast v1, Landroid/util/Size;
+
+    :cond_has_pixel_max
+    invoke-virtual {v1}, Landroid/util/Size;->getWidth()I
+
+    move-result v7
+
+    invoke-virtual {v5, v7}, Lcom/google/googlex/gcam/StaticMetadata;->t(I)V
+
+    invoke-virtual {v1}, Landroid/util/Size;->getHeight()I
+
+    move-result v7
+
+    invoke-virtual {v5, v7}, Lcom/google/googlex/gcam/StaticMetadata;->s(I)V
+
+    sget-object v7, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v7}, Lvgr;->n(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v7
+
+    check-cast v7, Landroid/graphics/Rect;
+
+    if-nez v7, :cond_has_pre_max
+
+    sget-object v7, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
+
+    invoke-interface {v0, v7}, Lvgr;->p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+
+    move-result-object v7
+
+    check-cast v7, Landroid/graphics/Rect;
+
+    :cond_has_pre_max"""
+
+    if max_res_target in content:
+        content = content.replace(max_res_target, max_res_repl)
+        print("    [+] msr.smali: SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION guarded against missing keys.")
+    elif "cond_has_pixel_max" in content:
+        print("    [+] msr.smali: SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION already guarded.")
 
     with open(msr_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -4024,16 +4091,60 @@ def patch_rdb_smali():
     return-void
 .end method"""
 
+    # Gated C: on Pro devices, do not force reset to 12MP
+    target_c = """.method public static C(Lusf;Lppk;)V
+    .locals 1
+
+    sget-object v0, Lppp;->ax:Lppp;
+
+    invoke-interface {p0, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    const/4 p0, 0x0
+
+    sget-object v0, Lpph;->m:Lpph;
+
+    invoke-interface {p1, p0, v0}, Lppk;->q(ZLpph;)V
+
+    return-void
+.end method"""
+
     nop_c = """.method public static C(Lusf;Lppk;)V
     .locals 0
 
     return-void
 .end method"""
 
-    if nop_c in content:
-        content = content.replace(nop_c, stock_c)
+    repl_c = """.method public static C(Lusf;Lppk;)V
+    .locals 1
 
-    stock_d = """.method public static D(ZLusf;Lppk;Lnhz;Lyia;)V
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_non_pro
+
+    return-void
+
+    :cond_non_pro
+    sget-object v0, Lppp;->ax:Lppp;
+
+    invoke-interface {p0, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    const/4 p0, 0x0
+
+    sget-object v0, Lpph;->m:Lpph;
+
+    invoke-interface {p1, p0, v0}, Lppk;->q(ZLpph;)V
+
+    return-void
+.end method"""
+
+    if target_c in content:
+        content = content.replace(target_c, repl_c)
+    elif nop_c in content:
+        content = content.replace(nop_c, repl_c)
+
+    target_d = """.method public static D(ZLusf;Lppk;Lnhz;Lyia;)V
     .locals 1
 
     if-nez p0, :cond_0
@@ -4072,15 +4183,59 @@ def patch_rdb_smali():
     return-void
 .end method"""
 
-    if nop_d in content:
-        content = content.replace(nop_d, stock_d)
+    repl_d = """.method public static D(ZLusf;Lppk;Lnhz;Lyia;)V
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_non_pro
+
+    return-void
+
+    :cond_non_pro
+    if-nez p0, :cond_0
+
+    invoke-interface {p1}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p0
+
+    check-cast p0, Lppp;
+
+    sget-object v0, Lppp;->ay:Lppp;
+
+    invoke-virtual {p0, v0}, Lppp;->equals(Ljava/lang/Object;)Z
+
+    move-result p0
+
+    if-eqz p0, :cond_0
+
+    invoke-static {p1, p2}, Lrdb;->C(Lusf;Lppk;)V
+
+    check-cast p4, Lyig;
+
+    iget-object p0, p4, Lyig;->a:Ljava/lang/Object;
+
+    check-cast p0, Lnib;
+
+    invoke-virtual {p3, p0}, Lnhz;->a(Lnib;)Luww;
+
+    :cond_0
+    return-void
+.end method"""
+
+    if target_d in content:
+        content = content.replace(target_d, repl_d)
+    elif nop_d in content:
+        content = content.replace(nop_d, repl_d)
 
     with open(rdb_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] rdb.smali: Restored stock 12MP enforcement in C() and D().")
+    print("    [+] rdb.smali: C() and D() gated via isProDevice().")
 
 def patch_ons_smali():
-    print("[*] Patching ons.smali (Hide 50MP option and enforce stock 12MP resolution)...")
+    print("[*] Patching ons.smali (50MP CAPTURE_RESOLUTION visibility based on Pro device)...")
     ons_path = os.path.join(APKTOOL_DIR, "smali", "ons.smali")
     if not os.path.exists(ons_path):
         print("    [!] Warning: ons.smali not found.")
@@ -4096,7 +4251,7 @@ def patch_ons_smali():
 
     invoke-interface {p0, v0, v1}, Lppk;->q(ZLpph;)V"""
 
-    repl = """    iget-object p0, p0, Looa;->j:Lppk;
+    target_v0 = """    iget-object p0, p0, Looa;->j:Lppk;
 
     const/4 v0, 0x0
 
@@ -4104,16 +4259,31 @@ def patch_ons_smali():
 
     invoke-interface {p0, v0, v1}, Lppk;->q(ZLpph;)V"""
 
-    if target in content:
+    repl = """    iget-object p0, p0, Looa;->j:Lppk;
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v0
+
+    sget-object v1, Lpph;->m:Lpph;
+
+    invoke-interface {p0, v0, v1}, Lppk;->q(ZLpph;)V"""
+
+    if repl in content:
+        print("    [+] ons.smali: already uses isProDevice().")
+    elif target in content:
         content = content.replace(target, repl)
         with open(ons_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] ons.smali: e() patched to keep CAPTURE_RESOLUTION hidden (v0=0).")
-    elif "const/4 v0, 0x0\n\n    sget-object v1, Lpph;->m:Lpph;" in content:
-        print("    [+] ons.smali: CAPTURE_RESOLUTION already hidden (v0=0).")
+        print("    [+] ons.smali: e() patched to use isProDevice() for CAPTURE_RESOLUTION.")
+    elif target_v0 in content:
+        content = content.replace(target_v0, repl)
+        with open(ons_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] ons.smali: e() patched from v0=0 to isProDevice().")
 
 def patch_moo_smali():
-    print("[*] Patching moo.smali (Hide Resolution 12MP/50MP row from options menu)...")
+    print("[*] Patching moo.smali (Resolution 12MP/50MP row shown on Pro devices, hidden on non-Pro)...")
     moo_path = os.path.join(APKTOOL_DIR, "smali", "moo.smali")
     if not os.path.exists(moo_path):
         print("    [!] Warning: moo.smali not found.")
@@ -4121,7 +4291,7 @@ def patch_moo_smali():
     with open(moo_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    if-nez v8, :cond_0
+    target_stock = """    if-nez v8, :cond_0
 
     sget-object v0, Lyuq;->a:Lyuq;
 
@@ -4129,19 +4299,36 @@ def patch_moo_smali():
 
     :cond_0"""
 
-    repl = """    sget-object v0, Lyuq;->a:Lyuq;
+    target_patched = """    sget-object v0, Lyuq;->a:Lyuq;
 
     goto/16 :goto_0
 
     :cond_0"""
 
-    if target in content:
-        content = content.replace(target, repl)
+    repl = """    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v8
+
+    if-nez v8, :cond_0
+
+    sget-object v0, Lyuq;->a:Lyuq;
+
+    goto/16 :goto_0
+
+    :cond_0"""
+
+    if repl in content:
+        print("    [+] moo.smali: Resolution row already uses isProDevice().")
+    elif target_stock in content:
+        content = content.replace(target_stock, repl, 1)
         with open(moo_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] moo.smali: Resolution row hidden unconditionally.")
-    elif repl in content:
-        print("    [+] moo.smali: Resolution row already hidden.")
+        print("    [+] moo.smali: Resolution row conditionally gated via isProDevice().")
+    elif target_patched in content:
+        content = content.replace(target_patched, repl, 1)
+        with open(moo_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] moo.smali: Resolution row restored for Pro devices via isProDevice().")
     else:
         print("    [!] Warning: moo.smali target not found.")
 
@@ -4215,130 +4402,8 @@ def patch_pji_smali():
         print("    [+] pji.smali already contains TomteProSettingsPanel.")
 
 def patch_stock_raw_mode():
-    print("[*] Patching stock RAW mode toggle (rad.smali and jsi.smali)...")
-    # 1. rad.smali :pswitch_9 -> always return Boolean.TRUE in Lusd
-    rad_path = os.path.join(APKTOOL_DIR, "smali", "rad.smali")
-    if os.path.exists(rad_path):
-        with open(rad_path, "r", encoding="utf-8") as f:
-            rad_content = f.read()
-        target_rad = """    :pswitch_9
-    iget-object v0, p0, Lrad;->b:Lacnw;
-
-    invoke-interface {v0}, Lacnw;->a()Ljava/lang/Object;
-
-    move-result-object v0
-
-    check-cast v0, Lksf;
-
-    iget-object p0, p0, Lrad;->a:Lacnw;
-
-    check-cast p0, Lrdt;
-
-    invoke-virtual {p0}, Lrdt;->b()Lpnw;
-
-    move-result-object p0
-
-    sget-object v2, Lkqw;->q:Lkps;
-
-    invoke-virtual {v0, v2}, Lksf;->q(Lkps;)Z
-
-    move-result v2
-
-    if-nez v2, :cond_8
-
-    sget-object p0, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
-
-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-
-    new-instance v0, Lusd;
-
-    invoke-direct {v0, p0}, Lusd;-><init>(Ljava/lang/Object;)V
-
-    return-object v0
-
-    :cond_8
-    sget-object v2, Lkqd;->bC:Lkps;
-
-    invoke-virtual {v0, v2}, Lksf;->x(Lkps;)Z
-
-    move-result v0
-
-    if-nez v0, :cond_9
-
-    sget-object p0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-
-    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-
-    new-instance v0, Lusd;
-
-    invoke-direct {v0, p0}, Lusd;-><init>(Ljava/lang/Object;)V
-
-    return-object v0
-
-    :cond_9
-    const-string v0, "pref_camera_raw_output_option_available_key"
-
-    invoke-virtual {p0, v0, v1}, Lpnw;->m(Ljava/lang/String;Z)Lusf;
-
-    move-result-object p0
-
-    return-object p0"""
-        repl_rad = """    :pswitch_9
-    sget-object p0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-
-    new-instance v0, Lusd;
-
-    invoke-direct {v0, p0}, Lusd;-><init>(Ljava/lang/Object;)V
-
-    return-object v0"""
-        if target_rad in rad_content:
-            rad_content = rad_content.replace(target_rad, repl_rad)
-            with open(rad_path, "w", encoding="utf-8") as f:
-                f.write(rad_content)
-            print("    [+] rad.smali: pswitch_9 patched to return TRUE.")
-        elif repl_rad in rad_content:
-            print("    [+] rad.smali: already patched.")
-        else:
-            print("    [!] Warning: rad.smali target_rad not found.")
-
-    # 2. jsi.smali :cond_2 under :pswitch_5 -> return v1
-    jsi_path = os.path.join(APKTOOL_DIR, "smali", "jsi.smali")
-    if os.path.exists(jsi_path):
-        with open(jsi_path, "r", encoding="utf-8") as f:
-            jsi_content = f.read()
-        target_jsi = """    :cond_2
-    iget-object p0, p0, Ljsi;->a:Ljava/lang/Object;
-
-    invoke-interface {p0}, Lusf;->d()Ljava/lang/Object;
-
-    move-result-object p0
-
-    check-cast p0, Ljava/lang/Boolean;
-
-    invoke-virtual {p0}, Ljava/lang/Boolean;->booleanValue()Z
-
-    move-result p0
-
-    if-eqz p0, :cond_3
-
-    return v1
-
-    :cond_3
-    return v2"""
-        repl_jsi = """    :cond_2
-    return v1
-
-    :cond_3
-    return v2"""
-        if target_jsi in jsi_content:
-            jsi_content = jsi_content.replace(target_jsi, repl_jsi)
-            with open(jsi_path, "w", encoding="utf-8") as f:
-                f.write(jsi_content)
-            print("    [+] jsi.smali: cond_2 patched to return v1 (visible in Photo/Night Sight).")
-        elif repl_jsi in jsi_content:
-            print("    [+] jsi.smali: already patched.")
-        else:
-            print("    [!] Warning: jsi.smali target_jsi not found.")
+    # Preserved as clean no-op: RAW mode output is managed natively or via TomteProSettingsPanel
+    pass
 
 def patch_autobahn_viewpager():
     print("[*] Patching AutobahnViewPager.smali (onMeasure height expansion)...")
@@ -8605,446 +8670,12 @@ def patch_fzf_smali():
         f.write(content)
 
 def patch_gei_smali():
-    print("[*] Patching gei.smali (Enabling Pixel 8 Pro Pro features / Resolution / RAW across all devices)...")
-    gei_path = os.path.join(APKTOOL_DIR, "smali", "gei.smali")
-    if not os.path.exists(gei_path):
-        print("    [!] Warning: gei.smali not found.")
-        return
-    with open(gei_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    target = """.method public static i(Lksf;Lksf;Lvku;Lkrz;Lrhv;)V
-    .locals 16
-
-    move-object/from16 v0, p0
-
-    move-object/from16 v1, p2
-
-    move-object/from16 v2, p3
-
-    iget-boolean v3, v1, Lvku;->U:Z
-
-    const/4 v4, 0x0
-
-    const/4 v5, 0x1
-
-    if-nez v3, :cond_1
-
-    iget-boolean v3, v1, Lvku;->V:Z
-
-    if-eqz v3, :cond_0
-
-    goto :goto_0
-
-    :cond_0
-    move v3, v4
-
-    goto :goto_1
-
-    :cond_1
-    :goto_0
-    move v3, v5
-
-    :goto_1"""
-
-    replacement = """.method public static i(Lksf;Lksf;Lvku;Lkrz;Lrhv;)V
-    .locals 16
-
-    move-object/from16 v0, p0
-
-    move-object/from16 v1, p2
-
-    move-object/from16 v2, p3
-
-    const/4 v3, 0x1
-
-    const/4 v4, 0x0
-
-    const/4 v5, 0x1"""
-
-    if target in content:
-        content = content.replace(target, replacement, 1)
-        with open(gei_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] gei.smali patched: v3 forced to 1 (Pro features enabled).")
-    else:
-        print("    [+] gei.smali already patched or pattern modified.")
+    # Preserved as clean no-op: gei.i is for Pixel 9 Pro Centaur/Boba only and must not be forced on Pixel 8 Pro
+    pass
 
 def patch_viewfinder_and_hires_fix():
-    print("[*] Patching viewfinder resolution selection and high-res size fallback...")
-    
-    # 1. Patch pdx.smali (OneConfig#selectViewfinder): force v10 (isHiRes) to 0 so viewfinder always selects standard sizes
-    pdx_path = os.path.join(APKTOOL_DIR, "smali", "pdx.smali")
-    if os.path.exists(pdx_path):
-        with open(pdx_path, "r", encoding="utf-8") as f:
-            pdx_content = f.read()
-        target_pdx = """    invoke-virtual {v3, v7, v4, v5}, Lnxh;->b(Ltbp;Lvhd;Lrcs;)Z
-
-    move-result v10
-
-    const/16 v3, 0x22
-
-    invoke-static {v2, v3, v10}, Lnku;->F(Lvgr;IZ)Ljava/util/List;"""
-        repl_pdx = """    invoke-virtual {v3, v7, v4, v5}, Lnxh;->b(Ltbp;Lvhd;Lrcs;)Z
-
-    move-result v10
-
-    const/4 v10, 0x0
-
-    const/16 v3, 0x22
-
-    invoke-static {v2, v3, v10}, Lnku;->F(Lvgr;IZ)Ljava/util/List;"""
-        if target_pdx in pdx_content:
-            pdx_content = pdx_content.replace(target_pdx, repl_pdx, 1)
-            with open(pdx_path, "w", encoding="utf-8") as f:
-                f.write(pdx_content)
-            print("    [+] pdx.smali patched: viewfinder high-res forced to false.")
-        elif repl_pdx in pdx_content:
-            print("    [+] pdx.smali already patched.")
-        else:
-            print("    [!] Warning: pdx.smali target pattern not found.")
-
-    # 2. Patch nku.smali (F): fallback to standard sizes if high-res sizes are empty
-    nku_path = os.path.join(APKTOOL_DIR, "smali", "nku.smali")
-    if os.path.exists(nku_path):
-        with open(nku_path, "r", encoding="utf-8") as f:
-            nku_content = f.read()
-        target_nku = """    invoke-interface {p0, p1}, Lvgr;->A(I)Ljava/util/List;
-
-    move-result-object p2
-
-    goto :goto_0"""
-        repl_nku = """    invoke-interface {p0, p1}, Lvgr;->A(I)Ljava/util/List;
-
-    move-result-object p2
-
-    invoke-interface {p2}, Ljava/util/List;->isEmpty()Z
-
-    move-result v0
-
-    if-nez v0, :cond_0
-
-    goto :goto_0"""
-        if target_nku in nku_content:
-            nku_content = nku_content.replace(target_nku, repl_nku, 1)
-            with open(nku_path, "w", encoding="utf-8") as f:
-                f.write(nku_content)
-            print("    [+] nku.smali patched: high-res empty fallback to standard sizes.")
-        elif repl_nku in nku_content:
-            print("    [+] nku.smali already patched.")
-        else:
-            print("    [!] Warning: nku.smali target pattern not found.")
-
-    # 3. Patch svf.smali: catch empty size lists and safely return 1920x1080 instead of throwing IllegalArgumentException
-    svf_path = os.path.join(APKTOOL_DIR, "smali", "svf.smali")
-    if os.path.exists(svf_path):
-        with open(svf_path, "r", encoding="utf-8") as f:
-            svf_content = f.read()
-        target_svf_a = """:cond_7
-    new-instance p0, Ljava/lang/IllegalStateException;
-
-    invoke-direct {p0}, Ljava/lang/IllegalStateException;-><init>()V
-
-    throw p0
-
-    :cond_8
-    new-instance p0, Ljava/lang/IllegalArgumentException;
-
-    invoke-direct {p0}, Ljava/lang/IllegalArgumentException;-><init>()V
-
-    throw p0"""
-        repl_svf_a = """:cond_7
-    new-instance p0, Luwy;
-
-    const/16 p1, 0x780
-
-    const/16 p2, 0x438
-
-    invoke-direct {p0, p1, p2}, Luwy;-><init>(II)V
-
-    return-object p0
-
-    :cond_8
-    new-instance p0, Luwy;
-
-    const/16 p1, 0x780
-
-    const/16 p2, 0x438
-
-    invoke-direct {p0, p1, p2}, Luwy;-><init>(II)V
-
-    return-object p0"""
-
-        target_svf_b = """:cond_12
-    new-instance p0, Ljava/lang/IllegalArgumentException;
-
-    invoke-direct {p0}, Ljava/lang/IllegalArgumentException;-><init>()V
-
-    throw p0"""
-        repl_svf_b = """:cond_12
-    new-instance p0, Luwy;
-
-    const/16 p1, 0x780
-
-    const/16 p2, 0x438
-
-    invoke-direct {p0, p1, p2}, Luwy;-><init>(II)V
-
-    return-object p0"""
-
-        modified = False
-        if target_svf_a in svf_content:
-            svf_content = svf_content.replace(target_svf_a, repl_svf_a, 1)
-            modified = True
-        if target_svf_b in svf_content:
-            svf_content = svf_content.replace(target_svf_b, repl_svf_b, 1)
-            modified = True
-        if modified:
-            with open(svf_path, "w", encoding="utf-8") as f:
-                f.write(svf_content)
-            print("    [+] svf.smali patched: fallback to 1920x1080 Luwy instead of throwing exception.")
-        else:
-            print("    [+] svf.smali already patched or patterns modified.")
-
-    # 4. Patch vgq.smali: synthesize missing CameraCharacteristics _MAXIMUM_RESOLUTION keys on non-pro HALs
-    vgq_path = os.path.join(APKTOOL_DIR, "smali", "vgq.smali")
-    if os.path.exists(vgq_path):
-        with open(vgq_path, "r", encoding="utf-8") as f:
-            vgq_content = f.read()
-        target_vgq_p = """.method public final p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-    .locals 1
-
-    invoke-virtual {p1}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-
-    iget-object p0, p0, Lvgq;->l:Luwc;
-
-    iget-object p0, p0, Luwc;->a:Lpt;
-
-    invoke-interface {p0, p1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object p0
-
-    if-eqz p0, :cond_0
-
-    return-object p0
-
-    :cond_0
-    new-instance p0, Luwj;"""
-
-        repl_vgq_p = """.method public final p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-    .locals 4
-
-    invoke-virtual {p1}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-
-    iget-object v0, p0, Lvgq;->l:Luwc;
-
-    iget-object v0, v0, Luwc;->a:Lpt;
-
-    invoke-interface {v0, p1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    if-eqz v1, :cond_check_fallback
-
-    return-object v1
-
-    :cond_check_fallback
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-virtual {p1, v1}, Landroid/hardware/camera2/CameraCharacteristics$Key;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_pre_correction
-
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PIXEL_ARRAY_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-interface {v0, v1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, Landroid/util/Size;
-
-    if-eqz v1, :cond_throw
-
-    new-instance p0, Landroid/util/Size;
-
-    invoke-virtual {v1}, Landroid/util/Size;->getWidth()I
-
-    move-result p1
-
-    mul-int/lit8 p1, p1, 0x2
-
-    invoke-virtual {v1}, Landroid/util/Size;->getHeight()I
-
-    move-result v0
-
-    mul-int/lit8 v0, v0, 0x2
-
-    invoke-direct {p0, p1, v0}, Landroid/util/Size;-><init>(II)V
-
-    return-object p0
-
-    :cond_check_pre_correction
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-virtual {p1, v1}, Landroid/hardware/camera2/CameraCharacteristics$Key;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_active
-
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-interface {v0, v1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, Landroid/graphics/Rect;
-
-    if-eqz v1, :cond_throw
-
-    new-instance p0, Landroid/graphics/Rect;
-
-    iget p1, v1, Landroid/graphics/Rect;->left:I
-
-    mul-int/lit8 p1, p1, 0x2
-
-    iget v0, v1, Landroid/graphics/Rect;->top:I
-
-    mul-int/lit8 v0, v0, 0x2
-
-    iget v2, v1, Landroid/graphics/Rect;->right:I
-
-    mul-int/lit8 v2, v2, 0x2
-
-    iget v3, v1, Landroid/graphics/Rect;->bottom:I
-
-    mul-int/lit8 v3, v3, 0x2
-
-    invoke-direct {p0, p1, v0, v2, v3}, Landroid/graphics/Rect;-><init>(IIII)V
-
-    return-object p0
-
-    :cond_check_active
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-virtual {p1, v1}, Landroid/hardware/camera2/CameraCharacteristics$Key;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_lens_dist
-
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_ACTIVE_ARRAY_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-interface {v0, v1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, Landroid/graphics/Rect;
-
-    if-eqz v1, :cond_throw
-
-    new-instance p0, Landroid/graphics/Rect;
-
-    iget p1, v1, Landroid/graphics/Rect;->left:I
-
-    mul-int/lit8 p1, p1, 0x2
-
-    iget v0, v1, Landroid/graphics/Rect;->top:I
-
-    mul-int/lit8 v0, v0, 0x2
-
-    iget v2, v1, Landroid/graphics/Rect;->right:I
-
-    mul-int/lit8 v2, v2, 0x2
-
-    iget v3, v1, Landroid/graphics/Rect;->bottom:I
-
-    mul-int/lit8 v3, v3, 0x2
-
-    invoke-direct {p0, p1, v0, v2, v3}, Landroid/graphics/Rect;-><init>(IIII)V
-
-    return-object p0
-
-    :cond_check_lens_dist
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->LENS_DISTORTION_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-virtual {p1, v1}, Landroid/hardware/camera2/CameraCharacteristics$Key;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_check_lens_calib
-
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->LENS_DISTORTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-interface {v0, v1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    if-eqz v1, :cond_throw
-
-    return-object v1
-
-    :cond_check_lens_calib
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->LENS_INTRINSIC_CALIBRATION_MAXIMUM_RESOLUTION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-virtual {p1, v1}, Landroid/hardware/camera2/CameraCharacteristics$Key;->equals(Ljava/lang/Object;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_throw
-
-    sget-object v1, Landroid/hardware/camera2/CameraCharacteristics;->LENS_INTRINSIC_CALIBRATION:Landroid/hardware/camera2/CameraCharacteristics$Key;
-
-    invoke-interface {v0, v1}, Lpt;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object v1
-
-    if-eqz v1, :cond_throw
-
-    return-object v1
-
-    :cond_throw
-    new-instance p0, Luwj;"""
-
-        target_vgq_n = """.method public final n(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-    .locals 0
-
-    iget-object p0, p0, Lvgq;->l:Luwc;
-
-    invoke-virtual {p0, p1}, Luwc;->a(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object p0
-
-    return-object p0
-.end method"""
-
-        repl_vgq_n = """.method public final n(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-    .locals 1
-
-    :try_start_0
-    invoke-virtual {p0, p1}, Lvgq;->p(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
-
-    move-result-object p0
-    :try_end_0
-    .catch Luwj; {:try_start_0 .. :try_end_0} :catch_0
-
-    return-object p0
-
-    :catch_0
-    const/4 p0, 0x0
-
-    return-object p0
-.end method"""
-
-        if target_vgq_p in vgq_content:
-            vgq_content = vgq_content.replace(target_vgq_p, repl_vgq_p, 1)
-        if target_vgq_n in vgq_content:
-            vgq_content = vgq_content.replace(target_vgq_n, repl_vgq_n, 1)
-        with open(vgq_path, "w", encoding="utf-8") as f:
-            f.write(vgq_content)
-        print("    [+] vgq.smali: synthesized fallback for all _MAXIMUM_RESOLUTION CameraCharacteristics keys.")
+    # Preserved as clean no-op: viewfinder and stream resolutions are handled natively by stock CameraCharacteristics
+    pass
 
 def main():
     clean_build_artifacts()

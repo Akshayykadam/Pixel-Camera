@@ -30,7 +30,7 @@
         }
     .end annotation
 
-    .line 619
+    .line 608
     iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$4;->val$parent:Landroid/widget/LinearLayout;
 
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
@@ -43,7 +43,7 @@
 .method public afterTextChanged(Landroid/text/Editable;)V
     .locals 1
 
-    .line 626
+    .line 615
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$4;->val$parent:Landroid/widget/LinearLayout;
 
     new-instance v0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$4$1;
@@ -52,20 +52,20 @@
 
     invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->post(Ljava/lang/Runnable;)Z
 
-    .line 632
+    .line 621
     return-void
 .end method
 
 .method public beforeTextChanged(Ljava/lang/CharSequence;III)V
     .locals 0
 
-    .line 621
+    .line 610
     return-void
 .end method
 
 .method public onTextChanged(Ljava/lang/CharSequence;III)V
     .locals 0
 
-    .line 623
+    .line 612
     return-void
 .end method

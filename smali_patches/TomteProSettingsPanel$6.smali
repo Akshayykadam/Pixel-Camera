@@ -46,7 +46,7 @@
         }
     .end annotation
 
-    .line 825
+    .line 814
     iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$prefKey:Ljava/lang/String;
 
     iput-object p2, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$prefs:Landroid/content/SharedPreferences;
@@ -75,7 +75,7 @@
 .method public onClick(Landroid/view/View;)V
     .locals 6
 
-    .line 828
+    .line 817
     const-string v0, "pref_camera_raw_compression_key"
 
     iget-object v1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$prefKey:Ljava/lang/String;
@@ -92,10 +92,10 @@
 
     if-nez v0, :cond_0
 
-    .line 829
+    .line 818
     return-void
 
-    .line 832
+    .line 821
     :cond_0
     const/4 v0, 0x3
 
@@ -104,7 +104,7 @@
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 
-    .line 833
+    .line 822
     :goto_0
     goto :goto_1
 
@@ -113,7 +113,7 @@
 
     goto :goto_0
 
-    .line 835
+    .line 824
     :goto_1
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$prefs:Landroid/content/SharedPreferences;
 
@@ -131,7 +131,7 @@
 
     invoke-interface {p1}, Landroid/content/SharedPreferences$Editor;->apply()V
 
-    .line 836
+    .line 825
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$valueView:Landroid/widget/TextView;
 
     iget-object v0, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$valueDescriptions:[Ljava/lang/String;
@@ -142,14 +142,14 @@
 
     invoke-virtual {p1, v0}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
 
-    .line 838
+    .line 827
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$buttonGroup:Landroid/widget/LinearLayout;
 
     invoke-virtual {p1}, Landroid/widget/LinearLayout;->getChildCount()I
 
     move-result p1
 
-    .line 839
+    .line 828
     const/4 v0, 0x0
 
     const/4 v1, 0x0
@@ -157,22 +157,22 @@
     :goto_2
     if-ge v1, p1, :cond_3
 
-    .line 840
+    .line 829
     iget-object v2, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$buttonGroup:Landroid/widget/LinearLayout;
 
     invoke-virtual {v2, v1}, Landroid/widget/LinearLayout;->getChildAt(I)Landroid/view/View;
 
     move-result-object v2
 
-    .line 841
+    .line 830
     instance-of v3, v2, Landroid/widget/TextView;
 
     if-eqz v3, :cond_2
 
-    .line 842
+    .line 831
     check-cast v2, Landroid/widget/TextView;
 
-    .line 843
+    .line 832
     iget v3, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$index:I
 
     if-ne v1, v3, :cond_1
@@ -184,7 +184,7 @@
     :cond_1
     const/4 v3, 0x0
 
-    .line 844
+    .line 833
     :goto_3
     iget-object v4, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$ctx:Landroid/content/Context;
 
@@ -192,13 +192,13 @@
 
     invoke-static {v4, v2, v3, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smapplyPillState(Landroid/content/Context;Landroid/widget/TextView;ZLcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
 
-    .line 839
+    .line 828
     :cond_2
     add-int/lit8 v1, v1, 0x1
 
     goto :goto_2
 
-    .line 847
+    .line 836
     :cond_3
     return-void
 .end method

@@ -30,7 +30,7 @@
         }
     .end annotation
 
-    .line 648
+    .line 637
     iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;->val$parent:Landroid/widget/LinearLayout;
 
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
@@ -43,7 +43,7 @@
 .method public onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z
     .locals 2
 
-    .line 651
+    .line 640
     invoke-virtual {p2}, Landroid/view/MotionEvent;->getAction()I
 
     move-result p1
@@ -52,7 +52,7 @@
 
     if-ne p1, p2, :cond_0
 
-    .line 652
+    .line 641
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;->val$parent:Landroid/widget/LinearLayout;
 
     new-instance p2, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5$1;
@@ -63,7 +63,7 @@
 
     invoke-virtual {p1, p2, v0, v1}, Landroid/widget/LinearLayout;->postDelayed(Ljava/lang/Runnable;J)Z
 
-    .line 659
+    .line 648
     :cond_0
     const/4 p1, 0x0
 

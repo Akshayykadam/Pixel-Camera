@@ -25,7 +25,7 @@
 .method constructor <init>(Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;)V
     .locals 0
 
-    .line 652
+    .line 641
     iput-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5$1;->this$0:Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;
 
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
@@ -38,13 +38,13 @@
 .method public run()V
     .locals 1
 
-    .line 655
+    .line 644
     iget-object v0, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5$1;->this$0:Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;
 
     iget-object v0, v0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$5;->val$parent:Landroid/widget/LinearLayout;
 
     invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->-$$Nest$smupdateRawFormatRowState(Landroid/view/ViewGroup;)V
 
-    .line 656
+    .line 645
     return-void
 .end method
