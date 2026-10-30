@@ -1901,13 +1901,13 @@
     :cond_check_ark_lens
     const-string v0, "camera.ark_lens_selector"
 
-    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
 
     move-result v0
 
     if-eqz v0, :cond_check_ark
 
-    const/4 v0, 0x0
+    const/4 v0, 0x1
 
     return v0
 

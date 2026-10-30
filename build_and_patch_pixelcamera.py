@@ -772,7 +772,7 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_ark
 
-    const/4 v0, 0x0
+    const/4 v0, 0x1
 
     return v0
 
@@ -846,6 +846,8 @@ def patch_ksf_smali():
                 "camera.ark_edge_hex",
                 "camera.ark_shutter_speed_available",
                 "camera.ark_ISO_available",
+                "camera.ark_lens_selector_available",
+                "camera.ark_lens_selector",
                 "camcorder.jellybean_setting",
                 "camcorder_jellybean_feature",
             ]
@@ -974,7 +976,7 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_ark_x
 
-    const/4 v0, 0x0
+    const/4 v0, 0x1
 
     return v0
 
@@ -6487,6 +6489,8 @@ def patch_creator_suite_smali():
             "camera.ark_edge_hex",
             "camera.ark_shutter_speed_available",
             "camera.ark_ISO_available",
+            "camera.ark_lens_selector_available",
+            "camera.ark_lens_selector",
         ]
 
         q_start = content.find(".method public final q(Lkps;)Z")
