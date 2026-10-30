@@ -6,7 +6,8 @@ import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
 
 val av1VideoEncodingPatch = bytecodePatch(
     name = "AV1 Video Hardware Encoding",
-    description = "Unlocks AV1 hardware video recording in Video settings on supported Tensor hardware (Pixel 8 and Pixel 9 series) with automatic fallback to standard formats on older devices and graceful fallback to HEVC for 10-bit HDR recording."
+    description = "Unlocks AV1 hardware video recording in Video settings on supported Tensor hardware (Pixel 8 and Pixel 9 series) with automatic fallback to standard formats on older devices and graceful fallback to HEVC for 10-bit HDR recording.",
+    default = true
 ) {
     dependsOn(cameraLooksPatch)
 

@@ -5,7 +5,8 @@ import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 
 val photoSavingFixPatch = bytecodePatch(
     name = "Pixel 10 Photo Saving Fix",
-    description = "Resolves Pixel 10 & Pro 12MP photos not saving by disabling failing Flare Removal (ceftazidime) and Eclipse AE, mapping binned RAW stream dimensions, and guarding telephoto streams."
+    description = "Resolves Pixel 10 & Pro 12MP photos not saving by disabling failing Flare Removal (ceftazidime) and Eclipse AE, mapping binned RAW stream dimensions, and guarding telephoto streams.",
+    default = true
 ) {
     extendWith("TomteInitHelper.dex")
 

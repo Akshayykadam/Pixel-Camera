@@ -15,7 +15,8 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 
 val quickAccessPatch = bytecodePatch(
     name = "Viewfinder Quick Access Controls",
-    description = "Enables customizable Left/Right viewfinder quick-access shortcut slots, interactive Brightness & Shadow tick-slider with tap-focus guards, smooth shadow curve, and Camera Looks quick-access items."
+    description = "Enables customizable Left/Right viewfinder quick-access shortcut slots, interactive Brightness & Shadow tick-slider with tap-focus guards, smooth shadow curve, and Camera Looks quick-access items.",
+    default = true
 ) {
     extendWith("TomteInitHelper.dex")
     dependsOn(cameraLooksPatch)

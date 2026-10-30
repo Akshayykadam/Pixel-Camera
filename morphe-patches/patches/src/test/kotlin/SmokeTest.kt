@@ -253,10 +253,16 @@ class SmokeTest {
         val tomteSmali = java.io.File(rootDir, "smali_patches/TomteInitHelper.smali")
         assertTrue(tomteSmali.exists(), "TomteInitHelper.smali must exist")
 
+        val tomteSmaliFiles = mutableListOf(tomteSmali)
+        val proPanelSmaliFiles = java.io.File(rootDir, "smali_patches").listFiles { file ->
+            file.name.startsWith("TomteProSettingsPanel") && file.name.endsWith(".smali")
+        }?.toList() ?: emptyList()
+        tomteSmaliFiles.addAll(proPanelSmaliFiles.sortedBy { it.name })
+
         val optionsTomte = com.android.tools.smali.smali.SmaliOptions()
         val tomteDexOut = java.io.File("src/main/resources/TomteInitHelper.dex")
         optionsTomte.outputDexFile = tomteDexOut.absolutePath
-        val tomteSuccess = com.android.tools.smali.smali.Smali.assemble(optionsTomte, listOf(tomteSmali.absolutePath))
+        val tomteSuccess = com.android.tools.smali.smali.Smali.assemble(optionsTomte, tomteSmaliFiles.map { it.absolutePath })
         assertTrue(tomteSuccess, "TomteInitHelper assembly must succeed")
         println("Generated TomteInitHelper.dex: ${tomteDexOut.length()} bytes")
         tomteDexOut.copyTo(java.io.File("../src/main/resources/TomteInitHelper.dex"), overwrite = true)

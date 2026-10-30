@@ -673,8 +673,9 @@ object PixelCameraPatchUtils {
     }
 
     /**
-     * Injects in-app JPEG Quality and Spatial Noise Reduction preference menus into camera_gm3_preferences.xml,
-     * camera_preferences.xml, arrays.xml, and strings.xml.
+     * Injects in-app JPEG Quality, Spatial Noise Reduction, RAW DNG Format, and Edge Sharpness preference menus
+     * into camera_gm3_preferences.xml, camera_preferences.xml, arrays.xml, and strings.xml.
+     * Also neutralizes the 48dp bottom margin on AutobahnViewPager in options_bottomsheet_tab.xml.
      */
     fun injectImageQualityPreferences(context: ResourcePatchContext) {
         // 1. Inject strings into strings.xml
@@ -682,8 +683,9 @@ object PixelCameraPatchUtils {
             val stringsFile = context.get("res/values/strings.xml", false)
             if (stringsFile.exists()) {
                 var content = stringsFile.readText(Charsets.UTF_8)
-                if (!content.contains("pref_camera_jpeg_quality_title")) {
-                    val stringsToInject = """
+                val stringsToInject = buildString {
+                    if (!content.contains("pref_camera_jpeg_quality_title")) {
+                        append("""
     <string name="pref_camera_jpeg_quality_title">JPEG Quality</string>
     <string name="pref_camera_jpeg_quality_entry_100">100% (Maximum Quality)</string>
     <string name="pref_camera_jpeg_quality_entry_100_desc">Lossless quantization table for maximum fine texture preservation</string>
@@ -698,7 +700,28 @@ object PixelCameraPatchUtils {
     <string name="pref_camera_noise_reduction_entry_minimal_desc">Subtle smoothing; retains shadow microtextures</string>
     <string name="pref_camera_noise_reduction_entry_off">Off (Full Detail)</string>
     <string name="pref_camera_noise_reduction_entry_off_desc">Disables aggressive spatial denoising; preserves grass and foliage textures</string>
-                    """.trimIndent()
+                        """.trimIndent())
+                        append("\n")
+                    }
+                    if (!content.contains("pref_camera_raw_compression_title")) {
+                        append("""
+    <string name="pref_camera_raw_compression_title">RAW DNG Format</string>
+    <string name="pref_camera_raw_compression_entry_uncompressed">Uncompressed 16-Bit RAW (Lossless Linear)</string>
+    <string name="pref_camera_raw_compression_entry_uncompressed_desc">Saves pure uncompressed 16-bit linear Bayer samples for maximum dynamic range in Lightroom</string>
+    <string name="pref_camera_raw_compression_entry_compressed">Compressed RAW (Standard)</string>
+    <string name="pref_camera_raw_compression_entry_compressed_desc">Standard compressed DNG with reduced file size</string>
+    <string name="pref_camera_sharpness_title">Edge Sharpness &amp; De-Ring</string>
+    <string name="pref_camera_sharpness_entry_soft">Soft / Filmic (0.0x)</string>
+    <string name="pref_camera_sharpness_entry_soft_desc">Zero digital unsharp masking; eliminates harsh edge halos and ringing</string>
+    <string name="pref_camera_sharpness_entry_natural">Natural (0.5x)</string>
+    <string name="pref_camera_sharpness_entry_natural_desc">Subtle edge contrast with film-like organic rolloff</string>
+    <string name="pref_camera_sharpness_entry_standard">Standard (1.0x)</string>
+    <string name="pref_camera_sharpness_entry_standard_desc">Default Google Camera edge sharpening</string>
+                        """.trimIndent())
+                        append("\n")
+                    }
+                }
+                if (stringsToInject.isNotBlank()) {
                     content = content.replace("<resources>", "<resources>\n    $stringsToInject")
                     stringsFile.writeText(content, Charsets.UTF_8)
                 }
@@ -710,8 +733,9 @@ object PixelCameraPatchUtils {
             val arraysFile = context.get("res/values/arrays.xml", false)
             if (arraysFile.exists()) {
                 var content = arraysFile.readText(Charsets.UTF_8)
-                if (!content.contains("pref_camera_jpeg_quality_entries")) {
-                    val arraysToInject = """
+                val arraysToInject = buildString {
+                    if (!content.contains("pref_camera_jpeg_quality_entries")) {
+                        append("""
     <string-array name="pref_camera_jpeg_quality_entries">
         <item>@string/pref_camera_jpeg_quality_entry_100</item>
         <item>@string/pref_camera_jpeg_quality_entry_98</item>
@@ -742,7 +766,43 @@ object PixelCameraPatchUtils {
         <item>minimal</item>
         <item>off</item>
     </string-array>
-                    """.trimIndent()
+                        """.trimIndent())
+                        append("\n")
+                    }
+                    if (!content.contains("pref_camera_raw_compression_entries")) {
+                        append("""
+    <string-array name="pref_camera_raw_compression_entries">
+        <item>@string/pref_camera_raw_compression_entry_uncompressed</item>
+        <item>@string/pref_camera_raw_compression_entry_compressed</item>
+    </string-array>
+    <string-array name="pref_camera_raw_compression_entrydescriptions">
+        <item>@string/pref_camera_raw_compression_entry_uncompressed_desc</item>
+        <item>@string/pref_camera_raw_compression_entry_compressed_desc</item>
+    </string-array>
+    <string-array name="pref_camera_raw_compression_entryvalues">
+        <item>uncompressed</item>
+        <item>compressed</item>
+    </string-array>
+    <string-array name="pref_camera_sharpness_entries">
+        <item>@string/pref_camera_sharpness_entry_soft</item>
+        <item>@string/pref_camera_sharpness_entry_natural</item>
+        <item>@string/pref_camera_sharpness_entry_standard</item>
+    </string-array>
+    <string-array name="pref_camera_sharpness_entrydescriptions">
+        <item>@string/pref_camera_sharpness_entry_soft_desc</item>
+        <item>@string/pref_camera_sharpness_entry_natural_desc</item>
+        <item>@string/pref_camera_sharpness_entry_standard_desc</item>
+    </string-array>
+    <string-array name="pref_camera_sharpness_entryvalues">
+        <item>soft</item>
+        <item>natural</item>
+        <item>standard</item>
+    </string-array>
+                        """.trimIndent())
+                        append("\n")
+                    }
+                }
+                if (arraysToInject.isNotBlank()) {
                     content = content.replace("<resources>", "<resources>\n    $arraysToInject")
                     arraysFile.writeText(content, Charsets.UTF_8)
                 }
@@ -758,6 +818,8 @@ object PixelCameraPatchUtils {
                     val gm3Prefs = """
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="12" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="13" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
                     """.trimIndent()
 
                     val targetRegex = Regex("""(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</androidx\.preference\.PreferenceCategory>)""")
@@ -783,6 +845,8 @@ object PixelCameraPatchUtils {
                     val camPrefs = """
             <ListPreference android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="10" android:defaultValue="100" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
             <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="11" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+            <ListPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="12" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
+            <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="13" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
                     """.trimIndent()
 
                     val targetRegex = Regex("""(android:key="pref_category_resolution_camera"[^>]*>[\s\S]*?)(</PreferenceCategory>)""")
@@ -795,6 +859,18 @@ object PixelCameraPatchUtils {
                         content.replace("</PreferenceScreen>", "    $camPrefs\n</PreferenceScreen>")
                     }
                     camPrefFile.writeText(content, Charsets.UTF_8)
+                }
+            }
+        } catch (_: Throwable) {}
+
+        // 5. Remove 48dp bottom margin on AutobahnViewPager in options_bottomsheet_tab.xml
+        try {
+            val tabXmlFile = context.get("res/layout/options_bottomsheet_tab.xml", false)
+            if (tabXmlFile.exists()) {
+                var content = tabXmlFile.readText(Charsets.UTF_8)
+                if (content.contains("android:layout_marginBottom=\"48.0dp\"")) {
+                    content = content.replace("android:layout_marginBottom=\"48.0dp\"", "android:layout_marginBottom=\"0.0dp\"")
+                    tabXmlFile.writeText(content, Charsets.UTF_8)
                 }
             }
         } catch (_: Throwable) {}

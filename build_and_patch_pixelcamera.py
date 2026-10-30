@@ -8022,30 +8022,30 @@ def copy_to_desktop(signed_apk):
     if os.path.isdir(desktop_dir):
         dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
         shutil.copy2(signed_apk, dest_apk)
-        dest_v108 = os.path.join(desktop_dir, "PixelCamera-1.0.8.apk")
-        shutil.copy2(signed_apk, dest_v108)
+        dest_v109 = os.path.join(desktop_dir, "PixelCamera-1.0.9.apk")
+        shutil.copy2(signed_apk, dest_v109)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v108} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v109} ({size_mb:.2f} MB)")
 
         # Also copy the Morphe .mpp patch file to Desktop
-        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.0.8.mpp")
+        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.0.9.mpp")
         if not os.path.exists(mpp_src):
-            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.0.8.mpp")
+            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.0.9.mpp")
             if os.path.exists(built_mpp):
                 mpp_src = built_mpp
         if os.path.exists(mpp_src):
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.0.8.mpp"))
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.0.8.mpp"))
-            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.0.8.mpp')}")
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.0.9.mpp"))
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.0.9.mpp"))
+            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.0.9.mpp')}")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.8.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.9.apk"))
             if os.path.exists(mpp_src):
-                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.0.8.mpp"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.8.apk")
-        return dest_v108
+                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.0.9.mpp"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.9.apk")
+        return dest_v109
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None

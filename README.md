@@ -7,14 +7,14 @@
 
 <!-- DOWNLOAD CTA BUTTONS -->
 <p align="center">
-  <a href="https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.8.apk/download">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20APK%20v1.0.8-Pixel%20Camera%20(SourceForge)-ee6600?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=d45500" alt="Download Latest Patched APK" height="42">
+  <a href="https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20APK%20v1.0.9-Pixel%20Camera%20(SourceForge)-ee6600?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=d45500" alt="Download Latest Patched APK" height="42">
   </a>
-  <a href="https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.8.mpp/download">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20PATCH%20v1.0.8-Morphe%20(SourceForge)-ee6600?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=d45500" alt="Download Latest Patch (.mpp) from SourceForge" height="42">
+  <a href="https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20PATCH%20v1.0.9-Morphe%20(SourceForge)-ee6600?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=d45500" alt="Download Latest Patch (.mpp) from SourceForge" height="42">
   </a>
-  <a href="https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.8.mpp">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20PATCH%20v1.0.8-Morphe%20(GitHub)-00acc1?style=for-the-badge&logo=github&logoColor=white&labelColor=00838f" alt="Download Latest Patch (.mpp) from GitHub" height="42">
+  <a href="https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD%20PATCH%20v1.0.9-Morphe%20(GitHub)-00acc1?style=for-the-badge&logo=github&logoColor=white&labelColor=00838f" alt="Download Latest Patch (.mpp) from GitHub" height="42">
   </a>
   <a href="https://sourceforge.net/projects/pixel-camera-patches/files/">
     <img src="https://img.shields.io/badge/%F0%9F%93%82%20ALL%20FILES-SourceForge%20Repository-0055aa?style=for-the-badge&logo=sourceforge&logoColor=white&labelColor=003366" alt="SourceForge Files" height="42">
@@ -106,6 +106,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Dedicated Hardware AV1 Encoding**: Unlocks the 3-way format selector (`camcorder.jellybean_setting` and `camcorder_jellybean_feature`) in Video settings (**Settings > Video format > AVC, HEVC, AV1**), encoding ultra-efficient 10-bit AV1 video streams at ~30% higher compression efficiency than HEVC.
 * **Hardware-Gated Compatibility**: Supported on Google Tensor G3 (Pixel 8 / 8 Pro / 8a) and Tensor G4 (Pixel 9 / 9 Pro / 9 Pro XL / 9 Pro Fold) featuring dedicated multi-format video encoder blocks (`c2.google.av1.encoder`).
 * **Graceful Legacy Fallback**: On devices lacking hardware AV1 encoders (Tensor G1 / G2, Pixel 6 & 7 series), Google Camera's internal `MediaCodecInfo.isHardwareAccelerated()` safety gate automatically suppresses the AV1 option and defaults cleanly to standard HEVC/AVC toggles with zero crashes.
+* *(See [`Av1VideoEncodingPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Av1VideoEncodingPatch.kt) for implementation).*
 
 ### 11. In-App Pro Image Quality (JPEG Quality & Spatial Noise Reduction)
 * **In-App Interactive Preference Menus**: Directly integrated into Camera Settings under **Photo / Resolution** (`pref_category_resolution_camera`), offering full in-app control similar to the Video Format menu.
@@ -119,6 +120,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
   * **Minimal**: Subtle noise reduction, retaining shadow textures and natural sensor grain (`CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL`).
   * **Off (Full Detail)**: Disables aggressive spatial denoising (`CaptureRequest.NOISE_REDUCTION_MODE_OFF`), eliminating watercolor smearing and keeping microtextures 100% crisp.
 * **Dual-Pipeline Execution**: Seamlessly overrides both Camera2 capture requests (`CaptureRequest.JPEG_QUALITY` and `CaptureRequest.NOISE_REDUCTION_MODE` in `pbe.smali`) and Google's native Gcam C++ JPEG encoder (`JpgEncodeOptions` `<init>` and `b(I)V`).
+* *(See [`ProImageQualityPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quality/ProImageQualityPatch.kt) and [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) for implementation).*
 
 ### 12. Visual App Name & Comprehensive International Localization (124 Locales)
 * **Clean Visual Branding**: Displays clean **"Pixel Camera"** in the app drawer and launcher without conflicting with internal component identifiers or Google system contracts.
@@ -135,6 +137,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
   * **Scandinavian (`sv`, `da`, `nb`, `fi`)**: **Pixel Kamera**
   * **Asian & Global**: Japanese (**Pixel カメラ**), Korean (**Pixel 카메라**), Simplified/Traditional Chinese (**Pixel 相机** / **Pixel 相機**), Hindi (**Pixel कैमरा**), Arabic (**كاميرا Pixel**), etc.
 * **Launcher Activity Alias Alignment**: `com.android.camera.CameraLauncher` in `AndroidManifest.xml` explicitly carries `android:label="@string/app_name"` guaranteeing reliable display on OEM (Samsung OneUI, Xiaomi HyperOS, OnePlus OxygenOS) and third-party launchers (Nova, Lawnchair).
+* *(See [`PixelCameraClonePatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/clone/PixelCameraClonePatch.kt) for localized strings mapping).*
 
 ### 13. Advanced Pro Settings Bottom Sheet & Material 3 Layout Alignment
 * **Integrated Pro Quick Settings Tab**: Seamlessly incorporated as a dedicated tab inside the viewfinder swipe-up / options bottom sheet (`AutobahnViewPager`), gated specifically to Photo and Night Sight modes (and cleanly hidden in Video mode to avoid interference).
@@ -153,6 +156,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **AutobahnViewPager Bottom Space Elimination**:
   * Removed the hardcoded `48dp` bottom margin (`android:layout_marginBottom="48.0dp"` in `options_bottomsheet_tab.xml`), reclaiming the wasted blank area so all rows fit comfortably without crowding or clipping.
   * Prevented top and bottom row scroll clipping in `OptionsMenuView`.
+* *(See [`TomteProSettingsPanel.smali`](smali_patches/TomteProSettingsPanel.smali) and [`smali_patches/README.md`](smali_patches/README.md) for layout and event listener implementation).*
 
 ### 14. Device-Aware Resolution Gating (Pro vs. Non-Pro Pixels) & True 50MP Capture
 * **True 50MP Capture on Pro Models (`8160 x 6144`, ~15–30 MB)**:
@@ -164,6 +168,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Camera HAL Stream & Metadata Crash Safeguards**:
   * Guarded missing `CameraCharacteristics` maximum resolution keys (`SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION` and `SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION`) in `msr.smali` with safe fallback to primary sensor dimensions, preventing fatal `uwj: CameraMetadata missing value` startup crashes on devices with proprietary vendor extensions (e.g. Pixel 8 Pro).
   * Preserved native Camera2 stream configurations and eliminated stream format collisions to guarantee 100% crash-free live viewfinder feeds.
+* *(See [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) and [`build_and_patch_pixelcamera.py`](build_and_patch_pixelcamera.py#L4200-L4335) for resolution gating logic).*
 
 ---
 
@@ -255,10 +260,10 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 
 | Asset | Version | Target Audience | Root Required? | Recommended For | Direct Download Links |
 | :--- | :---: | :--- | :---: | :--- | :---: |
-| **Patched Pixel Camera APK (`.apk`)** | **`v1.0.8`** | All Pixel 6 → 10 users | ❌ **NO** | Pre-patched & signed standalone APK (All features unlocked, no Morphe Manager needed) | [⬇️ Download APK v1.0.8 (SourceForge Direct)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.8.apk/download) • [SourceForge Mirror](https://sourceforge.net/projects/pixel-camera-patches/files/latest/download) • [All Files](https://sourceforge.net/projects/pixel-camera-patches/files/) |
-| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.8`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [⬇️ SourceForge (.mpp)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.8.mpp/download) • [GitHub Raw (.mpp)](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.8.mpp) • [Local File](morphe-patches-pixelcamera-1.0.8.mpp) |
+| **Patched Pixel Camera APK (`.apk`)** | **`v1.0.9`** | All Pixel 6 → 10 users | ❌ **NO** | Pre-patched & signed standalone APK (All features unlocked, no Morphe Manager needed) | [⬇️ Download APK v1.0.9 (SourceForge Direct)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download) • [SourceForge Mirror](https://sourceforge.net/projects/pixel-camera-patches/files/latest/download) • [All Files](https://sourceforge.net/projects/pixel-camera-patches/files/) |
+| **Pixel Camera Morphe Patch (`.mpp`)** | **`v1.0.9`** | All Pixel 6 → 10 users | ❌ **NO** | 1-click on-device patching via Morphe Manager | [⬇️ SourceForge (.mpp)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw (.mpp)](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp) • [Local File](morphe-patches-pixelcamera-1.0.9.mpp) |
 | **Stock Base Pixel Camera APKM** | **`11.1.040`** | All users | ❌ **NO** | Official unmodified stock APK (required only if patching manually via Morphe) | [⬇️ Download from APKMirror](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) |
-| **Patch Source Code (Kotlin)** | **`v1.0.8`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
+| **Patch Source Code (Kotlin)** | **`v1.0.9`** | Developers & Modders | ❌ **NO** | Inspect bytecode hooks & compile with Gradle | [View Source](morphe-patches/) |
 
 ---
 
@@ -269,9 +274,9 @@ You can either install the pre-patched APK directly (ready to use), or patch the
 ### Method 1: Direct Install (Pre-Patched Standalone APK — Fastest & Easiest)
 
 > [!NOTE]
-> This is the **pre-patched APK (`Camera-v11.1.040.982810059.19-patches-v1.0.8.apk`)**, NOT the stock Google Camera APK. All 13 Camera Looks, Pro controls, and fixes are already applied and signed.
+> This is the **pre-patched APK (`Camera-v11.1.040.982810059.19-patches-v1.0.9.apk`)**, NOT the stock Google Camera APK. All 13 Camera Looks, Pro controls, and fixes are already applied and signed.
 
-1. **Download Patched APK**: Download the latest patched APK directly from [SourceForge Direct Download](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.8.apk/download) (or browse [All Files on SourceForge](https://sourceforge.net/projects/pixel-camera-patches/files/)).
+1. **Download Patched APK**: Download the latest patched APK directly from [SourceForge Direct Download](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download) (or browse [All Files on SourceForge](https://sourceforge.net/projects/pixel-camera-patches/files/)).
 2. **Install**: Tap the downloaded `.apk` file on your phone and tap **Install** (allow installation from unknown sources in your browser or file manager settings if prompted).
 3. **Open & Shoot**: Launch **Pixel Camera** from your app drawer. All 13 Camera Looks, Pro controls, and 10x Quick Zoom are immediately active!
 
@@ -282,7 +287,7 @@ You can either install the pre-patched APK directly (ready to use), or patch the
 1. **Install Morphe Manager**: Download the latest release from [morphe.software](https://morphe.software) or GitHub.
 2. **Add Patch Source**:
    * **1-Click**: Tap [Add to Morphe Manager](https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera) on your phone.
-   * **Or Direct Download**: Download [morphe-patches-pixelcamera-1.0.8.mpp](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.8.mpp) (GitHub) or from [SourceForge (.mpp)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.8.mpp/download).
+   * **Or Direct Download**: Download [morphe-patches-pixelcamera-1.0.9.mpp](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp) (GitHub) or from [SourceForge (.mpp)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download).
 3. **Get Base Google Camera**:
    * Download [Pixel Camera 11.1.040.982810059.19](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) (`.apkm` bundle) from APKMirror.
 4. **Patch & Install**:
@@ -304,7 +309,7 @@ You can either install the pre-patched APK directly (ready to use), or patch the
 ### Method 3: On Your Computer (Morphe Desktop / CLI)
 
 1. Download **Morphe Desktop** from [morphe.software](https://morphe.software).
-2. Download [morphe-patches-pixelcamera-1.0.8.mpp](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.8.mpp) directly from GitHub or [SourceForge](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.8.mpp/download).
+2. Download [morphe-patches-pixelcamera-1.0.9.mpp](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp) directly from GitHub or [SourceForge](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download).
 3. Download the base [Pixel Camera 11.1.040 APKM](https://www.apkmirror.com/apk/google-inc/camera/pixel-camera-11-1-040-982810059-19-release/) from APKMirror.
 4. Drop the APKM into Morphe Desktop and apply the patch package.
 5. Install the resulting `PixelCamera_signed.apk` to your phone via ADB:
@@ -320,17 +325,27 @@ This repository contains extensive technical teardowns, reverse-engineering anal
 
 ### 🔍 Core Research Reports
 * **[Master Camera Looks Teardown](pixel-camera-looks-research/RESEARCH.md)**: Deep technical exploration answering architecture questions regarding gating, Halide kernels, neural style models, and vendor HAL tags.
+* **[Pixel Camera Architecture & Root Cause Analysis](docs/PIXEL_CAMERA_PATCHES_DOCUMENTATION.md)**: Complete reverse-engineering teardown of Dual-EV controls, Camera2 HAL dispatch, and sensor calibration.
+* **[Root Cause Fixes & Cumulative Audit](CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md)**: Full chronological technical audit, smali hooks, and hardware compatibility fixes.
+* **[Developer Guide: Creating Morphe Patches (.mpp)](docs/HOW_TO_CREATE_MORPHE_PATCHES.md)**: Architecture and guide on building Morphe patch packages from scratch.
 * **[Viewfinder Quick Access Teardown](camera-looks-quick-access/RESEARCH.md)**: Dalvik bytecode analysis of `pie.java`, `qvb.java`, `qmn.java`, Jetpack Compose integration, and gesture mechanisms.
+* **[Creator Suite Research Teardown](creator-suite-research/RESEARCH.md)**: 9-phase reverse engineering of Teleprompter HUD, audio VU meter, and framing guides.
 * **[Portrait Mode Integration Report](pixel-camera-looks-research/PORTRAIT_RESEARCH.md)**: Teardown of Gouda, Mantis depth estimation, and Portrait Mode Looks compatibility.
 * **[Generational Compatibility Matrix](pixel-camera-looks-research/COMPATIBILITY.md)**: Hardware capabilities and HAL tag behavior across Tensor G1, G2, G3, G4, and G5.
+* **[Unified Smali Patches Catalog](patches/README.md)**: Standard unified diffs (`.patch`) capturing all modifications for manual patching on clean APK trees.
 
-### Per-Generation Hardware Deep Dives
+### 📱 Per-Generation Hardware Deep Dives
 * [Pixel 11 Reference Teardown](pixel-camera-looks-research/analysis/pixel11_reference.md)
+* [Pixel 11 (Tensor G6) Analysis](pixel-camera-looks-research/analysis/pixel11.md)
 * [Pixel 10 (Tensor G5) Analysis](pixel-camera-looks-research/analysis/pixel10.md)
 * [Pixel 9 Pro / 9 (Tensor G4) Analysis](pixel-camera-looks-research/analysis/pixel9.md)
 * [Pixel 8 Pro / 8 (Tensor G3) Analysis](pixel-camera-looks-research/analysis/pixel8.md)
 * [Pixel 7 Pro / 7 (Tensor G2) Analysis](pixel-camera-looks-research/analysis/pixel7.md)
 * [Pixel 6 Pro / 6 / 6a (Tensor G1) Analysis](pixel-camera-looks-research/analysis/pixel6.md)
+
+### 🧪 Verification & Testing
+* [Systematic Verification Test Plan](pixel-camera-looks-research/tests/test-plan.md)
+* [Test Evaluation Report & Image Diff Benchmarks](pixel-camera-looks-research/tests/results.md)
 
 ---
 
@@ -343,15 +358,28 @@ Patch-Pixel-Camera/
 ├── .gitignore                           # Excludes multi-GB APKs, decompiled trees, & secrets
 ├── .github/workflows/                   # Automated CI workflows (Morphe .mpp builder)
 ├── build_and_patch_pixelcamera.py       # Standalone automated build, smali patching & signing script
+├── morphe-patches-pixelcamera-1.0.9.mpp  # Compiled v1.0.9 Morphe patch package bundle
 ├── patches-bundle.json                  # Morphe Manager custom source release metadata
 ├── patches-list.json                    # Morphe Manager patch catalog & target compatibility
 │
+├── docs/                                # In-depth technical guides & architecture specifications
+│   ├── PIXEL_CAMERA_PATCHES_DOCUMENTATION.md # Complete patch suite architecture & root cause analysis
+│   └── HOW_TO_CREATE_MORPHE_PATCHES.md  # Step-by-step developer guide on creating .mpp bundles
+│
 ├── smali_patches/                       # Standalone Smali reference patches & injected bytecode
-│   ├── README.md                        # Documentation of all 16 patched smali modules
-│   ├── TomteInitHelper.smali            # Injected Tomte neural helper
+│   ├── README.md                        # Complete documentation of all 71 smali patch modules
+│   ├── TomteProSettingsPanel.smali      # Material You Pro settings bottom sheet panel
+│   ├── TomteInitHelper.smali            # Injected Tomte neural helper, isProDevice(), & sharpness
 │   ├── nrd.smali / nrm.smali            # Dual-EV Brightness & Shadows with Reset buttons
 │   ├── nrc.smali / pfh.smali            # Bottom sheet dispatcher & direct AE compensation
 │   └── klm.smali / qaa.smali / qbb.smali # Pro flags (camera.ark) and live drag suppression
+│
+├── patches/                             # Standard Unified Diffs (.patch) for clean APK trees
+│   ├── README.md                        # Catalog of all 32 modular patches and application guide
+│   ├── all_smali_changes.patch          # Single cumulative patch applying all modifications
+│   ├── zoom_10x_buttons.patch           # 10x viewfinder zoom button diff
+│   ├── looks_pipeline.patch             # Camera Looks pipeline and Catshark bypass
+│   └── guh_focal_length_cycling.patch   # 1x focal length cycling (24mm, 28mm, 35mm)
 │
 ├── morphe-patches/                      # Official Morphe Patch Package (.mpp) Source
 │   ├── README.md                        # Morphe patch usage & compilation guide
@@ -364,11 +392,15 @@ Patch-Pixel-Camera/
 │   └── patches/                         # Morphe Patches subproject
 │       ├── build.gradle.kts             # Patch metadata & dependency configuration
 │       └── src/main/kotlin/app/morphe/patches/pixelcamera/
-│           ├── looks/CameraLooksPatch.kt               # Unlocks 10 Looks across Tensor G1–G5
+│           ├── looks/CameraLooksPatch.kt               # Unlocks 13 Looks across Tensor G1–G5
 │           ├── quickaccess/QuickAccessPatch.kt         # Viewfinder shortcut slots & tick-slider
 │           ├── pro/ProControlsPatch.kt                 # Pro manual controls (Focus, Shutter, ISO)
 │           ├── portrait/TelephotoPortraitAndZoomPatch.kt # 10x Viewfinder Quick Zoom button
 │           ├── creator/CreatorSuitePatch.kt            # Teleprompter HUD, VU meter, & guides
+│           ├── video/Av1VideoEncodingPatch.kt          # Hardware AV1 10-bit video encoding
+│           ├── quality/ProImageQualityPatch.kt         # In-app JPEG quality & spatial denoising
+│           ├── brightness/MaxBrightnessPatch.kt        # 100% viewfinder display backlight
+│           ├── photosaving/PhotoSavingFixPatch.kt      # Pixel 10 RAW dimensions & photo saving
 │           └── clone/PixelCameraClonePatch.kt          # Non-root clone to GoogleCameraEng
 │
 ├── camera-looks-quick-access/           # Quick Access Shortcut Research & Documentation
@@ -452,7 +484,8 @@ Android 14 (API 34), Android 15 (API 35), and Android 16/17 previews. The Morphe
 
 ## 📋 Release History & Changelog
 
-| **v1.0.8** *(Latest)* | • **True 50MP Full-Resolution Capture on Pro Devices**: Restored unbinned 50.13 MP capture (`8160 x 6144`, ~15–30 MB) on Pro devices by neutralizing automatic 12MP downsampling in `rdb.C()`/`rdb.D()`, while dynamically hiding the toggle on non-Pro devices via `isProDevice()` to enforce stable 12MP capture without placebo toggles.<br>• **Camera HAL Stream & Metadata Crash Safeguards**: Fixed `uwj` CameraMetadata missing key startup crashes in `msr.smali` through safe optional fallback, and eliminated stream format collisions to guarantee rock-solid live viewfinder preview across all supported devices.<br>• **Unified Pro Settings Sheet & Material You Layout Integration**: Injected `TomteProSettingsPanel` directly into Google Camera's native bottom settings sheet (`poy.M(I)`), providing full in-drawer controls for Camera Looks selection, Uncompressed 16-bit DNG capture, and custom edge sharpness/de-ringing filter options.<br>• **Stock-Aligned Spacing & AutobahnViewPager Fix**: Fixed row layout clipping and eliminated extraneous `48dp` bottom margins (`options_bottomsheet_tab.xml`), ensuring all rows adhere to stock `56dp` row height and capsule pill standards (`38dp` height, `14dp` padding, `100dp` corner radius) with dynamic Monet wallpaper coloring.<br>• **Visual App Name & Comprehensive International Localization**: Updated the visual application name from generic "Camera" / "PixelCamera" to clean "Pixel Camera" with native localization across 124 language locales.<br>• **Launcher Activity Alias Label Alignment**: Added explicit `android:label="@string/app_name"` to launcher activity alias `com.android.camera.CameraLauncher` in `AndroidManifest.xml` ensuring consistent app drawer title display across all OEM and third-party launchers. |
+| **v1.0.9** *(Latest)* | • **True 50MP Full-Resolution Capture on Pro Devices**: Restored unbinned 50.13 MP capture (`8160 x 6144`, ~15–30 MB) on Pro devices by neutralizing automatic 12MP downsampling in `rdb.C()`/`rdb.D()`, while dynamically hiding the toggle on non-Pro devices via `isProDevice()` to enforce stable 12MP capture without placebo toggles.<br>• **Camera HAL Stream & Metadata Crash Safeguards**: Fixed `uwj` CameraMetadata missing key startup crashes in `msr.smali` through safe optional fallback, and eliminated stream format collisions to guarantee rock-solid live viewfinder preview across all supported devices.<br>• **Unified Pro Settings Sheet & Material You Layout Integration**: Injected `TomteProSettingsPanel` directly into Google Camera's native bottom settings sheet (`poy.M(I)` and `poy.r(I)`), providing full in-drawer controls for Camera Looks selection, Uncompressed 16-bit DNG capture, and custom edge sharpness/de-ringing filter options.<br>• **Stock-Aligned Spacing & AutobahnViewPager Fix**: Fixed row layout clipping and eliminated extraneous `48dp` bottom margins (`options_bottomsheet_tab.xml`), ensuring all rows adhere to stock `56dp` row height and capsule pill standards (`38dp` height, `14dp` padding, `100dp` corner radius) with dynamic Monet wallpaper coloring.<br>• **Custom Edge Sharpness & De-Ringing Filter Modes**: Added user-selectable sharpness tuning (Standard, Natural, Soft) hooked into `TomteInitHelper.filterSharpness()`, preventing aggressive edge haloes while preserving fine textures.<br>• **Uncompressed 16-bit DNG Capture Support**: Restored uncompressed raw output support in Gcam, ensuring tone-curve and sensor dynamics are fully preserved without lossy compression artifacts.<br>• **Full Pipeline & Morphe Patch Package Sync**: Synchronized Morphe patcher bundle (`morphe-patches-pixelcamera-1.0.9.mpp`), standalone APK builder (`build_and_patch_pixelcamera.py`), and unified DEX helper runtime to v1.0.9. |
+| **v1.0.8** | • **Visual App Name & Comprehensive International Localization**: Updated the visual application name from generic "Camera" / "PixelCamera" to clean "Pixel Camera" with native localization across 124 language locales (e.g., "Pixel Kamera" for German, "Cámara Pixel" for Spanish, "Appareil photo Pixel" for French, "Fotocamera Pixel" for Italian, "Câmera Pixel" / "Câmara Pixel" for Portuguese).<br>• **Launcher Activity Alias Label Alignment**: Added explicit `android:label="@string/app_name"` to launcher activity alias `com.android.camera.CameraLauncher` in `AndroidManifest.xml` ensuring consistent app drawer title display across all OEM and third-party launchers.<br>• **Unified Build & Patcher Pipeline Sync**: Synchronized `PixelCameraClonePatch.kt` (`injectLocalizedAppNames()`), standalone builder `build_and_patch_pixelcamera.py`, and compiled release `.mpp` patch bundles to v1.0.8. |
 | **v1.0.7** | • **Fixed Video Mode Exposure & Viewfinder Controls (Issue #25)**: Corrected viewfinder slider attachment in `ltg.i` and `nzr.e` so Video mode cleanly displays the single Exposure slider (and White Balance/Temp) without incorrectly forcing broken Dual EV Shadow controls, routing live slider drag events to Camera2 `CONTROL_AE_EXPOSURE_COMPENSATION`.<br>• **AV1 Video Hardware Encoding (Issue #36)**: Unlocked `camcorder.jellybean_setting` and `camcorder_jellybean_feature` to expose the 3-way format selector (AVC, HEVC, AV1) in Video settings on Tensor G3 (Pixel 8 series) and Tensor G4 (Pixel 9 series) with automatic fallback for older devices and seamless fallback to HEVC for 10-bit HDR recording.<br>• **In-App JPEG Quality & Spatial Noise Reduction Menus (Issue #25)**: Added user-facing settings under "Photo resolution" in `camera_preferences.xml` and `camera_gm3_preferences.xml` allowing selection of JPEG compression quality (100% Ultra, 98% High, 95% Stock) and Spatial Noise Reduction (Off, Minimal, Stock), dynamically hooked into Camera2 capture requests and native Gcam encoder.<br>• **In-App 100% Max Display Brightness Toggle**: Added user-facing toggle under "Display" in Camera Settings, enforcing 100% display backlight exclusively during active viewfinder sessions while keeping standard system brightness in Settings and gallery.<br>• **Fixed Film Grain Initialization (Issue #38)**: Injected `TomteInitHelper.initTomteGrain(J)` into `msr.a` (`Gcam.<init>`) and `ndf.a` (`FilmGrainJni.applyTomteImageFinalizer`) to load the native grain model (`.tflite.uncompressed`), resolving `GetTomteGrainModel: Tomte requested, but initialization failed`.<br>• **Enforced Tomte Grain Mode Tracking & Pre-warming**: Connected `sof.P` (`setGcamMode`) to `TomteInitHelper.setCurrentMode()` to keep grain enabled across PHOTO, PORTRAIT, and NIGHT modes without dropping to disabled state, and injected `forceF = true` into `mqs.a` (`mia`) to guarantee Tomte grain model descriptors are initialized at startup.<br>• **Comprehensive Patcher & Patch Synchronization**: Added missing `tcc.<init>` and `tcc.b()` hooks in `CameraLooksPatch.kt`, injected `camera_preferences.xml` into `PixelCameraClonePatch.kt`, generated standalone patches, and aligned bundle version metadata across `patches-list.json` and `patches-bundle.json` to `v1.0.7`. |
 | **v1.0.6** | • **Fixed Dalvik Bytecode VerifyError on Launch**: Resolved register type conflict in `qwh.smali` by inserting the Shadows/Highlights pipeline synchronization hook at method entry.<br>• **Fixed Dark Viewfinder on Gallery Return**: Fixed session pause/close reset in `oak.smali` (`oak.e`) to reset `pco.f` (live Brightness) to neutral `0.5f` instead of `-1.0f`.<br>• **Fixed Auto-Exposure Convergence**: Eliminated negative twilight AE bias hijacking in `pzq.smali` and preserved clean initial sensor baseline calibration in `pzj.smali`.<br>• **1x Main Camera Focal Length Cycling**: Tapping the `1x` zoom button now cycles between 1.0x (24mm) → 1.2x (28mm) → 1.5x (35mm) → 1.0x.<br>• **Live Dual-EV & Pro Slider Response**: Unlocked real-time exposure and tone curve updates while dragging without snap-back to auto. |
 | **v1.0.5** | • **Fixed Startup Crash on Pixel 9 Pro, 9 Pro XL & Pixel 8 Pro**: Resolved ART bytecode `VerifyError` in `knq` and `knk` by safely routing zoom stop references through `v11` and preserving primitive float register `v5` (`2.0f`) for `gei.o(FLabjo;)V`.<br>• **Preserved Stock Tensor G4 Capabilities**: Kept native `vku.g` and `vku.f` hardware capability flags on Pixel 9 series to prevent profile fallback.<br>• **64-bit Pointer Pair Alignment**: Fixed look ID scratch register in `mtt.K` (`ShotParams_tomte_type_set`) to `v15`, eliminating wide register pair collisions.<br>• **Viewfinder & Quick Access Hardening**: Removed legacy `EvCompView.onMeasure` bytecode hook causing Android 15 verification conflicts, and added null-safety guards across activity startup. |

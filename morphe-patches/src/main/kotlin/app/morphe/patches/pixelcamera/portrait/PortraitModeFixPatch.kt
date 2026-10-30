@@ -5,7 +5,8 @@ import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 
 val portraitModeFixPatch = bytecodePatch(
     name = "Permanent Portrait Mode Fix",
-    description = "Fixes front camera total blur and rear camera flat/bokeh-less portraits by routing portrait processing to Google's pure-TFLite monocular depth pipeline across all cameras."
+    description = "Fixes front camera total blur and rear camera flat/bokeh-less portraits by routing portrait processing to Google's pure-TFLite monocular depth pipeline across all cameras.",
+    default = true
 ) {
     extendWith("TomteInitHelper.dex")
 

@@ -1,6 +1,18 @@
 # Camera Looks Quick Access Shortcut Investigation
 
-This repository contains the reverse-engineering analysis, compatibility assessment, and working patch implementations to unlock the **Camera Looks Quick Access shortcut** from Pixel Camera `11.0.073.972752740.32` on older Google Pixel smartphones (Pixel 6 through Pixel 10 Pro XL).
+This repository contains the reverse-engineering analysis, compatibility assessment, and working patch implementations to unlock the **Camera Looks Quick Access shortcut** from Pixel Camera `11.1.040.982810059.19` (and `11.0.073.972752740.32`) on older Google Pixel smartphones (Pixel 6 through Pixel 10 Pro XL).
+
+---
+
+## 🔗 Quick Links & Navigation
+
+* **Master Guide**: [Root Project README](../README.md)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Quick Access Patch Implementation**: [`QuickAccessPatch.kt`](../morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt)
+* **Unified Smali Patch**: [`patches/qhm_quick_access.patch`](../patches/qhm_quick_access.patch)
+* **Architecture & Dual-EV Teardown**: [docs/PIXEL_CAMERA_PATCHES_DOCUMENTATION.md](../docs/PIXEL_CAMERA_PATCHES_DOCUMENTATION.md)
+* **Changelog & Technical Audit**: [CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md](../CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md)
 
 ---
 
@@ -9,27 +21,23 @@ This repository contains the reverse-engineering analysis, compatibility assessm
 > **Question:** *Is the Pixel 11 Camera Looks Quick Access shortcut already implemented in the Camera app and merely software-gated on older Pixel phones, and can that shortcut be unlocked with a minimal patch?*
 
 ### **YES.**
-1. **Fully Implemented in Java/Compose**: The Quick Access controls framework, slot assignment configuration UI, the Looks shortcut entry (`nqq.TOMTE_SELECTION`, ID `26`), the viewfinder ViewStub, the discrete 10-tick vertical slider (`qmn.java`), and the Looks preset switcher (`qmy.java`) are **100% complete and present** within the Dalvik bytecode of Pixel Camera `11.0.073.972752740.32`.
+1. **Fully Implemented in Java/Compose**: The Quick Access controls framework, slot assignment configuration UI, the Looks shortcut entry (`nqq.TOMTE_SELECTION`, ID `26`), the viewfinder ViewStub, the discrete 10-tick vertical slider (`qmn.java`), and the Looks preset switcher (`qmy.java`) are **100% complete and present** within the Dalvik bytecode of Pixel Camera `11.1.040.982810059.19` and `11.0.073.972752740.32`.
 2. **Merely Software-Gated**: The shortcut is concealed from older Pixel devices exclusively through two software flags:
    * **`camera.quick_access_customization_enabled` (`kkh.b`)**: Initialized to `false`, only set to `true` on Pixel 11 (`uyv.g()`). When `false`, the Compose Settings UI suppresses the Left/Right customization slots.
    * **Master Predicate (`qau 19`)**: Supplier for `camera.sauce_eligible` (`kjq.bm`) & `camera.sauce_enabled` (`kjq.bl`). When `false`, `pie.java` strips "Looks" from the candidate shortcuts map.
 3. **Zero Hardware Dependencies**: The entire Quick Access shortcut interface (tap gesture, vertical tick slider, haptics, slot reordering, preference persistence) executes entirely in Android user space without requiring Tensor G6 or Pixel 11 camera hardware.
-4. **Unlocked with a Minimal Patch**: Overriding a single method—`klm.q(kiz)` or `uyv.g()`—instantly unlocks the complete feature on older Pixels. Tested and verified on physical hardware (**Pixel 8 Pro** / `husky` on Android 17).
+4. **Unlocked with a Minimal Patch**: Overriding a single method—`klm.q(kiz)` or `uyv.g()`—instantly unlocks the complete feature on older Pixels. Tested and verified on physical hardware (**Pixel 8 Pro** / `husky` on Android 14, 15, and 16/17 previews).
 
 ---
 
 ## Directory Structure & Deliverables
 
-```text
-camera-looks-quick-access/
-├── README.md               # Executive summary and final verdict (this file)
-├── RESEARCH.md             # In-depth reverse-engineering technical documentation
-└── COMPATIBILITY.md        # Generation-by-generation device compatibility matrix
-```
+* 📄 [README.md](README.md) — Executive summary and physical device test report (this file).
+* 🔬 [RESEARCH.md](RESEARCH.md) — In-depth reverse-engineering technical documentation, smali traces, and Compose disassembly.
+* 📋 [COMPATIBILITY.md](COMPATIBILITY.md) — Generation-by-generation device compatibility matrix (Pixel 6 through Pixel 10).
 
 > [!NOTE]
-> The official bytecode patch implementation for Viewfinder Quick Access is located in [`morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt`](../morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt).
-
+> The official bytecode patch implementation for Viewfinder Quick Access is located in [`morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt`](../morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt).
 
 ---
 
@@ -47,7 +55,7 @@ camera-looks-quick-access/
 
 ## Physical Device Verification (Pixel 8 Pro / `husky`)
 
-The patch was deployed to an unrooted Google Pixel 8 Pro (`husky`) running Android 17 preview with the target reference Camera APK (`com.google.android.GoogleCameraEng`, version code `69623294`).
+The patch was deployed to an unrooted Google Pixel 8 Pro (`husky`) running Android with the target reference Camera APK (`com.google.android.GoogleCameraEng`, version code `69623294`).
 
 ### Test Results
 1. **Settings Navigation**: Navigated to **Settings → Fast access → Quick access controls** (`CameraGm3SettingsActivity`).
@@ -67,5 +75,6 @@ The patch was deployed to an unrooted Google Pixel 8 Pro (`husky`) running Andro
 ## Official Morphe Patch
 
 The bytecode transformations required for Quick Access controls are encapsulated in:
-* **Patch Source**: [`QuickAccessPatch.kt`](../morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt)
+* **Patch Source**: [`QuickAccessPatch.kt`](../morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt)
+* **Smali Helper**: [`TomteInitHelper.smali`](../smali_patches/TomteInitHelper.smali)
 * **Installation**: Apply via Morphe Manager (Android) or Morphe Desktop (PC) following the [root README](../README.md#-installation-guide).
