@@ -512,6 +512,68 @@ val cameraLooksPatch = bytecodePatch(
                 }
             }
         }
+
+        // ── 23. Real-Time Viewfinder Look Preview via GL Fragment Shader Injection (wlo.smali) ──
+        mutableClassDefByOrNull("Lwlo;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "c" && it.parameterTypes == listOf("Lwlp;", "Z") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val constStrIdx = impl.instructions.indexOfFirst { ins ->
+                    ins.opcode == Opcode.CONST_STRING &&
+                    (ins as? ReferenceInstruction)?.reference?.toString()?.contains("samplerExternalOES") == true
+                }
+                if (constStrIdx != -1) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getViewfinderFragmentShader()Ljava/lang/String;
+                        move-result-object p1
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        impl.replaceInstruction(constStrIdx, insList[0])
+                        impl.addInstruction(constStrIdx + 1, insList[1])
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 24. Live Viewfinder HardwareBuffer Grading Hook (SurfaceControlBufferFlinger.d) ──
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/viewfindereffects/bufferflinger/SurfaceControlBufferFlinger;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "d" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val monitorIdx = impl.instructions.indexOfFirst { it.opcode == Opcode.MONITOR_ENTER }
+                if (monitorIdx != -1) {
+                    val hookSmali = """
+                        invoke-static/range {p1 .. p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processHardwareBuffer(Landroid/hardware/HardwareBuffer;)V
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        impl.addInstruction(monitorIdx + 1, insList[0])
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 25. Ensure CPU Write Usage on Viewfinder ImageReader (vhw.smali) ──
+        mutableClassDefByOrNull("Lvhw;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.parameterTypes == listOf("Lvlo;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val setUsageIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("ImageReader\$Builder;->setUsage") == true
+                }
+                if (setUsageIdx != -1) {
+                    val hookSmali = """
+                        invoke-static {v2, v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPreviewBufferUsage(J)J
+                        move-result-wide v2
+                    """.trimIndent()
+                    try {
+                        val insList = hookSmali.toInstructions(method)
+                        impl.addInstruction(setUsageIdx, insList[0])
+                        impl.addInstruction(setUsageIdx + 1, insList[1])
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
     }
 }
+
+
 

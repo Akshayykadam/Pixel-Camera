@@ -2729,21 +2729,11 @@
     goto :goto_2
 
     :cond_13
-    sget-object p1, Landroid/os/Build;->MANUFACTURER:Ljava/lang/String;
+    sget-object p3, Lklm;->a:Lklg;
 
-    sget-object p3, Landroid/os/Build;->DEVICE:Ljava/lang/String;
+    invoke-static {p0, p0, p2, p3}, Lkic;->a(Lklm;Lklm;Luyv;Lklg;)V
 
-    sget-object p4, Landroid/os/Build;->FINGERPRINT:Ljava/lang/String;
-
-    invoke-static {p1, p3, p4}, Luyv;->b(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Luyv;
-
-    move-result-object p1
-
-    invoke-virtual {p1}, Luyv;->p()Z
-
-    move-result p1
-
-    if-eqz p1, :cond_18
+    goto :goto_2
 
     :goto_2
     sget-object p1, Lkjl;->s:Lkiy;
@@ -2854,13 +2844,11 @@
     return-void
 
     :cond_18
-    new-instance p0, Ljava/lang/UnsupportedOperationException;
+    sget-object p3, Lklm;->a:Lklg;
 
-    const-string p1, "Device is not recognized or not supported"
+    invoke-static {p0, p0, p2, p3}, Lkic;->a(Lklm;Lklm;Luyv;Lklg;)V
 
-    invoke-direct {p0, p1}, Ljava/lang/UnsupportedOperationException;-><init>(Ljava/lang/String;)V
-
-    throw p0
+    goto :goto_2
 .end method
 
 .method private final y(Lkix;Ljava/lang/Boolean;)V

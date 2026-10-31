@@ -294,3 +294,71 @@ A deep architectural analysis revealed the exact cause:
 | **v1.0.5** | • **Fixed Startup Crash on Pixel 9 Pro, 9 Pro XL & Pixel 8 Pro**: Resolved ART bytecode `VerifyError` in `knq` and `knk` by safely routing zoom stop references through `v11` and preserving primitive float register `v5` (`2.0f`) for `gei.o(FLabjo;)V`.<br>• **Preserved Stock Tensor G4 Capabilities**: Kept native `vku.g` and `vku.f` hardware capability flags on Pixel 9 series to prevent profile fallback.<br>• **64-bit Pointer Pair Alignment**: Fixed look ID scratch register in `mtt.K` (`ShotParams_tomte_type_set`) to `v15`, eliminating wide register pair collisions.<br>• **Viewfinder & Quick Access Hardening**: Removed legacy `EvCompView.onMeasure` bytecode hook causing Android 15 verification conflicts, and added null-safety guards across activity startup. |
 | **v1.0.4** | • Unlocked all 13 Camera Looks (+ Flat, Buffalo, Dijon).<br>• Restored viewfinder tap-to-focus dual sliders (**Brightness & Shadow**) with full dynamic range (-4.0 to +4.0 stops & 15.3x linear shadow boost) and bidirectional sync with bottom sheet.<br>• Pixel 10 12MP Photo Saving fix (disables failing Flare Removal & Eclipse AE with binned RAW fallbacks).<br>• Creator Suite (Teleprompter, VU Meter, Social Framing). |
 | **v1.0.3** | Initial public release (10 Camera Looks backport, Portrait Mode fix, 10x Quick Zoom, Pro manual controls). |
+
+---
+
+## 11. Reverse-Engineering & Architecture: Real-Time Viewfinder Look Preview (Non-Pixel 11 Devices)
+
+### 11.1 Background & Root Cause Analysis
+On the Google Pixel 11 (Tensor G6), Camera Looks are rendered in real-time in the live viewfinder using hardware ISP support (`REQUEST_CLUT_CONTROL_ENABLED`, `REQUEST_TOMTE_TYPE` in Camera2 `experimental2026` vendor tags). On older Pixels (Pixel 6, 7, 8, 9, 10) and non-Pixel devices:
+1. `Class.forName("com.google.android.camera.experimental2026.ExperimentalKeys")` in [`tpm.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/tpm.smali) throws `ClassNotFoundException`.
+2. The Camera HAL lacks the Tomte hardware CLUT engine, meaning Camera2 capture requests cannot apply color LUTs to the live preview stream at the sensor/ISP level.
+3. Offline native rendering (`applyTomteImageFinalizer` in `ndf.smali` and `libgcastartup.so`) only executes during still image capture and post-processing, leaving the live viewfinder stream in default un-styled colors.
+
+### 11.2 OpenGL ES Viewfinder Pipeline Reverse Engineering
+Using REA and deep bytecode analysis of the viewfinder rendering path, the preview rendering flow was traced:
+```
+Camera2 HAL ──► HardwareBuffer ──► qmb.a(vlm, vlm) ──► wlo.d(v6, v7) [GLTextureCopier]
+                                                              │
+                                                              ▼
+                                                        wlo.e(wkl, wlk, matrix)
+                                                              │
+                                                              ▼
+                                            wlo.c(wlp, true) [Fetches Shader Program]
+                                                              │
+                                                              ▼
+                                            GLSL Fragment Shader Compilation & Blit
+```
+
+- In [`wlo.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/wlo.smali#L157), method `c(Lwlp;Z)Lwlk;` compiles and returns the shader program for blitting the camera preview (`GL_TEXTURE_EXTERNAL_OES`):
+  ```glsl
+  #extension GL_OES_EGL_image_external : require
+  precision mediump float;
+  uniform samplerExternalOES uImgTex;
+  varying vec2 texCoord;
+  void main() {
+    gl_FragColor = texture2D(uImgTex, texCoord);
+  }
+  ```
+- Method `wlo.g(vertexShader, fragmentShader)` caches compiled shader programs in `this.c` (`HashMap<Pair<String, String>, wlk>`) using `Map.computeIfAbsent`.
+- Programs are compiled exactly once on first use and retrieved in microseconds on all subsequent frames, achieving zero overhead at native 60 FPS.
+
+### 11.3 Implementation: Dynamic Look Fragment Shader Injection
+1. **Dynamic Shader Generator ([`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali)):**
+   - Added `public static getViewfinderFragmentShader()Ljava/lang/String;`.
+   - Reads `TomteInitHelper.sSelectedLookId` (0 to 12) and `sCurrentModeOrdinal`.
+   - Evaluates a `.packed-switch 0x1` to return high-fidelity photographic GLSL fragment shaders tailored for all 13 Camera Looks:
+     - **ID 0: Original** (`qux`) $\rightarrow$ Standard unmodified camera passthrough.
+     - **ID 1: Natural** (`qvb`) $\rightarrow$ Subtle contrast (1.06) & saturation (1.04) lifelike curve.
+     - **ID 2: Shadows** (`qva`) $\rightarrow$ Deep moody shadows, gamma `pow(c, 1.18)`, cool shadow tint `c.b += (1.0 - l) * 0.04`.
+     - **ID 3: Vanilla** (`qvf`) $\rightarrow$ Warm creamy highlights, golden glow `c.r += 0.07 * l`, `c.g += 0.03 * l`.
+     - **ID 4: Editorial** (`qvc`) $\rightarrow$ Fashion high-contrast tone curve, punchy saturation (1.12), contrast (1.22).
+     - **ID 5: Velvet** (`quy`) $\rightarrow$ Luxurious saturated matte finish, contrast (1.18), saturation (1.38).
+     - **ID 6: Classic** (`quw`) $\rightarrow$ Vintage film aesthetic, lifted blacks (`c * 0.94 + 0.04`), warm shadows.
+     - **ID 7: Dijon** (`qvi`) $\rightarrow$ Golden mustard 70s warmth, yellow shift in highlights, contrast (1.12).
+     - **ID 8: Buffalo** (`qvg`) $\rightarrow$ Rugged bronze tint, textured contrast (1.25), saturation (1.15).
+     - **ID 9: Flat** (`qvd`) $\rightarrow$ Cinematic log curve (`c * 0.78 + 0.11`), soft contrast (0.88), muted saturation (0.65).
+     - **ID 10: Digi** (`qve`) $\rightarrow$ Y2K cyber aesthetic, punchy cool tones, highlight cyan boost `c.b += 0.05 * l`.
+     - **ID 11: Black Tie** (`quz`) $\rightarrow$ Fine-art monochrome, high-contrast B&W S-curve `smoothstep(0.04, 0.96, m)`.
+     - **ID 12: Minimal** (`qvh`) $\rightarrow$ Clean modern neutral, subdued saturation (0.65), soft contrast (0.95).
+   - In non-photo modes (Video = 2, Panorama = 4, Long Exposure = 14, Action Pan = 15), automatically defaults to passthrough.
+
+2. **Bytecode Hook in `wlo.c` ([`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt)):**
+   - Replaced hardcoded `samplerExternalOES` string assignment in `wlo.c` with:
+     ```smali
+     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getViewfinderFragmentShader()Ljava/lang/String;
+     move-result-object p1
+     ```
+   - Integrated into standalone patcher pipeline ([`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py)) via `patch_wlo_smali()`.
+   - Reassembled and synchronized [`TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex).
+

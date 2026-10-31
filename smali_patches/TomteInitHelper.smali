@@ -76,6 +76,136 @@
 .method public static native nativeApplyTuning(FI)V
 .end method
 
+.method public static native nativeProcessHardwareBuffer(Landroid/hardware/HardwareBuffer;I)V
+.end method
+
+.method public static getSelectedLookId()I
+    .locals 3
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
+
+    if-lez v0, :cond_check_pref
+
+    return v0
+
+    :cond_check_pref
+    :try_start_pref_look
+    const-string v0, "pref_sauce_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-nez v0, :cond_got_pref
+
+    const-string v0, "pref_hdr_sauce_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    :cond_got_pref
+    if-eqz v0, :cond_ret_zero
+
+    instance-of v1, v0, Ljava/lang/Integer;
+
+    if-eqz v1, :cond_check_num
+
+    check-cast v0, Ljava/lang/Integer;
+
+    invoke-virtual {v0}, Ljava/lang/Integer;->intValue()I
+
+    move-result v0
+
+    goto :goto_cache
+
+    :cond_check_num
+    instance-of v1, v0, Ljava/lang/Number;
+
+    if-eqz v1, :cond_check_str
+
+    check-cast v0, Ljava/lang/Number;
+
+    invoke-virtual {v0}, Ljava/lang/Number;->intValue()I
+
+    move-result v0
+
+    goto :goto_cache
+
+    :cond_check_str
+    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I
+
+    move-result v0
+
+    :goto_cache
+    if-lez v0, :cond_ret_zero
+
+    sput v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
+
+    return v0
+    :try_end_pref_look
+    .catch Ljava/lang/Throwable; {:try_start_pref_look .. :try_end_pref_look} :catch_pref_look
+
+    :catch_pref_look
+    :cond_ret_zero
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static processHardwareBuffer(Landroid/hardware/HardwareBuffer;)V
+    .locals 2
+
+    if-nez p0, :cond_not_null
+
+    return-void
+
+    :cond_not_null
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
+
+    move-result v0
+
+    if-gtz v0, :cond_active
+
+    return-void
+
+    :cond_active
+    :try_start_0
+    invoke-static {p0, v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeProcessHardwareBuffer(Landroid/hardware/HardwareBuffer;I)V
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    :catch_0
+    return-void
+.end method
+
+.method public static getPreviewBufferUsage(J)J
+    .locals 4
+
+    const-wide/16 v0, -0x1
+
+    cmp-long v0, p0, v0
+
+    if-nez v0, :cond_custom
+
+    # Default viewfinder usage: CPU_READ_OFTEN (0x2) | CPU_WRITE_OFTEN (0x20) | GPU_SAMPLED (0x100) | COMPOSER_OVERLAY (0x800)
+    const-wide/16 v0, 0x922
+
+    return-wide v0
+
+    :cond_custom
+    # Ensure CPU_READ_OFTEN (0x2) and CPU_WRITE_OFTEN (0x20) are always included (0x22)
+    const-wide/16 v0, 0x22
+
+    or-long/2addr p0, v0
+
+    return-wide p0
+.end method
+
 .method public static applyNativeTuning()V
     .locals 4
 
@@ -1901,10 +2031,15 @@
 .method public static onLookSelected(I)V
     .locals 2
 
-    .line 47
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
+
+    if-ne v0, p0, :cond_change
+
+    return-void
+
+    :cond_change
     sput p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
-    .line 48
     new-instance v0, Ljava/lang/StringBuilder;
 
     invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
@@ -1927,7 +2062,6 @@
 
     invoke-static {v0, p0}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 49
     return-void
 .end method
 
@@ -1945,14 +2079,6 @@
     return-void
 
     :cond_null
-    const/4 v0, 0x0
-
-    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
-
-    const/4 v0, 0x0
-
-    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookSelected(I)V
-
     return-void
 .end method
 
@@ -3651,5 +3777,126 @@
 
     return v0
 .end method
+
+.method public static getViewfinderFragmentShader()Ljava/lang/String;
+    .locals 2
+
+    # Unsupported modes return default passthrough
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v1, 0x2
+
+    if-eq v0, v1, :cond_default
+
+    const/4 v1, 0x4
+
+    if-eq v0, v1, :cond_default
+
+    const/16 v1, 0xe
+
+    if-eq v0, v1, :cond_default
+
+    const/16 v1, 0xf
+
+    if-eq v0, v1, :cond_default
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
+
+    packed-switch v0, :pswitch_data_0
+
+    :cond_default
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  gl_FragColor = texture2D(uImgTex, texCoord);\n}"
+
+    return-object v0
+
+    :pswitch_1
+    # Look 1: Natural (gentle contrast & natural vibrance)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 1.06 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.04), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_2
+    # Look 2: Minimal (subdued saturation, clean modern neutral)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 0.95 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 0.60), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_3
+    # Look 3: Shadows (deep moody shadows, cool shadow tone)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = pow(c, vec3(1.18));\n  c = clamp((c - 0.5) * 1.15 + 0.5, 0.0, 1.0);\n  c.b = clamp(c.b + (1.0 - l) * 0.04, 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_4
+    # Look 4: Vanilla (warm creamy highlights, golden glow)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.07 * l;\n  c.g += 0.03 * l;\n  c.b = max(0.0, c.b - 0.05 * l);\n  c = clamp((c - 0.5) * 1.05 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.08), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_5
+    # Look 5: Digi (Y2K cyber aesthetic, punchy cool tones)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.b += 0.05 * l;\n  c.g += 0.02 * l;\n  c = clamp((c - 0.5) * 1.20 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.30), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_6
+    # Look 6: Black Tie (B&W fine art, high contrast monochrome)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float m = dot(c, vec3(0.299, 0.587, 0.114));\n  m = smoothstep(0.04, 0.96, m);\n  gl_FragColor = vec4(vec3(m), src.a);\n}"
+
+    return-object v0
+
+    :pswitch_7
+    # Look 7: Dijon (yellow_green_faded, vintage 70s mustard fade)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.05 * l;\n  c.g += 0.06 * l;\n  c.b = max(0.0, c.b - 0.07 * l);\n  c = clamp((c - 0.5) * 0.94 + 0.53, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.08), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_8
+    # Look 8: Buffalo (rugged bronze tint, textural contrast)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.05 * (1.0 - l);\n  c.b = max(0.0, c.b - 0.03 * (1.0 - l));\n  c = clamp((c - 0.5) * 1.25 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.15), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_9
+    # Look 9: Flat (cinematic log, muted highlights, lifted shadows)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = c * 0.78 + 0.11;\n  c = clamp((c - 0.5) * 0.88 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 0.65), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_10
+    # Look 10: Classic (vintage film, lifted blacks, warm shadows)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 0.94 + 0.5, 0.0, 1.0);\n  c.r += 0.04 * (1.0 - l);\n  c.g += 0.02 * (1.0 - l);\n  c = clamp(mix(vec3(l), c, 0.96), 0.0, 1.0);\n  gl_FragColor = vec4(clamp(c, 0.0, 1.0), src.a);\n}"
+
+    return-object v0
+
+    :pswitch_11
+    # Look 11: Editorial (high fashion contrast & punch, Kodachrome)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r = pow(c.r, 0.90);\n  c.g = pow(c.g, 1.02);\n  c.b = pow(c.b, 1.08);\n  c = clamp((c - 0.5) * 1.22 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.12), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_12
+    # Look 12: Velvet (rich deep velvety tones, vibrant saturation, Velvia)
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.g = pow(c.g, 0.94);\n  c.b = pow(c.b, 0.92);\n  c = clamp((c - 0.5) * 1.18 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.38), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+
+    return-object v0
+
+    :pswitch_data_0
+    .packed-switch 0x1
+        :pswitch_1
+        :pswitch_2
+        :pswitch_3
+        :pswitch_4
+        :pswitch_5
+        :pswitch_6
+        :pswitch_7
+        :pswitch_8
+        :pswitch_9
+        :pswitch_10
+        :pswitch_11
+        :pswitch_12
+    .end packed-switch
+.end method
+
 
 
