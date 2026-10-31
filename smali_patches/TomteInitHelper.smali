@@ -53,6 +53,52 @@
 
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
 
+    :try_start_propatcher
+    const-string v0, "propatcher"
+
+    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
+
+    const-string v0, "PATCH_LOOKS"
+
+    const-string v1, "libpropatcher.so loaded successfully."
+
+    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+    :try_end_propatcher
+    .catch Ljava/lang/Throwable; {:try_start_propatcher .. :try_end_propatcher} :catch_propatcher
+
+    :catch_propatcher
+    return-void
+.end method
+
+.method public static native nativeIsProPatcherLoaded()Z
+.end method
+
+.method public static native nativeApplyTuning(FI)V
+.end method
+
+.method public static applyNativeTuning()V
+    .locals 4
+
+    :try_start_tuning
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSharpnessFactor()F
+
+    move-result v0
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v1
+
+    const-string v2, "PATCH_LOOKS"
+
+    const-string v3, "Applying dynamic native tuning via ProPatcher..."
+
+    invoke-static {v2, v3}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeApplyTuning(FI)V
+    :try_end_tuning
+    .catch Ljava/lang/Throwable; {:try_start_tuning .. :try_end_tuning} :catch_tuning
+
+    :catch_tuning
     return-void
 .end method
 
@@ -229,6 +275,49 @@
 
     :cond_ret_def
     return p1
+.end method
+
+.method public static getSharedPrefs(Landroid/content/Context;)Landroid/content/SharedPreferences;
+    .locals 3
+
+    if-nez p0, :cond_has_ctx
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
+
+    move-result-object p0
+
+    if-nez p0, :cond_has_ctx
+
+    const/4 p0, 0x0
+
+    return-object p0
+
+    :cond_has_ctx
+    new-instance v0, Ljava/lang/StringBuilder;
+
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+
+    invoke-virtual {p0}, Landroid/content/Context;->getPackageName()Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    const-string v1, "_preferences_camera"
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const/4 v1, 0x0
+
+    invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
+
+    move-result-object p0
+
+    return-object p0
 .end method
 
 .method private static getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
@@ -709,6 +798,19 @@
     return v0
 
     :cond_check_min
+    const-string v1, "low"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_minimal
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_minimal
     const-string v1, "minimal"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
@@ -718,6 +820,14 @@
     if-nez v1, :cond_ret_min
 
     const-string v1, "3"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_ret_min
+
+    const-string v1, "1"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
@@ -1497,6 +1607,8 @@
 
     invoke-static {v0, p0}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
+
     return-void
 .end method
 
@@ -1506,6 +1618,8 @@
     const-class v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;
 
     monitor-enter v1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
 
     :try_start_grain_check
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z

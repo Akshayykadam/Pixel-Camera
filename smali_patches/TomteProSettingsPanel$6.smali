@@ -129,7 +129,9 @@
 
     move-result-object p1
 
-    invoke-interface {p1}, Landroid/content/SharedPreferences$Editor;->apply()V
+    invoke-interface {p1}, Landroid/content/SharedPreferences$Editor;->commit()Z
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
 
     .line 825
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$valueView:Landroid/widget/TextView;

@@ -1,0 +1,62 @@
+[
+  {
+    "filename": "01_Stock_StandardSharpen_StandardDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.43,
+    "laplacian_var": 26.23,
+    "flat_noise_std": 1.729,
+    "high_freq_pct": 11.564,
+    "q_table_min": 1,
+    "q_table_max": 1
+  },
+  {
+    "filename": "02_SoftSharpen_StandardDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.43,
+    "laplacian_var": 26.06,
+    "flat_noise_std": 1.724,
+    "high_freq_pct": 11.439,
+    "q_table_min": 1,
+    "q_table_max": 1
+  },
+  {
+    "filename": "03_NaturalSharpen_StandardDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.5,
+    "laplacian_var": 26.55,
+    "flat_noise_std": 1.734,
+    "high_freq_pct": 11.816,
+    "q_table_min": 1,
+    "q_table_max": 1
+  },
+  {
+    "filename": "04_StandardSharpen_LowDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.43,
+    "laplacian_var": 25.94,
+    "flat_noise_std": 1.731,
+    "high_freq_pct": 11.367,
+    "q_table_min": 1,
+    "q_table_max": 1
+  },
+  {
+    "filename": "05_StandardSharpen_OffDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.42,
+    "laplacian_var": 25.8,
+    "flat_noise_std": 1.725,
+    "high_freq_pct": 11.422,
+    "q_table_min": 1,
+    "q_table_max": 1
+  },
+  {
+    "filename": "06_SoftSharpen_OffDenoise.jpg",
+    "resolution": "8160x6144",
+    "size_mb": 22.42,
+    "laplacian_var": 22.7,
+    "flat_noise_std": 1.729,
+    "high_freq_pct": 11.543,
+    "q_table_min": 1,
+    "q_table_max": 1
+  }
+]

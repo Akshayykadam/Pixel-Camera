@@ -933,7 +933,7 @@
     invoke-virtual {v7, v0}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
 
     .line 778
-    invoke-static {v8}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
+    invoke-static {v8}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSharedPrefs(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object v2
 
@@ -979,6 +979,33 @@
     goto :goto_0
 
     :cond_1
+    const/4 v3, 0x0
+
+    :goto_find_def
+    array-length v5, v10
+
+    if-ge v3, v5, :cond_fallback_zero
+
+    aget-object v5, v10, v3
+
+    move-object/from16 v0, p4
+
+    invoke-virtual {v5, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v5
+
+    if-eqz v5, :cond_next_def
+
+    move v15, v3
+
+    goto :goto_1
+
+    :cond_next_def
+    add-int/lit8 v3, v3, 0x1
+
+    goto :goto_find_def
+
+    :cond_fallback_zero
     const/4 v15, 0x0
 
     .line 787
@@ -1863,6 +1890,8 @@
     .line 58
     :cond_0
     :try_start_0
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
+
     invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->findProInternalList(Ljava/lang/Object;)Landroid/widget/LinearLayout;
 
     move-result-object v0
@@ -2786,6 +2815,73 @@
     return v0
 .end method
 
+.method private static getDefaultValueForPrefKey(Ljava/lang/String;)Ljava/lang/String;
+    .locals 1
+
+    if-nez p0, :cond_check
+
+    const-string p0, ""
+
+    return-object p0
+
+    :cond_check
+    const-string v0, "pref_camera_sharpness_key"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_nr
+
+    const-string p0, "standard"
+
+    return-object p0
+
+    :cond_check_nr
+    const-string v0, "pref_camera_noise_reduction_key"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_jpg
+
+    const-string p0, "stock"
+
+    return-object p0
+
+    :cond_check_jpg
+    const-string v0, "pref_camera_jpeg_quality_key"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_raw
+
+    const-string p0, "100"
+
+    return-object p0
+
+    :cond_check_raw
+    const-string v0, "pref_camera_raw_compression_key"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_empty
+
+    const-string p0, "compressed"
+
+    return-object p0
+
+    :cond_empty
+    const-string p0, ""
+
+    return-object p0
+.end method
+
 .method private static refreshPanel(Landroid/view/View;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
     .locals 11
 
@@ -2940,19 +3036,34 @@
 
     move-result-object v4
 
-    .line 892
-    invoke-static {v0}, Landroid/preference/PreferenceManager;->getDefaultSharedPreferences(Landroid/content/Context;)Landroid/content/SharedPreferences;
+    invoke-static {v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->getDefaultValueForPrefKey(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v7
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSharedPrefs(Landroid/content/Context;)Landroid/content/SharedPreferences;
 
     move-result-object v6
 
-    .line 893
-    const-string v7, ""
+    if-eqz v6, :cond_use_def_val
 
     invoke-interface {v6, v4, v7}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v4
 
-    .line 895
+    if-eqz v4, :cond_use_def_val
+
+    invoke-virtual {v4}, Ljava/lang/String;->isEmpty()Z
+
+    move-result v6
+
+    if-eqz v6, :cond_got_val
+
+    :cond_use_def_val
+    move-object v4, v7
+
+    :cond_got_val
+    const-string v7, ""
+
     const/4 v6, 0x0
 
     :goto_1

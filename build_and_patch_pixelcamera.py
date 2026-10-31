@@ -20,6 +20,7 @@ import shutil
 import zipfile
 import subprocess
 import re
+import struct
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 APKTOOL_DIR = os.path.join(ROOT_DIR, "apktool_full")
@@ -1952,6 +1953,34 @@ def patch_aaog_smali():
         #     print("    [+] aaog.smali: Redirected l(String) to LasagnaModelLoader.openAsset().")
 
 
+def build_propatcher():
+    print("[*] Building libpropatcher.so (Dynamic Tuning Engine)...")
+    ndk_clang = os.path.expanduser("~/Library/Android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android34-clang")
+    if not os.path.exists(ndk_clang):
+        sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT") or os.path.expanduser("~/Library/Android/sdk")
+        ndk_dir = os.path.join(sdk, "ndk")
+        if os.path.isdir(ndk_dir):
+            for v in sorted(os.listdir(ndk_dir), reverse=True):
+                cand = os.path.join(ndk_dir, v, "toolchains", "llvm", "prebuilt", "darwin-x86_64", "bin", "aarch64-linux-android34-clang")
+                if os.path.exists(cand):
+                    ndk_clang = cand
+                    break
+    src = os.path.join(ROOT_DIR, "jni", "propatcher", "propatcher.c")
+    out = os.path.join(APKTOOL_DIR, "lib", "arm64-v8a", "libpropatcher.so")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if os.path.exists(ndk_clang) and os.path.exists(src):
+        cmd = [ndk_clang, "-shared", "-fPIC", "-O3", "-Wall", "-Wextra", "-llog", src, "-o", out]
+        res = subprocess.run(cmd)
+        if res.returncode == 0:
+            print(f"    [+] Compiled libpropatcher.so -> {out}")
+        else:
+            print("    [!] Warning: Failed to compile libpropatcher.so with NDK")
+    elif os.path.exists(out):
+        print(f"    [+] Using existing precompiled libpropatcher.so -> {out}")
+    else:
+        print("    [!] Warning: Neither NDK clang nor precompiled libpropatcher.so found!")
+
+
 def patch_libgcastartup():
     print("[*] Patching libgcastartup.so (Bypassing EdgeTPU Darwinn assertion for Motion Blur / Lasagna)...")
     so_path = os.path.join(APKTOOL_DIR, "lib", "arm64-v8a", "libgcastartup.so")
@@ -2024,49 +2053,51 @@ def patch_libgcastartup():
         elif orig5 == bytes.fromhex("20008052c0035fd6"):
             print("    [+] 0x2420880 already patched.")
 
-        # 6. 0x442ef3c: cbz x8, #0x442ef68 (68 01 00 b4) -> b #0x442ef68 (0b 00 00 14)
-        # Bypasses Halide pyramidal Luma denoiser kernel in finish_raw, jumping straight to operator delete(runner)
-        f.seek(0x442ef3c)
-        orig6 = f.read(4)
-        if orig6 == bytes.fromhex("680100b4"):
-            f.seek(0x442ef3c)
-            f.write(bytes.fromhex("0b000014"))
-            print("    [+] Patched 0x442ef3c: cbz -> b (bypass Halide Luma denoiser kernel)")
-        elif orig6 == bytes.fromhex("0b000014"):
-            print("    [+] 0x442ef3c already patched.")
+        # 6. Dynamic Tuning Engine:
+        # Denoiser kernels, Pecan noise residual scaling, and 70 embedded sharpen tuning curves
+        # are handled dynamically at runtime by libpropatcher.so via TomteInitHelper.applyNativeTuning()
+        # and in-app Pro Settings UI toggles (Soft 0.0x / Natural 0.5x / Standard 1.0x; Off / Low / Standard).
+        # We preserve stock code instructions and stock curve data on disk so runtime scaling works accurately.
+        print("    [+] Dynamic tuning enabled: Sharpen & Denoise handled at runtime by libpropatcher.so.")
 
-        # 7. 0x442efb4: cbz x8, #0x442efe4 (88 01 00 b4) -> b #0x442efe4 (0c 00 00 14)
-        # Bypasses Halide pyramidal Chroma denoiser kernel in finish_raw
-        f.seek(0x442efb4)
-        orig7 = f.read(4)
-        if orig7 == bytes.fromhex("880100b4"):
-            f.seek(0x442efb4)
-            f.write(bytes.fromhex("0c000014"))
-            print("    [+] Patched 0x442efb4: cbz -> b (bypass Halide Chroma denoiser kernel)")
-        elif orig7 == bytes.fromhex("0c000014"):
-            print("    [+] 0x442efb4 already patched.")
 
-        # 8. 0x534f36c: cbz w9, #0x534f424 (c9 05 00 34) -> nop (1f 20 03 d5)
-        # Forces Pecan neural RAW denoiser into PecanNoOpCopy mode (skips TPU/GPU neural network inference, copying raw sensor pixels directly)
-        f.seek(0x534f36c)
-        orig8 = f.read(4)
-        if orig8 == bytes.fromhex("c9050034"):
-            f.seek(0x534f36c)
-            f.write(bytes.fromhex("1f2003d5"))
-            print("    [+] Patched 0x534f36c: cbz -> nop (force PecanNoOpCopy)")
-        elif orig8 == bytes.fromhex("1f2003d5"):
-            print("    [+] 0x534f36c already patched.")
+def patch_embedded_sharpen_tuning(f, scale=0.0):
+    """
+    Scans the internal asset Table of Contents (TOC) at 0x79f0000 - 0x7a05000 in libgcastartup.so
+    and scales all embedded sharpen_*.binarypb frequency band multipliers (field 1 in curve submessages).
+    Setting scale=0.0f eliminates artificial unsharp-masking halos and digital ringing on 50MP/12MP shots.
+    """
+    f.seek(0)
+    data = bytearray(f.read())
+    toc_start = 0x79f0000
+    toc_end = 0x7a05000
+    patched_assets = 0
+    patched_floats = 0
 
-        # 9. 0x534f5f4: fmov s10, #1.00000000 (0a 10 2e 1e) -> fmov s10, wzr (ea 03 27 1e)
-        # Sets Pecan residual_scaling_factor to 0.0f (no noise residual subtraction)
-        f.seek(0x534f5f4)
-        orig9 = f.read(4)
-        if orig9 == bytes.fromhex("0a102e1e"):
-            f.seek(0x534f5f4)
-            f.write(bytes.fromhex("ea03271e"))
-            print("    [+] Patched 0x534f5f4: fmov s10, #1.0 -> fmov s10, wzr (0.0f residual scaling)")
-        elif orig9 == bytes.fromhex("ea03271e"):
-            print("    [+] 0x534f5f4 already patched.")
+    for i in range(toc_start, toc_end, 40):
+        chunk = data[i:i+40]
+        if len(chunk) < 40: break
+        p_name, p_data, sz, h1, h2 = struct.unpack('<QQQQQ', chunk)
+        if 0x62980 <= p_name < 0x1f00000 and 0x62980 <= p_data < 0x23c6200 and 0 < sz < 500000:
+            name_str = data[p_name:p_name+100].split(b'\x00')[0].decode('latin1', errors='ignore')
+            if 'sharpen_' in name_str:
+                patched_assets += 1
+                pb_end = p_data + sz
+                idx = p_data
+                while idx < pb_end - 7:
+                    if data[idx:idx+3] == b'\x0a\x14\x0d':
+                        orig_flt = struct.unpack('<f', data[idx+3:idx+7])[0]
+                        new_flt = orig_flt * scale
+                        data[idx+3:idx+7] = struct.pack('<f', new_flt)
+                        patched_floats += 1
+                        idx += 7
+                    else:
+                        idx += 1
+
+    f.seek(0)
+    f.write(data)
+    f.flush()
+    print(f"    [+] Embedded sharpen assets patched: {patched_assets} files, {patched_floats} sharpen multipliers scaled to {scale}x (Zero Halos).")
 
 
 def patch_msr_smali():
@@ -8726,6 +8757,7 @@ def main():
     patch_qge_smali()
     patch_qgh_smali()
     inject_splits()
+    build_propatcher()
     patch_libgcastartup()
     balance_dex_limits()
     ensure_keystore()

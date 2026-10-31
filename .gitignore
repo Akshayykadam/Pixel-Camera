@@ -132,3 +132,5 @@ htmlcov/
 .Trashes
 ehthumbs.db
 Thumbs.db
+take_test_matrix.py
+analyze_captures.py
