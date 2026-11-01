@@ -7883,7 +7883,7 @@ def patch_dual_exposure_viewfinder():
         with open(nzr_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # 3. Patch nia.smali: Force dual exposure sliders (brightness_control & shadow_control)
+    # 3. Patch nia.smali: Force dual exposure sliders (register Exposure, omit duplicate Shadows)
     nia_path = os.path.join(APKTOOL_DIR, "smali", "nia.smali")
     if os.path.exists(nia_path):
         with open(nia_path, "r", encoding="utf-8") as f:
@@ -7907,13 +7907,46 @@ def patch_dual_exposure_viewfinder():
 
         if target_nia in content:
             content = content.replace(target_nia, replacement_nia)
-            with open(nia_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            print("    [+] nia.smali: Dual exposure branch forced (Brightness and Shadows registered).")
-        elif "const/4 v3, 0x1\\n\\n    const v10, 0x7f13049c" in content:
-            print("    [+] nia.smali: Dual exposure branch already forced.")
-        else:
-            print("    [!] Warning: nia.smali target not found.")
+            print("    [+] nia.smali: Dual exposure branch forced.")
+
+        # Remove duplicate Pro Shadows button from bottom tray (preserve Looks Shadows)
+        target_dup_shadow1 = """    invoke-virtual {v2, v8}, Lnzw;->d(Loaa;)V
+
+    invoke-virtual {v2}, Lnzw;->a()Lnzz;
+
+    move-result-object v2
+
+    invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V"""
+        repl_dup_shadow1 = """    invoke-virtual {v2, v8}, Lnzw;->d(Loaa;)V
+
+    invoke-virtual {v2}, Lnzw;->a()Lnzz;
+
+    move-result-object v2
+
+    # invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V (Removed duplicate Pro Shadows)"""
+        if target_dup_shadow1 in content:
+            content = content.replace(target_dup_shadow1, repl_dup_shadow1)
+            print("    [+] nia.smali: Duplicate Pro Shadows button removed from bottom tray.")
+
+        target_dup_shadow2 = """    invoke-virtual {v3}, Lnzw;->a()Lnzz;
+
+    move-result-object v2
+
+    invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V
+
+    :goto_1"""
+        repl_dup_shadow2 = """    invoke-virtual {v3}, Lnzw;->a()Lnzz;
+
+    move-result-object v2
+
+    # invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V (Removed duplicate Pro Shadows)
+
+    :goto_1"""
+        if target_dup_shadow2 in content:
+            content = content.replace(target_dup_shadow2, repl_dup_shadow2)
+
+        with open(nia_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
 def patch_dual_ev_ctrl_and_slider_sync():
     print("[*] Patching DualEvCtrl (ptm, pzj) and Slider Sync (lts) for full dynamic exposure range & sync...")
@@ -8956,7 +8989,7 @@ def patch_viewfinder_qac_exposure_and_shadows():
 
     :cond_0"""
         repl_oao_s = """.method public final s(FZLsyz;)V
-    .locals 3
+    .locals 5
 
     :cond_0"""
         if target_oao_s in content:
@@ -8978,22 +9011,22 @@ def patch_viewfinder_qac_exposure_and_shadows():
 
     invoke-interface {p2, v1}, Lusf;->a(Ljava/lang/Object;)V
 
-    iget-object p2, p0, Loao;->pco:Lpco;
+    iget-object v3, p0, Loao;->pco:Lpco;
 
-    if-eqz p2, :cond_skip_pco
+    if-eqz v3, :cond_skip_pco
 
-    iget-object v2, p2, Lpco;->c:Lusf;
+    iget-object v4, v3, Lpco;->c:Lusf;
 
-    if-eqz v2, :cond_sync_f
+    if-eqz v4, :cond_sync_f
 
-    invoke-interface {v2, v1}, Lusf;->a(Ljava/lang/Object;)V
+    invoke-interface {v4, v1}, Lusf;->a(Ljava/lang/Object;)V
 
     :cond_sync_f
-    iget-object p2, p2, Lpco;->f:Lusf;
+    iget-object v3, v3, Lpco;->f:Lusf;
 
-    if-eqz p2, :cond_skip_pco
+    if-eqz v3, :cond_skip_pco
 
-    invoke-interface {p2, v1}, Lusf;->a(Ljava/lang/Object;)V
+    invoke-interface {v3, v1}, Lusf;->a(Ljava/lang/Object;)V
 
     :cond_skip_pco"""
 
@@ -9002,7 +9035,20 @@ def patch_viewfinder_qac_exposure_and_shadows():
             print("    [+] oao.smali: Exposure slider hooked to update pco.c and pco.f.")
 
         # Hook Loao.e() (reset): write neutral 0.5f to pco.c and pco.f
-        target_oao_e = """    iget-object v0, p0, Loao;->n:Lusf;
+        target_oao_e = """.method public final e()V
+    .locals 3
+
+    iget-object v0, p0, Loao;->m:Lekk;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+
+    move-result-object v1
+
+    invoke-virtual {v0, v1}, Lekk;->i(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Loao;->n:Lusf;
 
     const/high16 v1, 0x3f000000    # 0.5f
 
@@ -9012,7 +9058,20 @@ def patch_viewfinder_qac_exposure_and_shadows():
 
     invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V"""
 
-        repl_oao_e = """    iget-object v0, p0, Loao;->n:Lusf;
+        repl_oao_e = """.method public final e()V
+    .locals 4
+
+    iget-object v0, p0, Loao;->m:Lekk;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
+
+    move-result-object v1
+
+    invoke-virtual {v0, v1}, Lekk;->i(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Loao;->n:Lusf;
 
     const/high16 v1, 0x3f000000    # 0.5f
 
@@ -9026,11 +9085,11 @@ def patch_viewfinder_qac_exposure_and_shadows():
 
     if-eqz v0, :cond_skip_pco_res
 
-    iget-object v1, v0, Lpco;->c:Lusf;
+    iget-object v3, v0, Lpco;->c:Lusf;
 
-    if-eqz v1, :cond_res_f
+    if-eqz v3, :cond_res_f
 
-    invoke-interface {v1, v2}, Lusf;->a(Ljava/lang/Object;)V
+    invoke-interface {v3, v2}, Lusf;->a(Ljava/lang/Object;)V
 
     :cond_res_f
     iget-object v0, v0, Lpco;->f:Lusf;
