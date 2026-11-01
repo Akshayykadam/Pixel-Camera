@@ -8660,6 +8660,46 @@ def patch_viewfinder_qac_exposure_and_shadows():
         if target_qrg_goto0 in content:
             content = content.replace(target_qrg_goto0, repl_qrg_goto0)
 
+        # In Video mode (:cond_3), show strictly 2 controls: White Balance on Left and Exposure on Right
+        target_video_cond3 = """    :cond_3
+    iget-object v1, p0, Lqrg;->c:Lusf;
+
+    sget-object v2, Lqrg;->m:Ljava/util/List;
+
+    invoke-interface {v1}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object v1
+
+    sget-object v5, Llsx;->a:Llsx;
+
+    if-ne v1, v5, :cond_4
+
+    sget-object v1, Lqrg;->o:Ljava/util/List;
+
+    goto :goto_0
+
+    :cond_4
+    sget-object v1, Lqrg;->n:Ljava/util/List;"""
+
+        repl_video_cond3 = """    :cond_3
+    sget-object v2, Lnzy;->c:Lnzy;
+
+    invoke-static {v2}, Laamv;->az(Ljava/lang/Object;)Ljava/util/List;
+
+    move-result-object v2
+
+    sget-object v1, Lnzy;->m:Lnzy;
+
+    invoke-static {v1}, Laamv;->az(Ljava/lang/Object;)Ljava/util/List;
+
+    move-result-object v1"""
+
+        if target_video_cond3 in content:
+            content = content.replace(target_video_cond3, repl_video_cond3)
+            print("    [+] qrg.smali: Video mode controls configured to 2 only (Left=[WB], Right=[EXPOSURE]).")
+        elif "sget-object v2, Lnzy;->c:Lnzy;" in content and ":cond_3" in content:
+            print("    [+] qrg.smali: Video mode 2 controls already configured.")
+
         # Replace <clinit> fallback: Row 1 = [LOOK, WB] (2 items), Row 2 = [EXPOSURE, SHADOWS] (2 items)
         clinit_match = _re.search(
             r'(\.method static constructor <clinit>\(\)V\s*\n\s*\.locals \d+\s*\n)(.*?)(\.end method)',
