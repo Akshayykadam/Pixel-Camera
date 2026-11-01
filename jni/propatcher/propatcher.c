@@ -337,6 +337,131 @@ static void init_look_luts(void) {
     LOGI("ProPatcher: 13-Look Calibrated Photographic LUTs initialized.");
 }
 
+static float s_ft_contrast = 0.0f;
+static float s_ft_shadows = 0.0f;
+static float s_ft_highlights = 0.0f;
+static float s_ft_vibrance = 0.0f;
+static float s_ft_tint = 0.0f;
+
+static uint8_t s_active_lut_y[256];
+static uint8_t s_active_lut_u[256];
+static uint8_t s_active_lut_v[256];
+static float s_active_saturation = 1.0f;
+static float s_active_shift_u = 0.0f;
+static float s_active_shift_v = 0.0f;
+static int s_active_look_id = -999;
+static float s_last_c = -999.0f, s_last_s = -999.0f, s_last_h = -999.0f, s_last_v = -999.0f, s_last_t = -999.0f;
+static int s_active_lut_valid = 0;
+
+static void update_active_luts(int lookId) {
+    if (s_active_lut_valid && s_active_look_id == lookId &&
+        s_last_c == s_ft_contrast && s_last_s == s_ft_shadows &&
+        s_last_h == s_ft_highlights && s_last_v == s_ft_vibrance &&
+        s_last_t == s_ft_tint) {
+        return;
+    }
+
+    const LookProfile* base_p = (lookId >= 0 && lookId < 13) ? &s_look_profiles[lookId] : &s_look_profiles[0];
+
+    // 1. Contrast: sigmoid exponent adjustment
+    float eff_contrast_p = base_p->contrast_p;
+    if (s_ft_contrast > 0.0f) {
+        eff_contrast_p += s_ft_contrast * 0.55f;
+    } else if (s_ft_contrast < 0.0f) {
+        eff_contrast_p += s_ft_contrast * 0.40f;
+    }
+    if (eff_contrast_p < 0.45f) eff_contrast_p = 0.45f;
+    if (eff_contrast_p > 2.50f) eff_contrast_p = 2.50f;
+
+    // 2. Shadows (black lift / pedestal)
+    float eff_black_lift = base_p->black_lift + (s_ft_shadows * 0.20f);
+    if (eff_black_lift < 0.0f) eff_black_lift = 0.0f;
+    if (eff_black_lift > 0.45f) eff_black_lift = 0.45f;
+
+    // 3. Highlights (white shoulder compression / roll-off)
+    float eff_white_comp = base_p->white_comp - (s_ft_highlights * 0.20f);
+    if (eff_white_comp < eff_black_lift + 0.10f) eff_white_comp = eff_black_lift + 0.10f;
+    if (eff_white_comp > 1.0f) eff_white_comp = 1.0f;
+
+    // Build Y (Luma) Tone Curve
+    for (int i = 0; i < 256; i++) {
+        float x = (float)i / 255.0f;
+        float sig;
+        if (x <= 0.0001f) {
+            sig = 0.0f;
+        } else if (x >= 0.9999f) {
+            sig = 1.0f;
+        } else {
+            float xp = powf(x, eff_contrast_p);
+            float omxp = powf(1.0f - x, eff_contrast_p);
+            sig = xp / (xp + omxp);
+        }
+        float y_out = eff_black_lift + sig * (eff_white_comp - eff_black_lift);
+        s_active_lut_y[i] = clamp_u8((int)roundf(y_out * 255.0f));
+    }
+
+    // 4. Vibrance (Saturation)
+    float eff_saturation = base_p->saturation;
+    if (!base_p->is_monochrome) {
+        eff_saturation *= (1.0f + 0.70f * s_ft_vibrance);
+        if (eff_saturation < 0.0f) eff_saturation = 0.0f;
+        if (eff_saturation > 2.50f) eff_saturation = 2.50f;
+    }
+
+    // 5. Tint (Temperature / tint shift)
+    float eff_shift_u = base_p->shift_u - (s_ft_tint * 20.0f);
+    float eff_shift_v = base_p->shift_v + (s_ft_tint * 20.0f);
+
+    s_active_saturation = eff_saturation;
+    s_active_shift_u = eff_shift_u;
+    s_active_shift_v = eff_shift_v;
+
+    // Build U and V (Chroma) LUTs
+    for (int i = 0; i < 256; i++) {
+        if (base_p->is_monochrome) {
+            s_active_lut_u[i] = 128;
+            s_active_lut_v[i] = 128;
+        } else {
+            float d = (float)(i - 128);
+            float d_sat = d * eff_saturation;
+            float norm_d = fabsf(d) / 128.0f;
+            if (norm_d > 1.0f) norm_d = 1.0f;
+            float w = 1.0f - norm_d * norm_d;
+            if (w < 0.0f) w = 0.0f;
+
+            int u_val = (int)roundf(128.0f + d_sat + eff_shift_u * w);
+            int v_val = (int)roundf(128.0f + d_sat + eff_shift_v * w);
+            s_active_lut_u[i] = clamp_u8(u_val);
+            s_active_lut_v[i] = clamp_u8(v_val);
+        }
+    }
+
+    s_active_look_id = lookId;
+    s_last_c = s_ft_contrast;
+    s_last_s = s_ft_shadows;
+    s_last_h = s_ft_highlights;
+    s_last_v = s_ft_vibrance;
+    s_last_t = s_ft_tint;
+    s_active_lut_valid = 1;
+}
+
+JNIEXPORT void JNICALL
+Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeSetFineTuning(
+    JNIEnv *env, jclass clazz, jfloat contrast, jfloat shadows, jfloat highlights, jfloat vibrance, jfloat tint) {
+    (void)env; (void)clazz;
+    if (s_ft_contrast != contrast || s_ft_shadows != shadows || s_ft_highlights != highlights ||
+        s_ft_vibrance != vibrance || s_ft_tint != tint) {
+        s_ft_contrast = contrast;
+        s_ft_shadows = shadows;
+        s_ft_highlights = highlights;
+        s_ft_vibrance = vibrance;
+        s_ft_tint = tint;
+        s_active_lut_valid = 0;
+        LOGI("ProPatcher: nativeSetFineTuning: C=%.2f, S=%.2f, H=%.2f, V=%.2f, T=%.2f",
+             contrast, shadows, highlights, vibrance, tint);
+    }
+}
+
 // 128-bit NEON burst memory grading for Y plane (Luma) with SIMD film grain
 static inline void lut_grade_y(uint8_t* y_data, uint32_t width, uint32_t height, uint32_t stride, const uint8_t lut[256]) {
     int grain_on = s_grain_enabled;
@@ -507,16 +632,28 @@ JNIEXPORT void JNICALL
 Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareBuffer(
     JNIEnv *env, jclass clazz, jobject hwBuffer, jint lookId) {
     (void)clazz;
-    if (!hwBuffer || lookId <= 0 || lookId > 12) return;
+    if (!hwBuffer || lookId < 0 || lookId > 12) return;
+
+    int has_fine_tuning = (fabsf(s_ft_contrast) > 0.01f ||
+                           fabsf(s_ft_shadows) > 0.01f ||
+                           fabsf(s_ft_highlights) > 0.01f ||
+                           fabsf(s_ft_vibrance) > 0.01f ||
+                           fabsf(s_ft_tint) > 0.01f);
+
+    if (lookId == 0 && !has_fine_tuning) {
+        return;
+    }
 
     if (!s_luts_initialized) {
         init_look_luts();
     }
 
-    const uint8_t* lut_y = s_lut_y[lookId];
-    const uint8_t* lut_u = s_lut_u[lookId];
-    const uint8_t* lut_v = s_lut_v[lookId];
-    const LookProfile* prof = &s_look_profiles[lookId];
+    update_active_luts(lookId);
+
+    const uint8_t* lut_y = s_active_lut_y;
+    const uint8_t* lut_u = s_active_lut_u;
+    const uint8_t* lut_v = s_active_lut_v;
+    const LookProfile* prof = (lookId >= 0 && lookId < 13) ? &s_look_profiles[lookId] : &s_look_profiles[0];
     int is_monochrome = prof->is_monochrome;
 
     AHardwareBuffer* buffer = AHardwareBuffer_fromHardwareBuffer(env, hwBuffer);
@@ -554,7 +691,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
         if (res == 0 && virt) {
             if (is_rgba) {
                 lut_grade_rgba((uint8_t*)virt, desc.width, desc.height, desc.stride * 4,
-                               lut_y, prof->saturation, prof->shift_u, prof->shift_v, is_monochrome);
+                               lut_y, s_active_saturation, s_active_shift_u, s_active_shift_v, is_monochrome);
             } else {
                 uint32_t y_size = desc.stride * desc.height;
                 lut_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, lut_y);
@@ -585,8 +722,8 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
 
     if (is_rgba) {
         lut_grade_rgba((uint8_t*)planes.planes[0].data, width, height,
-                       planes.planes[0].rowStride, lut_y, prof->saturation,
-                       prof->shift_u, prof->shift_v, is_monochrome);
+                       planes.planes[0].rowStride, lut_y, s_active_saturation,
+                       s_active_shift_u, s_active_shift_v, is_monochrome);
     } else if (planes.planeCount == 1) {
         // Semi-planar YUV420 with contiguous memory in single plane
         uint32_t y_size = planes.planes[0].rowStride * height;

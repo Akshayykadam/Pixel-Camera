@@ -6917,16 +6917,13 @@ def patch_brightness_shadows_controllers():
         elif "check-cast v0, Lpzj;\n\n    nop\n\n    :goto_0" in c:
             print("    [+] lts.smali: lts.k() reset already eliminated.")
 
-    # 10. Patch qwh.smali: Connect Bottom Sheet Shadows and Highlights to pco LiveData holders
+    # 10. Patch qwh.smali: Connect Fine-Tuning sliders (Contrast, Shadows, Highlights, Vibrance, Tint) to TomteInitHelper & pco
     qwh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qwh.smali")
     if os.path.exists(qwh_path):
         with open(qwh_path, "r", encoding="utf-8") as f:
             c = f.read()
-        target_qwh = """.method public final l(IFZ)V
-    .locals 5
 
-    iget-object v0, p0, Lqwh;->e:Lurt;"""
-        repl_qwh = """.method public final l(IFZ)V
+        old_repl_qwh = """.method public final l(IFZ)V
     .locals 5
 
     const/4 v0, 0x1
@@ -6992,13 +6989,113 @@ def patch_brightness_shadows_controllers():
 
     :cond_qwh_hook_done
     iget-object v0, p0, Lqwh;->e:Lurt;"""
-        if target_qwh in c:
-            c = c.replace(target_qwh, repl_qwh, 1)
-            with open(qwh_path, "w", encoding="utf-8") as f:
-                f.write(c)
-            print("    [+] qwh.smali: Shadows and Highlights connected to pco pipeline.")
-        elif ":cond_qwh_hook_done" in c:
-            print("    [+] qwh.smali: Shadows and Highlights already connected.")
+
+        orig_qwh_l = """.method public final l(IFZ)V
+    .locals 5
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+
+        repl_qwh_l_new = """.method public final l(IFZ)V
+    .locals 5
+
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateToneFineTuning(IF)V
+
+    const/4 v0, 0x1
+
+    if-ne p1, v0, :cond_check_hl
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    add-float v1, p2, v0
+
+    const/high16 v0, 0x3f000000    # 0.5f
+
+    mul-float/2addr v1, v0
+
+    const/4 v0, 0x0
+
+    cmpg-float v2, v1, v0
+
+    if-gez v2, :cond_clamp_s_min
+
+    move v1, v0
+
+    :cond_clamp_s_min
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    cmpl-float v2, v1, v0
+
+    if-lez v2, :cond_clamp_s_max
+
+    move v1, v0
+
+    :cond_clamp_s_max
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    iget-object v1, p0, Lqwh;->g:Lpco;
+
+    iget-object v2, v1, Lpco;->d:Lusf;
+
+    invoke-interface {v2, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    goto :cond_qwh_hook_done
+
+    :cond_check_hl
+    const/4 v0, 0x2
+
+    if-ne p1, v0, :cond_qwh_hook_done
+
+    invoke-static {p2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    iget-object v1, p0, Lqwh;->g:Lpco;
+
+    iget-object v1, v1, Lpco;->e:Lusf;
+
+    invoke-interface {v1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_qwh_hook_done
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+
+        if old_repl_qwh in c:
+            c = c.replace(old_repl_qwh, repl_qwh_l_new, 1)
+        elif orig_qwh_l in c:
+            c = c.replace(orig_qwh_l, repl_qwh_l_new, 1)
+
+        # 10b. Hook qwh.i (Color: Vibrance=0, Tint=1)
+        orig_qwh_i = """.method public final i(IFZ)V
+    .locals 5
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        repl_qwh_i = """.method public final i(IFZ)V
+    .locals 5
+
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        if orig_qwh_i in c:
+            c = c.replace(orig_qwh_i, repl_qwh_i, 1)
+
+        # 10c. Hook qwh.j (Color: Vibrance=0, Tint=1 alternate)
+        orig_qwh_j = """.method public final j(IFZ)V
+    .locals 5
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        repl_qwh_j = """.method public final j(IFZ)V
+    .locals 5
+
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
+
+    iget-object v0, p0, Lqwh;->e:Lurt;"""
+        if orig_qwh_j in c:
+            c = c.replace(orig_qwh_j, repl_qwh_j, 1)
+
+        with open(qwh_path, "w", encoding="utf-8") as f:
+            f.write(c)
+        print("    [+] qwh.smali: Tone and Color fine-tuning sliders connected to TomteInitHelper.")
 
     # 11. Ensure pzq.smali preserves standard pzq.c initialization (twilight mode disabled by default)
     pzq_path = os.path.join(APKTOOL_DIR, "smali", "pzq.smali")
