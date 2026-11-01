@@ -8900,7 +8900,152 @@ def patch_viewfinder_qac_exposure_and_shadows():
             content = content.replace(target_oal_e, repl_oal_e)
             print("    [+] oal.smali: Shadows reset hooked to reset pco.d to 0.5f.")
 
+        # Remove drag suppression in oal.smali so Shadows update live
+        target_oal_drag = """.method public final s(FZLsyz;)V
+    .locals 4
+
+    if-nez p2, :cond_0
+
+    return-void
+
+    :cond_0"""
+        repl_oal_drag = """.method public final s(FZLsyz;)V
+    .locals 4
+
+    :cond_0"""
+        if target_oal_drag in content:
+            content = content.replace(target_oal_drag, repl_oal_drag)
+            print("    [+] oal.smali: Drag suppression removed for Shadows.")
+
         with open(oal_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 7. Patch oao.smali (Exposure slider): Bridge p1 (0.0 to 1.0) directly to pco.c and pco.f
+    oao_path = os.path.join(APKTOOL_DIR, "smali", "oao.smali")
+    if os.path.exists(oao_path):
+        with open(oao_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Add pco field if not present
+        if ".field public pco:Lpco;" not in content:
+            content = content.replace(".field private final q:Lrpr;", ".field private final q:Lrpr;\n\n.field public pco:Lpco;")
+
+        # Save pco in constructor
+        target_oao_ctor = """    invoke-direct {p2, p3}, Lekj;-><init>(Ljava/lang/Object;)V
+
+    iput-object p2, p0, Loao;->m:Lekk;
+
+    iget-object p1, p1, Lpco;->g:Lusf;"""
+        repl_oao_ctor = """    invoke-direct {p2, p3}, Lekj;-><init>(Ljava/lang/Object;)V
+
+    iput-object p2, p0, Loao;->m:Lekk;
+
+    iput-object p1, p0, Loao;->pco:Lpco;
+
+    iget-object p1, p1, Lpco;->g:Lusf;"""
+        if target_oao_ctor in content and "iput-object p1, p0, Loao;->pco:Lpco;" not in content:
+            content = content.replace(target_oao_ctor, repl_oao_ctor)
+
+        # Hook Loao.s(FZLsyz;)V: remove drag suppression and write p1 directly to pco.c (Brightness) and pco.f (Exposure Comp)
+        target_oao_s = """.method public final s(FZLsyz;)V
+    .locals 3
+
+    if-nez p2, :cond_0
+
+    return-void
+
+    :cond_0"""
+        repl_oao_s = """.method public final s(FZLsyz;)V
+    .locals 3
+
+    :cond_0"""
+        if target_oao_s in content:
+            content = content.replace(target_oao_s, repl_oao_s)
+
+        target_oao_sync = """    iget-object p2, p0, Loao;->n:Lusf;
+
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {p2, v1}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oao_sync = """    iget-object p2, p0, Loao;->n:Lusf;
+
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {p2, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object p2, p0, Loao;->pco:Lpco;
+
+    if-eqz p2, :cond_skip_pco
+
+    iget-object v2, p2, Lpco;->c:Lusf;
+
+    if-eqz v2, :cond_sync_f
+
+    invoke-interface {v2, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_sync_f
+    iget-object p2, p2, Lpco;->f:Lusf;
+
+    if-eqz p2, :cond_skip_pco
+
+    invoke-interface {p2, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_skip_pco"""
+
+        if target_oao_sync in content and ":cond_skip_pco" not in content:
+            content = content.replace(target_oao_sync, repl_oao_sync)
+            print("    [+] oao.smali: Exposure slider hooked to update pco.c and pco.f.")
+
+        # Hook Loao.e() (reset): write neutral 0.5f to pco.c and pco.f
+        target_oao_e = """    iget-object v0, p0, Loao;->n:Lusf;
+
+    const/high16 v1, 0x3f000000    # 0.5f
+
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oao_e = """    iget-object v0, p0, Loao;->n:Lusf;
+
+    const/high16 v1, 0x3f000000    # 0.5f
+
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Loao;->pco:Lpco;
+
+    if-eqz v0, :cond_skip_pco_res
+
+    iget-object v1, v0, Lpco;->c:Lusf;
+
+    if-eqz v1, :cond_res_f
+
+    invoke-interface {v1, v2}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_res_f
+    iget-object v0, v0, Lpco;->f:Lusf;
+
+    if-eqz v0, :cond_skip_pco_res
+
+    invoke-interface {v0, v2}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_skip_pco_res"""
+
+        if target_oao_e in content and ":cond_skip_pco_res" not in content:
+            content = content.replace(target_oao_e, repl_oao_e)
+            print("    [+] oao.smali: Exposure reset hooked to reset pco.c and pco.f to 0.5f.")
+
+        with open(oao_path, "w", encoding="utf-8") as f:
             f.write(content)
 
 def inject_splits():
