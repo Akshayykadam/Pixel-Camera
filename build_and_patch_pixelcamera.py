@@ -7909,42 +7909,6 @@ def patch_dual_exposure_viewfinder():
             content = content.replace(target_nia, replacement_nia)
             print("    [+] nia.smali: Dual exposure branch forced.")
 
-        # Remove duplicate Pro Shadows button from bottom tray (preserve Looks Shadows)
-        target_dup_shadow1 = """    invoke-virtual {v2, v8}, Lnzw;->d(Loaa;)V
-
-    invoke-virtual {v2}, Lnzw;->a()Lnzz;
-
-    move-result-object v2
-
-    invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V"""
-        repl_dup_shadow1 = """    invoke-virtual {v2, v8}, Lnzw;->d(Loaa;)V
-
-    invoke-virtual {v2}, Lnzw;->a()Lnzz;
-
-    move-result-object v2
-
-    # invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V (Removed duplicate Pro Shadows)"""
-        if target_dup_shadow1 in content:
-            content = content.replace(target_dup_shadow1, repl_dup_shadow1)
-            print("    [+] nia.smali: Duplicate Pro Shadows button removed from bottom tray.")
-
-        target_dup_shadow2 = """    invoke-virtual {v3}, Lnzw;->a()Lnzz;
-
-    move-result-object v2
-
-    invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V
-
-    :goto_1"""
-        repl_dup_shadow2 = """    invoke-virtual {v3}, Lnzw;->a()Lnzz;
-
-    move-result-object v2
-
-    # invoke-virtual {v14, v2}, Lypx;->h(Ljava/lang/Object;)V (Removed duplicate Pro Shadows)
-
-    :goto_1"""
-        if target_dup_shadow2 in content:
-            content = content.replace(target_dup_shadow2, repl_dup_shadow2)
-
         with open(nia_path, "w", encoding="utf-8") as f:
             f.write(content)
 
