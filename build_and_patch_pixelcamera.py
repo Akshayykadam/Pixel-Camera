@@ -8202,20 +8202,25 @@ def patch_dual_ev_ctrl_and_slider_sync():
             content = content.replace(target_a_u, "")
             print("    [+] pzj.smali: u check bypassed in a(FF).")
 
-        # 2h. pzj.a(FF)Lpzi: preserve clean sensor baseline initialization on startup/resume
-        fake_a_null = """    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+        # 2h. pzj.a(FF)Lpzi: bypass baseline computation when sliders are neutral (0.5f, 0.5f) to ensure full HAL Auto-Exposure on startup
+        target_a_baseline = """:cond_vgr_done
 
-    if-nez v3, :cond_1
+    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;"""
+        repl_a_baseline = """:cond_vgr_done
 
-    const/high16 v3, 0x3f800000    # 1.0f
+    const/high16 v3, 0x3f000000    # 0.5f
 
-    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+    cmpl-float v3, p1, v3
 
-    move-result-object v3
+    if-nez v3, :cond_check_baseline
 
-    iput-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+    const/high16 v3, 0x3f000000    # 0.5f
 
-    iput-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+    cmpl-float v3, p2, v3
+
+    if-nez v3, :cond_check_baseline
+
+    const/4 v3, 0x0
 
     iput-object v3, p0, Lpzj;->o:Ljava/lang/Float;
 
@@ -8223,28 +8228,119 @@ def patch_dual_ev_ctrl_and_slider_sync():
 
     iput-object v3, p0, Lpzj;->q:Ljava/lang/Float;
 
-    iput-object v3, p0, Lpzj;->r:Ljava/lang/Float;"""
-        clean_a_null = """    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+    iput-object v3, p0, Lpzj;->r:Ljava/lang/Float;
 
-    if-eqz v3, :cond_4
+    goto/16 :goto_1
 
-    iget-object v3, p0, Lpzj;->p:Ljava/lang/Float;
+    :cond_check_baseline
+    iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;"""
+        if target_a_baseline in content and ":cond_check_baseline" not in content:
+            content = content.replace(target_a_baseline, repl_a_baseline)
+            print("    [+] pzj.smali: Neutral slider bypass injected (full Auto-Exposure on startup).")
 
-    if-eqz v3, :cond_4
+        # Eliminate fallback 1.0f that freezes dark underexposure on startup
+        fallback_target = """:cond_init_baseline
+    iget-object v3, p0, Lpzj;->l:Ljava/lang/Float;
 
-    iget-object v3, p0, Lpzj;->q:Ljava/lang/Float;
+    if-eqz v3, :cond_fallback_lmn
 
-    if-nez v3, :cond_1
+    iget-object v3, p0, Lpzj;->m:Ljava/lang/Float;
 
-    goto/16 :goto_0"""
-        if fake_a_null in content:
-            content = content.replace(fake_a_null, clean_a_null)
-            print("    [+] pzj.smali: clean sensor baseline initialization restored.")
-        else:
-            print("    [+] pzj.smali: clean sensor baseline initialization preserved.")
+    if-eqz v3, :cond_fallback_lmn
+
+    iget-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+
+    if-nez v3, :cond_copy_lmn
+
+    :cond_fallback_lmn
+    const/high16 v3, 0x3f800000    # 1.0f
+
+    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v3
+
+    iput-object v3, p0, Lpzj;->l:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+
+    iput-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+
+    :cond_copy_lmn"""
+        fallback_repl = """:cond_init_baseline
+    iget-object v3, p0, Lpzj;->l:Ljava/lang/Float;
+
+    if-nez v3, :cond_check_m
+
+    goto/16 :goto_1
+
+    :cond_check_m
+    iget-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+
+    if-nez v3, :cond_check_n
+
+    goto/16 :goto_1
+
+    :cond_check_n
+    iget-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+
+    if-nez v3, :cond_copy_lmn
+
+    goto/16 :goto_1
+
+    :cond_copy_lmn"""
+        if fallback_target in content:
+            content = content.replace(fallback_target, fallback_repl)
+            print("    [+] pzj.smali: 1.0f underexposure fallback removed and replaced with null-safe HAL check.")
+        elif ":cond_check_m" in content:
+            print("    [+] pzj.smali: null-safe HAL check already present.")
 
         with open(pzj_path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    # 2i. pqs.smali: Gate vae.t submission on Lpzi.b > 0.0f and clear repeating overrides on neutral/startup via vae.n
+    pqs_path = os.path.join(APKTOOL_DIR, "smali", "pqs.smali")
+    if os.path.exists(pqs_path):
+        with open(pqs_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_pqs_vae = """    check-cast p0, Landroid/hardware/camera2/CaptureRequest$Key;
+
+    iget v2, v1, Lpzi;->e:I"""
+        repl_pqs_vae = """    check-cast p0, Landroid/hardware/camera2/CaptureRequest$Key;
+
+    iget v2, v1, Lpzi;->b:F
+
+    const/4 v5, 0x0
+
+    cmpl-float v2, v2, v5
+
+    if-lez v2, :cond_clear_ae
+
+    iget v2, v1, Lpzi;->e:I"""
+
+        target_pqs_tail = """    invoke-interface {v0, p0}, Lvae;->t(Ljava/util/Set;)V
+
+    return-void"""
+        repl_pqs_tail = """    invoke-interface {v0, p0}, Lvae;->t(Ljava/util/Set;)V
+
+    return-void
+
+    :cond_clear_ae
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_EXPOSURE_COMPENSATION:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {p0, v1}, Lyrh;->I(Ljava/lang/Object;Ljava/lang/Object;)Lyrh;
+
+    move-result-object p0
+
+    invoke-interface {v0, p0}, Lvae;->n(Ljava/util/Set;)V
+
+    return-void"""
+        if target_pqs_vae in content and ":cond_clear_ae" not in content:
+            content = content.replace(target_pqs_vae, repl_pqs_vae)
+            content = content.replace(target_pqs_tail, repl_pqs_tail)
+            print("    [+] pqs.smali: Repeating request submission gated on Lpzi.b > 0.0f with vae.n AE clearance.")
+            with open(pqs_path, "w", encoding="utf-8") as f:
+                f.write(content)
 
     # 3. lts.smali: Modulo-2 enum mapping & dual slider synchronization
     lts_path = os.path.join(APKTOOL_DIR, "smali", "lts.smali")
