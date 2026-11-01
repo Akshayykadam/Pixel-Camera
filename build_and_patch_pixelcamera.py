@@ -811,6 +811,19 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_gouda_mantis
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_gouda_mantis
+    const-string v1, "camera.gouda.mantis"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_orig
 
     const/4 v0, 0x1
@@ -1329,9 +1342,72 @@ def patch_ksf_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig_r
+    if-eqz v1, :cond_check_gouda_max_zoom
 
     const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_gouda_max_zoom
+    const-string v1, "camera.gouda.max_zoom"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_mantis_thresh
+
+    const/high16 v0, 0x41200000    # 10.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_gouda_mantis_thresh
+    const-string v1, "camera.gouda.mantis_threshold"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_mantis_ratio
+
+    const/high16 v0, 0x40a00000    # 5.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_gouda_mantis_ratio
+    const-string v1, "camera.gouda.mantis_ratio_transition"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_r
+
+    const/high16 v0, 0x40a00000    # 5.0f
 
     invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
 
@@ -2058,7 +2134,7 @@ def build_propatcher():
     out = os.path.join(APKTOOL_DIR, "lib", "arm64-v8a", "libpropatcher.so")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     if os.path.exists(ndk_clang) and os.path.exists(src):
-        cmd = [ndk_clang, "-shared", "-fPIC", "-O3", "-Wall", "-Wextra", "-llog", "-landroid", src, "-o", out]
+        cmd = [ndk_clang, "-shared", "-fPIC", "-O3", "-Wall", "-Wextra", "-llog", "-landroid", "-lm", src, "-o", out]
         res = subprocess.run(cmd)
         if res.returncode == 0:
             print(f"    [+] Compiled libpropatcher.so -> {out}")
@@ -2241,6 +2317,14 @@ def patch_msr_smali():
     if gcam_create_target in content:
         content = content.replace(gcam_create_target, gcam_create_repl)
         print("    [+] mjy.smali: TomteInitHelper.initTomteGrain hooked on Gcam creation.")
+
+    # Hook TomteInitHelper.applyNativeTuning() right before GcamModuleJNI.Gcam_Create
+    gcam_create_jni = "invoke-static/range {v14 .. v19}, Lcom/google/googlex/gcam/GcamModuleJNI;->Gcam_Create(JLcom/google/googlex/gcam/InitParams;JLcom/google/googlex/gcam/StaticMetadataVector;)J"
+    if "TomteInitHelper;->applyNativeTuning()V" not in content and gcam_create_jni in content:
+        content = content.replace(gcam_create_jni, "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V\n\n    " + gcam_create_jni)
+        print("    [+] msr.smali: TomteInitHelper.applyNativeTuning hooked right before Gcam_Create.")
+    elif "TomteInitHelper;->applyNativeTuning()V" in content:
+        print("    [+] msr.smali: TomteInitHelper.applyNativeTuning already hooked.")
 
     # Guard khw.c and khw.g in binned static metadata setup
     opt_cg_target = """    sget-object v7, Lkhw;->c:Lkpr;
@@ -4273,6 +4357,23 @@ def patch_mtt_smali():
     elif "TomteInitHelper;->filterChessEnabled" in content:
         print("    [+] mtt.smali: ShotParams Chess denoiser already hooked.")
 
+    # Hook ShotParams return with applyShotParamsDenoiseAndSharpen
+    shotparams_ret_target = """    invoke-interface {v6}, Luxt;->g()V
+
+    return-object v9"""
+
+    shotparams_ret_repl = """    invoke-interface {v6}, Luxt;->g()V
+
+    invoke-static {v9}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyShotParamsDenoiseAndSharpen(Lcom/google/googlex/gcam/ShotParams;)V
+
+    return-object v9"""
+
+    if shotparams_ret_target in content:
+        content = content.replace(shotparams_ret_target, shotparams_ret_repl, 1)
+        print("    [+] mtt.smali: ShotParams applyShotParamsDenoiseAndSharpen hooked before return-object v9.")
+    elif "TomteInitHelper;->applyShotParamsDenoiseAndSharpen" in content:
+        print("    [+] mtt.smali: ShotParams applyShotParamsDenoiseAndSharpen already hooked.")
+
     with open(mtt_path, "w", encoding="utf-8") as f:
         f.write(content)
     print("    [+] mtt.smali patched: getEffectiveLookId & denoiser filters hooked.")
@@ -4925,13 +5026,55 @@ def patch_qfr_smali():
 
     if target_tpu in content:
         content = content.replace(target_tpu, repl_tpu, 1)
-        with open(qfr_path, "w", encoding="utf-8") as f:
-            f.write(content)
         print("    [+] qfr.smali: Disabled TPU flags (n, o, p, q, r = false).")
     elif "const/4 v0, 0x0\n\n    iput-boolean v0, p0, Lqfr;->n:Z" in content:
         print("    [+] qfr.smali: TPU flags already disabled.")
-    else:
-        print("    [!] Warning: qfr.smali TPU target block not found.")
+
+    target_qfr_e = """:cond_0
+    iget-boolean p0, p0, Lqfr;->f:Z
+
+    return p0"""
+    repl_qfr_e = """:cond_0
+    const/4 p0, 0x1
+
+    return p0"""
+    if target_qfr_e in content:
+        content = content.replace(target_qfr_e, repl_qfr_e, 1)
+        print("    [+] qfr.smali: e(Z)Z forced to true for rear camera (Mantis enabled).")
+
+    target_qfr_c = """.method public final c()Z
+    .locals 1
+
+    iget-boolean v0, p0, Lqfr;->L:Z
+
+    if-eqz v0, :cond_0
+
+    iget-boolean p0, p0, Lqfr;->M:Z
+
+    if-eqz p0, :cond_0
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_0
+    const/4 p0, 0x0
+
+    return p0
+.end method"""
+    repl_qfr_c = """.method public final c()Z
+    .locals 1
+
+    const/4 p0, 0x1
+
+    return p0
+.end method"""
+    if target_qfr_c in content:
+        content = content.replace(target_qfr_c, repl_qfr_c, 1)
+        print("    [+] qfr.smali: c()Z forced to true (Telephoto Portrait mode supported).")
+
+    with open(qfr_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 def patch_qfz_smali():
@@ -5807,6 +5950,37 @@ def patch_zoom_controllers():
 
         kmd_repl = """    :cond_b
     :goto_6
+    if-eqz v3, :cond_check_5x_kmd
+
+    iget v2, v3, Lkof;->c:I
+
+    sget-object v5, Lzde;->s:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_check_video_portrait_kmd
+
+    goto :cond_skip_10x_kmd
+
+    :cond_check_video_portrait_kmd
+    sget-object v5, Lzde;->H:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_check_video_portrait_still_kmd
+
+    goto :cond_skip_10x_kmd
+
+    :cond_check_video_portrait_still_kmd
+    sget-object v5, Lzde;->I:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_check_5x_kmd
+
+    goto :cond_skip_10x_kmd
+
+    :cond_check_5x_kmd
     const/high16 v2, 0x40a00000    # 5.0f
 
     invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
@@ -5844,11 +6018,53 @@ def patch_zoom_controllers():
     :cond_skip_10x_kmd
     invoke-virtual {v1, v6}, Labjo;->w(Ljava/lang/Iterable;)V"""
 
-        if kmd_target in content:
+        old_kmd_repl = """    :cond_b
+    :goto_6
+    const/high16 v2, 0x40a00000    # 5.0f
+
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v6, v2}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-eqz v2, :cond_skip_10x_kmd
+
+    const/high16 v2, 0x41200000    # 10.0f
+
+    invoke-static {v2, v13}, Ljava/lang/Float;->compare(FF)I
+
+    move-result v2
+
+    if-gtz v2, :cond_skip_10x_kmd
+
+    const/high16 v2, 0x41200000    # 10.0f
+
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v6, v2}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-nez v5, :cond_skip_10x_kmd
+
+    invoke-interface {v6, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    :cond_skip_10x_kmd
+    invoke-virtual {v1, v6}, Labjo;->w(Ljava/lang/Iterable;)V"""
+
+        if old_kmd_repl in content:
+            content = content.replace(old_kmd_repl, kmd_repl)
+            print("    [+] kmd.smali: updated with portrait mode exclusion for 10x hook.")
+        elif kmd_target in content:
             content = content.replace(kmd_target, kmd_repl)
-            print("    [+] kmd.smali: 10x Quick Zoom button dynamically generated when 5x is present and max zoom >= 10x.")
-        elif ":cond_skip_10x_kmd" in content:
-            print("    [+] kmd.smali: already patched with dynamic 10x hook.")
+            print("    [+] kmd.smali: 10x Quick Zoom button dynamically generated when 5x is present and max zoom >= 10x (excluding portrait).")
+        elif ":cond_check_5x_kmd" in content:
+            print("    [+] kmd.smali: already patched with portrait-excluded dynamic 10x hook.")
         else:
             print("    [!] Warning: kmd.smali target not found.")
 
@@ -5867,6 +6083,83 @@ def patch_zoom_controllers():
     const/4 v4, 0x1"""
 
         kmo_repl = """    invoke-interface {v4, v5}, Ljava/util/List;->addAll(Ljava/util/Collection;)Z
+
+    :goto_a
+    if-eqz v10, :cond_check_5x_kmo
+
+    iget v8, v10, Lkof;->c:I
+
+    sget-object v6, Lzde;->s:Lzde;
+
+    iget v6, v6, Lzde;->X:I
+
+    if-ne v8, v6, :cond_check_video_portrait_kmo
+
+    goto :cond_skip_10x_kmo
+
+    :cond_check_video_portrait_kmo
+    sget-object v6, Lzde;->H:Lzde;
+
+    iget v6, v6, Lzde;->X:I
+
+    if-ne v8, v6, :cond_check_video_portrait_still_kmo
+
+    goto :cond_skip_10x_kmo
+
+    :cond_check_video_portrait_still_kmo
+    sget-object v6, Lzde;->I:Lzde;
+
+    iget v6, v6, Lzde;->X:I
+
+    if-ne v8, v6, :cond_check_5x_kmo
+
+    goto :cond_skip_10x_kmo
+
+    :cond_check_5x_kmo
+    iget-object v6, v0, Lkmo;->S:Ljava/util/List;
+
+    const/high16 v8, 0x40a00000    # 5.0f
+
+    invoke-static {v8}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v8
+
+    invoke-interface {v6, v8}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v8
+
+    if-eqz v8, :cond_skip_10x_kmo
+
+    const/high16 v8, 0x41200000    # 10.0f
+
+    invoke-static {v8}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v8
+
+    invoke-interface {v6, v8}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+
+    move-result v11
+
+    if-nez v11, :cond_skip_10x_kmo
+
+    invoke-interface {v6, v8}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    new-instance v6, Lkkl;
+
+    const-string v8, "10"
+
+    const/4 v11, 0x0
+
+    invoke-direct {v6, v8, v11}, Lkkl;-><init>(Ljava/lang/String;Ljava/lang/String;)V
+
+    iget-object v8, v0, Lkmo;->R:Lchy;
+
+    invoke-virtual {v8, v6}, Lchy;->add(Ljava/lang/Object;)Z
+
+    :cond_skip_10x_kmo
+    const/4 v4, 0x1"""
+
+        old_kmo_repl = """    invoke-interface {v4, v5}, Ljava/util/List;->addAll(Ljava/util/Collection;)Z
 
     :goto_a
     iget-object v6, v0, Lkmo;->S:Ljava/util/List;
@@ -5912,11 +6205,14 @@ def patch_zoom_controllers():
     :cond_skip_10x_kmo
     const/4 v4, 0x1"""
 
-        if kmo_target in content:
+        if old_kmo_repl in content:
+            content = content.replace(old_kmo_repl, kmo_repl)
+            print("    [+] kmo.smali: updated with portrait mode exclusion for 10x hook.")
+        elif kmo_target in content:
             content = content.replace(kmo_target, kmo_repl)
-            print("    [+] kmo.smali: 10x Quick Zoom button dynamically hooked in UI toggle row.")
-        elif ":cond_skip_10x_kmo" in content:
-            print("    [+] kmo.smali: already patched with dynamic 10x hook.")
+            print("    [+] kmo.smali: 10x Quick Zoom button dynamically hooked in UI toggle row (excluding portrait).")
+        elif ":cond_check_5x_kmo" in content:
+            print("    [+] kmo.smali: already patched with portrait-excluded dynamic 10x hook.")
         else:
             print("    [!] Warning: kmo.smali target not found.")
 
@@ -6055,6 +6351,208 @@ def patch_zoom_controllers():
 
             with open(guh_path, "w", encoding="utf-8") as f:
                 f.write(guh_content)
+
+def patch_telephoto_portrait_5x():
+    print("[*] Patching 5x Telephoto Portrait Mode across all Pro Pixels (Pixel 6 Pro to 10 Pro)...")
+
+    # 1. Patch knq.smali, knk.smali, knp.smali (Pixel 8 Pro, Pixel 7 Pro, Pixel 9 Pro / XL)
+    target_p1 = """    invoke-static {v7, v8}, Lyqc;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v1
+
+    invoke-virtual {v3, v1}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v7, v8, v11}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+    repl_p1 = """    const/high16 v9, 0x40a00000    # 5.0f
+
+    invoke-static {v9}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v9
+
+    invoke-static {v7, v8, v9}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v1
+
+    invoke-virtual {v3, v1}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v3}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v7, v8, v11, v9}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+    target_p2 = """    invoke-static {v3, v8}, Lyqc;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v5
+
+    invoke-virtual {v1, v5}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v1}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v3, v8, v11}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+    repl_p2 = """    const/high16 v9, 0x40a00000    # 5.0f
+
+    invoke-static {v9}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v9
+
+    invoke-static {v3, v8, v9}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v5
+
+    invoke-virtual {v1, v5}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v1}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v3, v8, v11, v9}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+    for name in ["knq.smali", "knk.smali", "knp.smali"]:
+        p_path = os.path.join(APKTOOL_DIR, "smali_classes2", name)
+        if os.path.exists(p_path):
+            with open(p_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            patched = False
+            if target_p1 in content:
+                content = content.replace(target_p1, repl_p1, 1)
+                patched = True
+            if target_p2 in content:
+                content = content.replace(target_p2, repl_p2, 1)
+                patched = True
+
+            if patched:
+                with open(p_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"    [+] {name}: 5x Quick Button and slider stop added to Portrait mode.")
+            elif "const/high16 v9, 0x40a00000    # 5.0f" in content and "Lyqc;->o" in content:
+                print(f"    [+] {name}: already patched for 5x Portrait mode.")
+
+    # 2. Patch koc.smali (Pixel 10 Pro)
+    koc_path = os.path.join(APKTOOL_DIR, "smali_classes2", "koc.smali")
+    if os.path.exists(koc_path):
+        with open(koc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_koc1 = """    invoke-static {v6, v7}, Lyqc;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v4
+
+    invoke-virtual {p2, v4}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {p2}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v6, v7, v2}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        repl_koc1 = """    const/high16 v8, 0x40a00000    # 5.0f
+
+    invoke-static {v8}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v8
+
+    invoke-static {v6, v7, v8}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v4
+
+    invoke-virtual {p2, v4}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {p2}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v6, v7, v2, v8}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        target_koc2 = """    invoke-static {v4, v7}, Lyqc;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v10
+
+    invoke-virtual {p2, v10}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {p2}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v4, v7, v2}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        repl_koc2 = """    const/high16 v8, 0x40a00000    # 5.0f
+
+    invoke-static {v8}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v8
+
+    invoke-static {v4, v7, v8}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v10
+
+    invoke-virtual {p2, v10}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {p2}, Lgei;->l(Labjo;)Labmi;
+
+    invoke-static {v4, v7, v2, v8}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        patched_koc = False
+        if target_koc1 in content:
+            content = content.replace(target_koc1, repl_koc1, 1)
+            patched_koc = True
+        if target_koc2 in content:
+            content = content.replace(target_koc2, repl_koc2, 1)
+            patched_koc = True
+
+        if patched_koc:
+            with open(koc_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] koc.smali: 5x Quick Button and slider stop added to Pixel 10 Pro Portrait mode.")
+        elif "const/high16 v8, 0x40a00000    # 5.0f" in content and "Lyqc;->o" in content:
+            print("    [+] koc.smali: already patched for 5x Portrait mode.")
+
+    # 3. Patch knu.smali (Pixel 6 Pro)
+    knu_path = os.path.join(APKTOOL_DIR, "smali_classes2", "knu.smali")
+    if os.path.exists(knu_path):
+        with open(knu_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_knu = """    invoke-static {v8, v9}, Lyqc;->m(Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v10
+
+    invoke-virtual {v1, v10}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v1}, Lgei;->l(Labjo;)Labmi;
+
+    const v10, 0x40f2c083    # 7.586f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    invoke-static {v8, v9, v10}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        repl_knu = """    const/high16 v11, 0x40a00000    # 5.0f
+
+    invoke-static {v11}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v11
+
+    invoke-static {v8, v9, v11}, Lyqc;->n(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;
+
+    move-result-object v10
+
+    invoke-virtual {v1, v10}, Labjo;->w(Ljava/lang/Iterable;)V
+
+    invoke-static {v1}, Lgei;->l(Labjo;)Labmi;
+
+    const v10, 0x40f2c083    # 7.586f
+
+    invoke-static {v10}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v10
+
+    invoke-static {v8, v9, v11, v10}, Lyqc;->o(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Lyqc;"""
+
+        if target_knu in content:
+            content = content.replace(target_knu, repl_knu, 1)
+            with open(knu_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] knu.smali: 5x Quick Button and slider stop added to Pixel 6 Pro Portrait mode.")
+        elif "const/high16 v11, 0x40a00000    # 5.0f" in content and "Lyqc;->o" in content:
+            print("    [+] knu.smali: already patched for 5x Portrait mode.")
 
 def patch_qhm_smali():
     print("[*] Patching qhm.smali (Bypassing capability checks for Quick Access sliders)...")
@@ -8139,6 +8637,409 @@ def patch_dual_ev_ctrl_and_slider_sync():
         elif "camera.dualev" in ksf_c:
             print("    [+] ksf.smali: camera.dualev flags already intercepted.")
 
+def patch_viewfinder_qac_exposure_and_shadows():
+    print("[*] Patching Viewfinder QuickAccessControls (qrg, pin, oar, oal) for Exposure & Shadows...")
+
+    # 1. Patch qrg.smali: Set qrg.o and qrg.n to [Lnzy.m (EXPOSURE), Lnzy.i (SHADOWS)]
+    # This guarantees BOTH Exposure and Shadows sliders appear on viewfinder across all modes!
+    qrg_path = os.path.join(APKTOOL_DIR, "smali_classes2", "qrg.smali")
+    if os.path.exists(qrg_path):
+        with open(qrg_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_qrg = """    const/4 v0, 0x2
+
+    new-array v0, v0, [Lnzy;
+
+    const/4 v1, 0x0
+
+    sget-object v2, Lnzy;->j:Lnzy;
+
+    aput-object v2, v0, v1
+
+    const/4 v1, 0x1
+
+    sget-object v2, Lnzy;->i:Lnzy;
+
+    aput-object v2, v0, v1
+
+    invoke-static {v0}, Laamv;->bC([Ljava/lang/Object;)Ljava/util/List;
+
+    move-result-object v0
+
+    sput-object v0, Lqrg;->n:Ljava/util/List;
+
+    sget-object v0, Lnzy;->m:Lnzy;
+
+    invoke-static {v0}, Laamv;->az(Ljava/lang/Object;)Ljava/util/List;
+
+    move-result-object v0
+
+    sput-object v0, Lqrg;->o:Ljava/util/List;"""
+
+        repl_qrg = """    const/4 v0, 0x2
+
+    new-array v0, v0, [Lnzy;
+
+    const/4 v1, 0x0
+
+    sget-object v2, Lnzy;->m:Lnzy;
+
+    aput-object v2, v0, v1
+
+    const/4 v1, 0x1
+
+    sget-object v2, Lnzy;->i:Lnzy;
+
+    aput-object v2, v0, v1
+
+    invoke-static {v0}, Laamv;->bC([Ljava/lang/Object;)Ljava/util/List;
+
+    move-result-object v0
+
+    sput-object v0, Lqrg;->n:Ljava/util/List;
+
+    sput-object v0, Lqrg;->o:Ljava/util/List;"""
+
+        if target_qrg in content:
+            content = content.replace(target_qrg, repl_qrg)
+            with open(qrg_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] qrg.smali: QuickAccessControls configured with [EXPOSURE, SHADOWS] for all modes.")
+        elif "sput-object v0, Lqrg;->o:Ljava/util/List;" in content and "sget-object v2, Lnzy;->m:Lnzy;" in content:
+            print("    [+] qrg.smali: already patched with [EXPOSURE, SHADOWS].")
+
+    # 2. Patch pin.smali: Unblock poo(15) registration on pco.b so Camera2 HAL AE updates live
+    pin_path = os.path.join(APKTOOL_DIR, "smali", "pin.smali")
+    if os.path.exists(pin_path):
+        with open(pin_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_pin_ae = """    :cond_b
+    iget-boolean v1, v0, Lptm;->g:Z
+
+    if-nez v1, :cond_c
+
+    iget-object v1, v0, Lptm;->a:Lpco;"""
+
+        repl_pin_ae = """    :cond_b
+    iget-boolean v1, v0, Lptm;->g:Z
+
+    nop
+
+    iget-object v1, v0, Lptm;->a:Lpco;"""
+
+        if target_pin_ae in content:
+            content = content.replace(target_pin_ae, repl_pin_ae)
+            with open(pin_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] pin.smali: poo(15) AE compensation dispatch unblocked for pco.b.")
+        elif ":cond_b\\n    iget-boolean v1, v0, Lptm;->g:Z\\n\\n    nop\\n\\n    iget-object v1, v0, Lptm;->a:Lpco;" in content:
+            print("    [+] pin.smali: poo(15) AE compensation dispatch already unblocked.")
+
+    # 3. Patch oar.smali (Exposure slider): Bridge to pco.c and pco.f so both legacy pzj and modern pipelines react
+    oar_path = os.path.join(APKTOOL_DIR, "smali", "oar.smali")
+    if os.path.exists(oar_path):
+        with open(oar_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Add pco field if not present
+        if ".field public pco:Lpco;" not in content:
+            content = content.replace(".field private final v:Lrpr;", ".field private final v:Lrpr;\n\n.field public pco:Lpco;")
+
+        # Save pco in constructor
+        target_oar_ctor = """    iput-object p2, p0, Loar;->u:Loam;
+
+    iget-object p2, p1, Lpco;->a:Lusf;"""
+        repl_oar_ctor = """    iput-object p2, p0, Loar;->u:Loam;
+
+    iput-object p1, p0, Loar;->pco:Lpco;
+
+    iget-object p2, p1, Lpco;->a:Lusf;"""
+        if target_oar_ctor in content and "iput-object p1, p0, Loar;->pco:Lpco;" not in content:
+            content = content.replace(target_oar_ctor, repl_oar_ctor)
+
+        # Hook Loar.u(FZLsyz;)V: write (p1 + 1.0f) * 0.5f to pco.c immediately after :cond_1 when p1 is still a float!
+        target_oar_u = """    if-nez p2, :cond_1
+
+    return-void
+
+    :cond_1
+    iget-object p2, p0, Loar;->u:Loam;"""
+
+        repl_oar_u = """    if-nez p2, :cond_1
+
+    return-void
+
+    :cond_1
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    add-float/2addr v0, p1
+
+    const/high16 v2, 0x3f000000    # 0.5f
+
+    mul-float/2addr v0, v2
+
+    const/4 v2, 0x0
+
+    cmpg-float v3, v0, v2
+
+    if-gez v3, :cond_clamp_l
+
+    move v0, v2
+
+    :cond_clamp_l
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    cmpl-float v3, v0, v2
+
+    if-lez v3, :cond_clamp_h
+
+    move v0, v2
+
+    :cond_clamp_h
+    iget-object v2, p0, Loar;->pco:Lpco;
+
+    if-eqz v2, :cond_skip_pcoc
+
+    iget-object v2, v2, Lpco;->c:Lusf;
+
+    if-eqz v2, :cond_skip_pcoc
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-interface {v2, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_skip_pcoc
+    iget-object p2, p0, Loar;->u:Loam;"""
+
+        # Increase .locals from 3 to 4 in u(FZLsyz;)V
+        target_oar_locals = """.method public final u(FZLsyz;)V
+    .locals 3"""
+        repl_oar_locals = """.method public final u(FZLsyz;)V
+    .locals 4"""
+
+        if target_oar_locals in content:
+            content = content.replace(target_oar_locals, repl_oar_locals)
+
+        if target_oar_u in content and ":cond_clamp_l" not in content:
+            content = content.replace(target_oar_u, repl_oar_u)
+            print("    [+] oar.smali: Exposure slider hooked to update pco.c and pco.b.")
+
+        # Hook Loar.e() (reset) to reset pco.c to 0.5f
+        target_oar_e = """    iget-object v0, p0, Loar;->p:Lusf;
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-interface {v0, v1}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oar_e = """    iget-object v0, p0, Loar;->p:Lusf;
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-interface {v0, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object v0, p0, Loar;->pco:Lpco;
+
+    if-eqz v0, :cond_res_pcoc
+
+    iget-object v0, v0, Lpco;->c:Lusf;
+
+    if-eqz v0, :cond_res_pcoc
+
+    const/high16 v1, 0x3f000000    # 0.5f
+
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {v0, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_res_pcoc"""
+
+        if target_oar_e in content and ":cond_res_pcoc" not in content:
+            content = content.replace(target_oar_e, repl_oar_e)
+
+        with open(oar_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    # 4. Patch oal.smali (Shadows slider): Bridge to pco.d and pco.g so live tone curves react
+    oal_path = os.path.join(APKTOOL_DIR, "smali", "oal.smali")
+    if os.path.exists(oal_path):
+        with open(oal_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Add pco field if not present
+        if ".field public pco:Lpco;" not in content:
+            content = content.replace(".field private final u:Lrpr;", ".field private final u:Lrpr;\n\n.field public pco:Lpco;")
+
+        # Save pco in constructor
+        target_oal_ctor = """    invoke-direct {p0}, Lqrl;-><init>()V
+
+    iput-object p2, p0, Loal;->l:Lusf;"""
+        repl_oal_ctor = """    invoke-direct {p0}, Lqrl;-><init>()V
+
+    iput-object p1, p0, Loal;->pco:Lpco;
+
+    iput-object p2, p0, Loal;->l:Lusf;"""
+        if target_oal_ctor in content and "iput-object p1, p0, Loal;->pco:Lpco;" not in content:
+            content = content.replace(target_oal_ctor, repl_oal_ctor)
+
+        # Hook Loal.s(FZLsyz;)V: write (p1 + 1.0f) * 0.5f to pco.d and p1 to pco.g
+        target_oal_s = """    iget-object p2, p0, Loal;->q:Lusf;
+
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-interface {p2, v0}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oal_s = """    iget-object p2, p0, Loal;->q:Lusf;
+
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-interface {p2, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+    const/high16 v1, 0x3f800000    # 1.0f
+
+    add-float/2addr v1, p1
+
+    const/high16 v2, 0x3f000000    # 0.5f
+
+    mul-float/2addr v1, v2
+
+    const/4 v2, 0x0
+
+    cmpg-float v3, v1, v2
+
+    if-gez v3, :cond_clamp_sd_l
+
+    move v1, v2
+
+    :cond_clamp_sd_l
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    cmpl-float v3, v1, v2
+
+    if-lez v3, :cond_clamp_sd_h
+
+    move v1, v2
+
+    :cond_clamp_sd_h
+    iget-object v2, p0, Loal;->pco:Lpco;
+
+    if-eqz v2, :cond_skip_pcod
+
+    iget-object v3, v2, Lpco;->d:Lusf;
+
+    if-eqz v3, :cond_skip_pcod_d
+
+    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {v3, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_skip_pcod_d
+    iget-object v2, v2, Lpco;->g:Lusf;
+
+    if-eqz v2, :cond_skip_pcod
+
+    invoke-static {p1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v1
+
+    invoke-interface {v2, v1}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_skip_pcod"""
+
+        if target_oal_s in content and ":cond_clamp_sd_l" not in content:
+            content = content.replace(target_oal_s, repl_oal_s)
+            print("    [+] oal.smali: Shadows slider hooked to update pco.d and pco.g.")
+
+        # Hook Loal.e() (reset) to reset pco.d to 0.5f and pco.g to 0.0f
+        target_oal_e = """    iget v0, p0, Loal;->r:F
+
+    iget-object v1, p0, Loal;->q:Lusf;
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v1, v2}, Lusf;->a(Ljava/lang/Object;)V"""
+
+        repl_oal_e = """    iget v0, p0, Loal;->r:F
+
+    iget-object v1, p0, Loal;->q:Lusf;
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v1, v2}, Lusf;->a(Ljava/lang/Object;)V
+
+    iget-object v1, p0, Loal;->pco:Lpco;
+
+    if-eqz v1, :cond_res_pcod
+
+    iget-object v2, v1, Lpco;->d:Lusf;
+
+    if-eqz v2, :cond_res_pcod_d
+
+    const/high16 v3, 0x3f000000    # 0.5f
+
+    invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v3
+
+    invoke-interface {v2, v3}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_res_pcod_d
+    iget-object v1, v1, Lpco;->g:Lusf;
+
+    if-eqz v1, :cond_res_pcod
+
+    const/4 v2, 0x0
+
+    invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v2
+
+    invoke-interface {v1, v2}, Lusf;->a(Ljava/lang/Object;)V
+
+    :cond_res_pcod"""
+
+        if target_oal_e in content and ":cond_res_pcod" not in content:
+            content = content.replace(target_oal_e, repl_oal_e)
+
+        # Bump .locals for e() and s() to accommodate injected registers (v3, v4)
+        # e() originally has .locals 4, injected code uses v4 → need .locals 5
+        # s() originally has .locals 3, injected code uses v3 → need .locals 4
+        import re
+        # Fix e() method: find ".method public final e()V\n    .locals 4" and bump to 5
+        content = re.sub(
+            r'(\.method public final e\(\)V\s*\n\s*)\.locals 4',
+            r'\1.locals 5',
+            content
+        )
+        # Fix s() method: find ".method public final s(FZLsyz;)V\n    .locals 3" and bump to 4
+        content = re.sub(
+            r'(\.method public final s\(FZLsyz;\)V\s*\n\s*)\.locals 3',
+            r'\1.locals 4',
+            content
+        )
+
+        with open(oal_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
 def inject_splits():
     print("[*] Injecting dynamic native libraries and neural assets from feature splits...")
     
@@ -9069,6 +9970,209 @@ def patch_fzf_smali():
     with open(fzf_path, "w", encoding="utf-8") as f:
         f.write(content)
 
+def patch_shutter_readiness():
+    print("[*] Patching shutter readiness and unblocking capture deadlocks...")
+
+    # 1. kja.smali: Never add sss.i (PHOTO_MODE_NOT_READY_FOR_CAPTURE) or sss.h (COTTAGE_NOT_READY_FOR_CAPTURE) into disabled reasons map
+    kja_path = os.path.join(APKTOOL_DIR, "smali", "kja.smali")
+    if os.path.exists(kja_path):
+        with open(kja_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target = """    :cond_1
+    invoke-interface {v3, p2, p3}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v2
+
+    check-cast v2, Lkir;
+
+    :goto_0"""
+        repl = """    :cond_1
+    sget-object v2, Lsss;->i:Lsss;
+
+    if-eq p2, v2, :cond_skip_put
+
+    sget-object v2, Lsss;->h:Lsss;
+
+    if-ne p2, v2, :cond_put
+
+    :cond_skip_put
+    invoke-interface {v3, p2}, Ljava/util/Map;->remove(Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v2
+
+    check-cast v2, Lkir;
+
+    goto :goto_0
+
+    :cond_put
+    invoke-interface {v3, p2, p3}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+
+    move-result-object v2
+
+    check-cast v2, Lkir;
+
+    :goto_0"""
+        if target in content:
+            content = content.replace(target, repl)
+            with open(kja_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] kja.smali: Guarded active disable reasons map against sss.i and sss.h.")
+        elif "cond_skip_put" in content:
+            print("    [+] kja.smali: Guard already present.")
+
+    # 2. ssw.smali: Guard legacy ShutterButton controller ab and ac methods
+    ssw_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ssw.smali")
+    if os.path.exists(ssw_path):
+        with open(ssw_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_ab = """.method public final ab(ZLsss;)V
+    .locals 1
+
+    new-instance p2, Lrxe;"""
+        repl_ab = """.method public final ab(ZLsss;)V
+    .locals 1
+
+    sget-object v0, Lsss;->i:Lsss;
+
+    if-eq p2, v0, :cond_skip_dis_ab
+
+    sget-object v0, Lsss;->h:Lsss;
+
+    if-ne p2, v0, :cond_norm_dis_ab
+
+    :cond_skip_dis_ab
+    const/4 p1, 0x1
+
+    :cond_norm_dis_ab
+    new-instance p2, Lrxe;"""
+
+        target_ac = """.method public final ac(ZLjava/lang/Runnable;Lsss;)V
+    .locals 0
+
+    const/4 p3, 0x1"""
+        repl_ac = """.method public final ac(ZLjava/lang/Runnable;Lsss;)V
+    .locals 1
+
+    sget-object v0, Lsss;->i:Lsss;
+
+    if-eq p3, v0, :cond_skip_dis_ac
+
+    sget-object v0, Lsss;->h:Lsss;
+
+    if-ne p3, v0, :cond_norm_dis_ac
+
+    :cond_skip_dis_ac
+    const/4 p1, 0x1
+
+    :cond_norm_dis_ac
+    const/4 p3, 0x1"""
+        modified = False
+        if target_ab in content:
+            content = content.replace(target_ab, repl_ab)
+            modified = True
+        if target_ac in content:
+            content = content.replace(target_ac, repl_ac)
+            modified = True
+        if modified:
+            with open(ssw_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] ssw.smali: ab() and ac() guarded against readiness disabling.")
+        elif "cond_skip_dis_ab" in content:
+            print("    [+] ssw.smali: ab() and ac() guards already present.")
+
+    # 3. pkh.smali: Allow up to 10 shots in flight without blocking readiness
+    pkh_path = os.path.join(APKTOOL_DIR, "smali", "pkh.smali")
+    if os.path.exists(pkh_path):
+        with open(pkh_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_pkh = """    :cond_0
+    if-lez v0, :cond_1
+
+    sget-object p0, Lpch;->c:Lpch;"""
+        repl_pkh = """    :cond_0
+    const/16 v4, 0xa
+
+    if-ge v0, v4, :cond_max_shots
+
+    goto :cond_1
+
+    :cond_max_shots
+    sget-object p0, Lpch;->c:Lpch;"""
+        if target_pkh in content:
+            content = content.replace(target_pkh, repl_pkh)
+            with open(pkh_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] pkh.smali: Allowed up to 10 shots in flight without blocking readiness.")
+        elif "cond_max_shots" in content:
+            print("    [+] pkh.smali: Shots in flight guard already present.")
+
+    # 4. ozz.smali: Always return READY in pswitch_c transformation
+    ozz_path = os.path.join(APKTOOL_DIR, "smali", "ozz.smali")
+    if os.path.exists(ozz_path):
+        with open(ozz_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_ozz = """    if-eqz p0, :cond_8
+
+    sget-object p0, Lpch;->e:Lpch;
+
+    new-instance p1, Lpci;
+
+    invoke-direct {p1, v4, p0}, Lpci;-><init>(ZLpch;)V
+
+    return-object p1
+
+    :cond_8
+    if-eqz v0, :cond_9
+
+    sget-object p0, Lpch;->c:Lpch;
+
+    new-instance p1, Lpci;
+
+    invoke-direct {p1, v4, p0}, Lpci;-><init>(ZLpch;)V
+
+    return-object p1
+
+    :cond_9
+    if-nez p1, :cond_a
+
+    sget-object p0, Lpch;->f:Lpch;
+
+    new-instance p1, Lpci;
+
+    invoke-direct {p1, v4, p0}, Lpci;-><init>(ZLpch;)V
+
+    return-object p1
+
+    :cond_a
+    sget-object p0, Lpch;->a:Lpch;"""
+        repl_ozz = """    sget-object p0, Lpch;->a:Lpch;"""
+        if target_ozz in content:
+            content = content.replace(target_ozz, repl_ozz)
+            with open(ozz_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] ozz.smali: Frame processing readiness forced to READY.")
+        elif "sget-object p0, Lpch;->a:Lpch;" in content:
+            print("    [+] ozz.smali: READY override already present.")
+
+    # 5. ooa.smali, osx.smali, otk.smali, otz.smali: Never drop capture commands
+    for smali_rel, tgt, rpl, label in [
+        (os.path.join("smali", "ooa.smali"), "    iget-boolean v3, v3, Lpci;->a:Z\n\n    if-nez v3, :cond_1", "    iget-boolean v3, v3, Lpci;->a:Z\n\n    goto :cond_1", "ooa.smali (Photo)"),
+        (os.path.join("smali_classes2", "osx.smali"), "    iget-boolean v2, v2, Lpci;->a:Z\n\n    if-nez v2, :cond_1", "    iget-boolean v2, v2, Lpci;->a:Z\n\n    goto :cond_1", "osx.smali (Portrait)"),
+        (os.path.join("smali_classes2", "otk.smali"), "    iget-boolean v2, v2, Lpci;->a:Z\n\n    if-nez v2, :cond_1", "    iget-boolean v2, v2, Lpci;->a:Z\n\n    goto :cond_1", "otk.smali (Night Sight)"),
+        (os.path.join("smali_classes2", "otz.smali"), "    iget-boolean v1, v1, Lpci;->a:Z\n\n    if-nez v1, :cond_1", "    iget-boolean v1, v1, Lpci;->a:Z\n\n    goto :cond_1", "otz.smali (Motion/LongExp)"),
+    ]:
+        p = os.path.join(APKTOOL_DIR, smali_rel)
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                c = f.read()
+            if tgt in c:
+                c = c.replace(tgt, rpl)
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(c)
+                print(f"    [+] {label}: Bypassed readiness abort check.")
+            elif rpl in c:
+                print(f"    [+] {label}: Bypass already present.")
+
 def patch_gei_smali():
     # Preserved as clean no-op: gei.i is for Pixel 9 Pro Centaur/Boba only and must not be forced on Pixel 8 Pro
     pass
@@ -9119,6 +10223,7 @@ def main():
     patch_creator_suite_smali()
     patch_dual_exposure_viewfinder()
     patch_dual_ev_ctrl_and_slider_sync()
+    patch_viewfinder_qac_exposure_and_shadows()
     patch_brightness_shadows_controllers()
     patch_pro_controls_live()
     patch_looks_fine_tuning_and_grain()
@@ -9126,6 +10231,8 @@ def main():
     patch_image_quality_preferences()
     patch_nzr_and_mpd_smali()
     patch_zoom_controllers()
+    patch_telephoto_portrait_5x()
+    patch_shutter_readiness()
     patch_mqs_smali()
     patch_hpq_smali()
     patch_kic_smali()

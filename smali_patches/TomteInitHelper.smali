@@ -37,7 +37,7 @@
     sput-wide v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastInitGcamPtr:J
 
     .line 12
-    const/4 v0, 0x0
+    const/4 v0, -0x1
 
     sput v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
@@ -84,7 +84,7 @@
 
     sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
-    if-lez v0, :cond_check_pref
+    if-ltz v0, :cond_check_pref
 
     return v0
 
@@ -142,7 +142,7 @@
     move-result v0
 
     :goto_cache
-    if-lez v0, :cond_ret_zero
+    if-ltz v0, :cond_ret_zero
 
     sput v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
@@ -153,6 +153,8 @@
     :catch_pref_look
     :cond_ret_zero
     const/4 v0, 0x0
+
+    sput v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
     return v0
 .end method
@@ -165,6 +167,36 @@
     return-void
 
     :cond_not_null
+    sget v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v0, 0x2
+
+    if-ne v1, v0, :cond_chk_4
+
+    return-void
+
+    :cond_chk_4
+    const/4 v0, 0x4
+
+    if-ne v1, v0, :cond_chk_14
+
+    return-void
+
+    :cond_chk_14
+    const/16 v0, 0xe
+
+    if-ne v1, v0, :cond_chk_15
+
+    return-void
+
+    :cond_chk_15
+    const/16 v0, 0xf
+
+    if-ne v1, v0, :cond_mode_ok
+
+    return-void
+
+    :cond_mode_ok
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
 
     move-result v0
@@ -229,6 +261,57 @@
     .catch Ljava/lang/Throwable; {:try_start_tuning .. :try_end_tuning} :catch_tuning
 
     :catch_tuning
+    return-void
+.end method
+
+.method public static restartCameraForTuning()V
+    .locals 4
+
+    :try_start_restart
+
+    const-string v0, "PATCH_LOOKS"
+
+    const-string v1, "Restarting camera to apply native tuning (Gcam re-init required)..."
+
+    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_exit
+
+    invoke-virtual {v0}, Landroid/content/Context;->getPackageName()Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-virtual {v0}, Landroid/content/Context;->getPackageManager()Landroid/content/pm/PackageManager;
+
+    move-result-object v2
+
+    invoke-virtual {v2, v1}, Landroid/content/pm/PackageManager;->getLaunchIntentForPackage(Ljava/lang/String;)Landroid/content/Intent;
+
+    move-result-object v1
+
+    if-eqz v1, :cond_exit
+
+    const v2, 0x14000000
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    invoke-virtual {v0, v1}, Landroid/content/Context;->startActivity(Landroid/content/Intent;)V
+
+    invoke-static {}, Landroid/os/Process;->myPid()I
+
+    move-result v0
+
+    invoke-static {v0}, Landroid/os/Process;->killProcess(I)V
+
+    :cond_exit
+    :try_end_restart
+    .catch Ljava/lang/Throwable; {:try_start_restart .. :try_end_restart} :catch_restart
+
+    :catch_restart
     return-void
 .end method
 
@@ -1010,10 +1093,69 @@
 
     const/4 p0, 0x0
 
-    return p0
-
     :cond_ret_orig
     return p0
+.end method
+
+.method public static applyShotParamsDenoiseAndSharpen(Lcom/google/googlex/gcam/ShotParams;)V
+    .locals 5
+
+    if-nez p0, :cond_start
+
+    return-void
+
+    :cond_start
+    :try_start_shotparams
+    iget-wide v0, p0, Lcom/google/googlex/gcam/ShotParams;->a:J
+
+    const-wide/16 v2, 0x0
+
+    cmp-long v4, v0, v2
+
+    if-nez v4, :cond_check_denoise
+
+    return-void
+
+    :cond_check_denoise
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v2
+
+    const/4 v3, 0x2
+
+    if-ge v2, v3, :cond_check_sharpen
+
+    # Off (0) or Low/Minimal (1): Disable ML secondary denoisers to retain 100% fine textures and natural sensor grain
+    const/4 v3, 0x0
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_pecan_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_pecan_model_type_set(JLcom/google/googlex/gcam/ShotParams;I)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_chess_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_chess_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_strengthen_denoise_for_sky_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    :cond_check_sharpen
+    :try_end_shotparams
+    .catch Ljava/lang/Throwable; {:try_start_shotparams .. :try_end_shotparams} :catch_shotparams
+
+    :catch_shotparams
+    return-void
 .end method
 
 .method public static filterWalnutEnabled(Z)Z
@@ -1737,8 +1879,6 @@
 
     invoke-static {v0, p0}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
-
     return-void
 .end method
 
@@ -2106,9 +2246,22 @@
 .method public static getFlagOverride(Ljava/lang/String;)I
     .locals 2
 
-    if-nez p0, :cond_check_lasagna
+    if-nez p0, :cond_check_mantis
 
     const/4 v0, -0x1
+
+    return v0
+
+    :cond_check_mantis
+    const-string v0, "camera.gouda.mantis"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_lasagna
+
+    const/4 v0, 0x1
 
     return v0
 

@@ -131,7 +131,28 @@
 
     invoke-interface {p1}, Landroid/content/SharedPreferences$Editor;->commit()Z
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
+    # Check if this pref change requires a camera restart for native tuning
+    # v0 still holds val$prefKey from line 124
+    const-string v1, "pref_camera_noise_reduction_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_restart_for_tuning
+
+    const-string v1, "pref_camera_sharpness_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_no_restart
+
+    :cond_restart_for_tuning
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->restartCameraForTuning()V
+
+    :cond_no_restart
 
     .line 825
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$valueView:Landroid/widget/TextView;

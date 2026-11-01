@@ -168,6 +168,24 @@ val cameraLooksPatch = bytecodePatch(
                         }
                     }
                 } catch (_: Throwable) {}
+
+                // Hook applyShotParamsDenoiseAndSharpen right before RETURN_OBJECT
+                try {
+                    val retIdx = impl.instructions.indexOfLast {
+                        it.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN_OBJECT
+                    }
+                    if (retIdx != -1) {
+                        val oneReg = (impl.instructions[retIdx] as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA ?: 9
+                        val retHookSmali = """
+                            invoke-static {v$oneReg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyShotParamsDenoiseAndSharpen(Lcom/google/googlex/gcam/ShotParams;)V
+                        """.trimIndent()
+                        val retInstructions = retHookSmali.toInstructions(method)
+                        var rPos = retIdx
+                        for (rIns in retInstructions) {
+                            impl.addInstruction(rPos++, rIns)
+                        }
+                    }
+                } catch (_: Throwable) {}
             }
         }
 
@@ -346,6 +364,24 @@ val cameraLooksPatch = bytecodePatch(
                     try {
                         val instructions = hookSmali.toInstructions(method)
                         var pos = gcamInitIdx + 1
+                        for (ins in instructions) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+
+                // 16c. Hook applyNativeTuning right before GcamModuleJNI.Gcam_Create
+                val gcamCreateIdx = impl.instructions.indexOfFirst {
+                    it.opcode == Opcode.INVOKE_STATIC_RANGE &&
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("GcamModuleJNI;->Gcam_Create") == true
+                }
+                if (gcamCreateIdx != -1) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var pos = gcamCreateIdx
                         for (ins in instructions) {
                             impl.addInstruction(pos++, ins)
                         }

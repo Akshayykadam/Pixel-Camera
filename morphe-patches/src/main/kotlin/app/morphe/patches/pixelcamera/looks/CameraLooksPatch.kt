@@ -104,8 +104,28 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 6. Sauce EXIF Metadata Fallback (qkj.smali) ─────────────────────────────────
+        // ── 6. Sauce EXIF Metadata Fallback & Compose State Sync (rfx.smali) ──────────────
         mutableClassDefByOrNull("Lrfx;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "D" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    if-eqz p0, :cond_skip_compose_look
+                    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqvj;)V
+                    :cond_skip_compose_look
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    val idx = impl.instructions.indexOfFirst {
+                        it.opcode == com.android.tools.smali.dexlib2.Opcode.CHECK_CAST
+                    }
+                    if (idx != -1) {
+                        var pos = idx + 1
+                        for (ins in instructions) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
             clazz.methods.firstOrNull { it.name == "Z" }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
@@ -145,6 +165,24 @@ val cameraLooksPatch = bytecodePatch(
                         var pos = idx
                         for (ins in instructions) {
                             impl.addInstruction(pos++, ins)
+                        }
+                    }
+                } catch (_: Throwable) {}
+
+                // Hook applyShotParamsDenoiseAndSharpen right before RETURN_OBJECT
+                try {
+                    val retIdx = impl.instructions.indexOfLast {
+                        it.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN_OBJECT
+                    }
+                    if (retIdx != -1) {
+                        val oneReg = (impl.instructions[retIdx] as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA ?: 9
+                        val retHookSmali = """
+                            invoke-static {v$oneReg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyShotParamsDenoiseAndSharpen(Lcom/google/googlex/gcam/ShotParams;)V
+                        """.trimIndent()
+                        val retInstructions = retHookSmali.toInstructions(method)
+                        var rPos = retIdx
+                        for (rIns in retInstructions) {
+                            impl.addInstruction(rPos++, rIns)
                         }
                     }
                 } catch (_: Throwable) {}
@@ -326,6 +364,24 @@ val cameraLooksPatch = bytecodePatch(
                     try {
                         val instructions = hookSmali.toInstructions(method)
                         var pos = gcamInitIdx + 1
+                        for (ins in instructions) {
+                            impl.addInstruction(pos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+
+                // 16c. Hook applyNativeTuning right before GcamModuleJNI.Gcam_Create
+                val gcamCreateIdx = impl.instructions.indexOfFirst {
+                    it.opcode == Opcode.INVOKE_STATIC_RANGE &&
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("GcamModuleJNI;->Gcam_Create") == true
+                }
+                if (gcamCreateIdx != -1) {
+                    val hookSmali = """
+                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var pos = gcamCreateIdx
                         for (ins in instructions) {
                             impl.addInstruction(pos++, ins)
                         }
@@ -569,6 +625,59 @@ val cameraLooksPatch = bytecodePatch(
                         impl.addInstruction(setUsageIdx, insList[0])
                         impl.addInstruction(setUsageIdx + 1, insList[1])
                     } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 26. Force VFE Pipeline Enablement (rvq.b) ──
+        mutableClassDefByOrNull("Lrvq;")?.let { clazz ->
+            val smali = """
+                sget-object p0, Lyuq;->a:Lyuq;
+                const/4 v0, 0x0
+                invoke-static {p0, v0}, Lthd;->c(Ljava/util/Set;Z)Lthd;
+                move-result-object p0
+                invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+                return-object p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lthd;", smali)
+        }
+
+        // ── 27. Force VFE Presentation Creation (rva.m) ──
+        mutableClassDefByOrNull("Lrva;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "m" && it.parameterTypes == listOf("Z", "Z") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val amIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lrva;->am:Lurt;") == true
+                }
+                if (amIdx != -1) {
+                    val ifEqzIdx = impl.instructions.subList(amIdx, impl.instructions.size).indexOfFirst {
+                        it.opcode == Opcode.IF_EQZ
+                    }
+                    if (ifEqzIdx != -1) {
+                        val targetIdx = amIdx + ifEqzIdx
+                        val forceOne = "const/4 v5, 0x1".toInstructions(method)
+                        impl.addInstruction(targetIdx, forceOne[0])
+                    }
+                }
+            }
+        }
+
+        // ── 28. Force Viewfinder Stream to ImageReader for VFE (ozw.b) ──
+        mutableClassDefByOrNull("Lozw;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "b" && it.parameterTypes == listOf("Lusx;", "Lvgu;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val ifNezIdx = impl.instructions.indexOfFirst { it.opcode == Opcode.IF_NEZ }
+                if (ifNezIdx != -1) {
+                    val gotoCond0 = "goto :cond_0".toInstructions(method)
+                    impl.replaceInstruction(ifNezIdx, gotoCond0[0])
+                }
+                // Update buffer usage to 0x922 for CPU cacheable performance
+                val constWideIdx = impl.instructions.indexOfFirst {
+                    it.opcode == Opcode.CONST_WIDE_16 && (it as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction)?.narrowLiteral == 0x100
+                }
+                if (constWideIdx != -1) {
+                    val constUsage = "const-wide/16 v0, 0x922".toInstructions(method)
+                    impl.replaceInstruction(constWideIdx, constUsage[0])
                 }
             }
         }

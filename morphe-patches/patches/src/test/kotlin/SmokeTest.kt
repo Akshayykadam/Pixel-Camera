@@ -337,6 +337,30 @@ class SmokeTest {
                 }
             }
         }
+
+        var foundKmdPortraitExclusion = false
+        val kmdCls = dex.classes.firstOrNull { it.type == "Lkmd;" }
+        assertTrue(kmdCls != null, "Class Lkmd; must exist in ZoomControllers.dex")
+        for (m in kmdCls!!.methods) {
+            for (ins in m.implementation?.instructions ?: emptyList()) {
+                val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                if (ref.contains("Lzde;->s:Lzde;")) foundKmdPortraitExclusion = true
+            }
+        }
+        println("kmd portrait exclusion: $foundKmdPortraitExclusion")
+        assertTrue(foundKmdPortraitExclusion, "kmd must exclude Portrait mode (Lzde;->s) from dynamic 10x injection")
+
+        var foundKmoPortraitExclusion = false
+        val kmoCls = dex.classes.firstOrNull { it.type == "Lkmo;" }
+        assertTrue(kmoCls != null, "Class Lkmo; must exist in ZoomControllers.dex")
+        for (m in kmoCls!!.methods) {
+            for (ins in m.implementation?.instructions ?: emptyList()) {
+                val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                if (ref.contains("Lzde;->s:Lzde;")) foundKmoPortraitExclusion = true
+            }
+        }
+        println("kmo portrait exclusion: $foundKmoPortraitExclusion")
+        assertTrue(foundKmoPortraitExclusion, "kmo must exclude Portrait mode (Lzde;->s) from dynamic 10x injection")
     }
 
     @Test

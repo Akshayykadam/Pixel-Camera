@@ -1101,3 +1101,322 @@ In `msr.smali`, the camera queried `CameraCharacteristics` keys `SENSOR_INFO_PIX
 - **Morphe Patch Package**: [`morphe-patches-pixelcamera-1.0.9.mpp`](morphe-patches-pixelcamera-1.0.9.mpp) (162,346 bytes) deployed to Desktop and live on SourceForge.
 - **Standalone Patched APK**: `PixelCamera-1.0.9.apk` (1,688,492,192 bytes, ~1.61 GB) compiled, zip-aligned, signed, and deployed to connected physical device **Google Pixel 8 Pro (`39041FDJG00021`)** running PID `29749`.
 - **SourceForge Uploads Live**: Both APK and `.mpp` live at [https://sourceforge.net/projects/pixel-camera-patches/files/](https://sourceforge.net/projects/pixel-camera-patches/files/).
+
+---
+
+## 22. Issue 22: Viewfinder Brightness (Exposure) & Shadow Controls Ineffective Root Cause & Permanent Fix
+
+### 22.1 Symptoms & Problem Statement
+On devices such as Google Pixel 8 Pro (`husky`) and other non-Pixel 11 hardware:
+- Tapping on the viewfinder reveals the on-screen **Brightness** (Exposure) and **Shadows** sliders.
+- Dragging either slider produces zero change in viewfinder preview exposure or tonal shadow curves.
+- The camera preview remains locked at auto-exposure as if the sliders were disconnected.
+
+### 22.2 Exhaustive Bytecode Reverse Engineering Trace
+Tracing through Google Camera 11.1 decompiled smali sources revealed the exact execution chain:
+1. **Slider Touch Dispatch (`oak.smali`, `oau.smali`, `oaj.smali`)**:
+   - Brightness slider (`0x7f0a00d1`, `brightness_controls_slider`) is controlled by `Loak;`.
+   - Shadows slider (`0x7f0a04b1`, `shadows_slider`) is controlled by `Loau;`.
+   - Continuous touch events dispatch to `oaj.smali`:
+     - `:pswitch_8` (Brightness): Updates `Loak.g:Lusf` (`pco.c`, preview brightness) with `Float.valueOf(p1)`.
+     - `:pswitch_3` (Shadows): Updates `Loau.i:Lusf` (`pco.d`, preview shadow) with `Float.valueOf(p1)`.
+2. **Reactive Flow Orchestrator (`ptg.smali`)**:
+   - `ptg.smali` case 2 (`:pswitch_11`) listens to the combined reactive flow `[pco.c, pco.d]`.
+   - On every value change, `ptg.smali` invokes `pzj.a(pco.c, pco.d)Lpzi;` to compute exposure compensation steps and live HDR tone curve parameters.
+   - It posts the resulting `Lpzi;` to `pzj.b:Lurl;`.
+3. **Capture Request Dispatcher (`pin.smali`, `pqs.smali`, `ptm.smali`)**:
+   - `pin.smali` lines 608–635 combines `pzj.b:Lurl` with `Lizf` (lux) and subscribes `pqs.smali` (`:pswitch_17`).
+   - `pqs.smali` unpacks `pzi`:
+     - `pzi.e` (int EV compensation steps) -> `CONTROL_AE_EXPOSURE_COMPENSATION = pzi.e`.
+     - `ptm.b(pzi, lux)` -> Generates float array `[0.0f, pzi.b, pzi.c, lux, pzi.f, pzi.d]` for `REQUEST_LIVE_HDR_SETTINGS`.
+   - Both capture requests are sent to `vae.t(Set)`, instantly modulating hardware AE and sensor/ISP tone mapping.
+
+### 22.3 Deep Technical Root Cause Breakdown
+Why did this pipeline fail to change viewfinder exposure? Three compounding root causes were uncovered:
+
+1. **Unconditional Return-Zero Trap in `pzj.a(FF)Lpzi;` (`apktool_full/smali/pzj.smali:L519-L532` & `L696-L750`)**:
+   - In `pzj.a(FF)`, the method checked `this.o == null || this.p == null || this.q == null`.
+   - When any field was null (which was always true initially and after any AF sweep), execution jumped to `:goto_0`.
+   - At `:goto_0`, it inspected `this.l`, `this.m`, and `this.n`.
+   - `this.l, this.m, this.n` are populated exclusively by `pzk.smali:L43-L63`, which checks `CaptureResult` for vendor tag `Ltpe;->a` (`RESULT_GCAM_AE_OUTPUT`) containing `>= 13` floats.
+   - On Google Pixel 8 Pro and non-Pixel 11 devices, this proprietary vendor array is not returned in standard preview frames. Consequently, `l, m, n` were permanently null!
+   - Because `l` was null, `:goto_0` jumped to `:goto_1` and executed:
+     ```smali
+     new-instance v0, Lpzi;
+     invoke-direct/range {v0 .. v5}, Lpzi;-><init>(0, 0, 0, 0, 0)
+     return-object v0
+     ```
+   - Even if `l, m, n` were present, `:cond_5` called `this.n(l, m, n)` and ALSO returned `pzi(0, 0, 0, 0, 0)`.
+   - As a result, `pzj.a(FF)` **permanently and unconditionally returned all zeroes**, forcing `CONTROL_AE_EXPOSURE_COMPENSATION = 0` and flat tone curves on every drag event.
+2. **Autofocus Sweep Reset (`apktool_full/smali_classes2/nzl.smali:L538-L541`)**:
+   - In `nzl.smali` (`:pswitch_f`), whenever autofocus completed (`ooo.c == true`), execution called `pzj.f()` and `pzj.g()`.
+   - `pzj.f()` called `pzj.o()`, which nullified all tone baselines (`l, m, n, o, p, q, r = null`) and blasted `pzi(0, 0, 0, 0, 0)` into `pzj.b`.
+   - This wiped out user adjustments every time the user tapped to focus.
+
+### 22.4 Exact Changes Implemented
+1. **Dynamic Baseline Fallback & Zero-Return Elimination in `pzj.smali`**:
+   In [`apktool_full/smali/pzj.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pzj.smali), replaced the null-check trap with safe baseline initialization:
+   ```smali
+   iget-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+   if-nez v3, :cond_check_p
+   goto :cond_init_baseline
+
+   :cond_check_p
+   iget-object v3, p0, Lpzj;->p:Ljava/lang/Float;
+   if-nez v3, :cond_check_q
+   goto :cond_init_baseline
+
+   :cond_check_q
+   iget-object v3, p0, Lpzj;->q:Ljava/lang/Float;
+   if-nez v3, :cond_check_r
+   goto :cond_init_baseline
+
+   :cond_check_r
+   iget-object v3, p0, Lpzj;->r:Ljava/lang/Float;
+   if-nez v3, :cond_1
+
+   :cond_init_baseline
+   iget-object v3, p0, Lpzj;->l:Ljava/lang/Float;
+   if-eqz v3, :cond_fallback_lmn
+   iget-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+   if-eqz v3, :cond_fallback_lmn
+   iget-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+   if-nez v3, :cond_copy_lmn
+
+   :cond_fallback_lmn
+   const/high16 v3, 0x3f800000    # 1.0f
+   invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+   move-result-object v3
+   iput-object v3, p0, Lpzj;->l:Ljava/lang/Float;
+   iput-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+   iput-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+
+   :cond_copy_lmn
+   iget-object v3, p0, Lpzj;->l:Ljava/lang/Float;
+   iput-object v3, p0, Lpzj;->o:Ljava/lang/Float;
+   iget-object v3, p0, Lpzj;->m:Ljava/lang/Float;
+   iput-object v3, p0, Lpzj;->p:Ljava/lang/Float;
+   iget-object v3, p0, Lpzj;->n:Ljava/lang/Float;
+   iput-object v3, p0, Lpzj;->q:Ljava/lang/Float;
+   const/high16 v3, 0x3f800000    # 1.0f
+   invoke-static {v3}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+   move-result-object v3
+   iput-object v3, p0, Lpzj;->r:Ljava/lang/Float;
+
+   :cond_1
+   ```
+   - Falls directly through into `:cond_1` and `:cond_2`.
+   - Computes dynamic EV compensation index `v6 = round(target_EV / step)`, exposure multiplier `2^target_EV`, and live shadow tone curves `m(shadow^r)`.
+   - Returns valid, continuous `Lpzi;` on every single touch displacement.
+2. **Elimination of AF Reset in `nzl.smali`**:
+   In [`apktool_full/smali_classes2/nzl.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/nzl.smali), replaced `invoke-virtual {p0}, Lpzj;->f()V` and `invoke-virtual {p0}, Lpzj;->g()V` with `nop`. Tap-to-focus no longer resets active slider settings.
+3. **Pipeline Automation**:
+   Updated [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) in `patch_dual_ev_ctrl_and_slider_sync()` and `patch_focus_reset_elimination()` to automate all modifications across builds.
+
+### 22.5 Verification & Results
+- **Automated Reassembly & Signature**: Recompiled cleanly with `apktool`, aligned with `zipalign`, and signed with `apksigner`.
+- **Live Operation**:
+  - Viewfinder Brightness slider actively shifts preview exposure across the full range (-12 to +12 EV compensation steps, -2.0 to +2.0 EV).
+  - Viewfinder Shadows slider dynamically lifts or deepens shadows on the preview in real time via Camera HAL `REQUEST_LIVE_HDR_SETTINGS`.
+  - Tapping to focus locks focus without snapping exposure or shadow curves back to default.
+
+---
+
+## 23. Issue 23: Shutter Button Disabled on Idle Preview & Permanent Capture Deadlock Root Cause & Multi-Tier Fix
+
+### 23.1 Symptoms & Problem Statement
+On Google Pixel 8 Pro (`husky`) and other Pro Pixel devices running patched Google Camera 11.1:
+1. **Idle Disabling**: The main capture button (`ComposeShutter` / `ShutterButton`) intermittently grayed out and became unclickable while merely idling in viewfinder preview.
+2. **Permanent Post-Capture Deadlock**: Upon taking a photo (in Photo mode or Portrait mode), the shutter button permanently locked into `Enabled: false` state and never re-enabled, requiring the app to be force-stopped and relaunched.
+
+### 23.2 Bytecode Reverse Engineering & Trace
+Investigation of `uiautomator` UI hierarchy dumps and logcat revealed the exact execution path:
+1. **Shutter State Gatekeeper (`kja.smali` & `kiu.smali`)**:
+   - `kja.smali` implements the Compose shutter button controller `sst`.
+   - It maintains `w: MutableStateFlow<Map<sss, kir>>`, a reactive map of all currently active reasons for disabling the shutter.
+   - When any component requests a shutter lock, it calls `kja.aR(ZLsss;Lkir;Ljava/lang/Runnable;)V`:
+     - If `p1 == 0` (disable requested), `aR` inserts `(reason p2, kir p3)` into map `w`.
+     - If `p1 == 1` (enable requested), `aR` removes `p2` from map `w`.
+   - `kiu.smali:eW()` monitors `w`: if `!w.isEmpty()`, it transitions the Compose shutter button state to `kjp.d` (`DISABLED`), rendering `ComposeShutter` disabled in the UI.
+2. **Origin of Idle Disabling (`ome.smali`, `ozz.smali`, `rus.smali`, `ooa.smali`)**:
+   - On every viewfinder frame, `rus.smali:391` checks `ome.h()`.
+   - `ome.h()` evaluates `pci.a` from `Lub.d` (readiness stream).
+   - In `ozz.smali:366` (`:pswitch_c`):
+     - `p0 = list.get(0)`: `pipelineStuck`
+     - `v0 = list.get(1)`: `shotsInFlight`
+     - `p1 = list.get(2)`: `commandAvailable`
+     - If any auxiliary stream (`PRIVATEw1344h1008`, OIS keys, depth) flickers or drops metadata, `pipelineStuck` or `!commandAvailable` triggers, causing `ozz` to return `pci(false, PIPELINE_STUCK)` or `pci(false, COMMAND_NOT_AVAILABLE)`.
+     - `rus.smali` passes this `false` to `ooa.g(false)`, which calls `ivu.j(false, sss.i)` (`PHOTO_MODE_NOT_READY_FOR_CAPTURE`) or `sss.h` (`COTTAGE_NOT_READY_FOR_CAPTURE`).
+     - This adds `sss.i` or `sss.h` into `kja.w`, disabling the button while idling.
+3. **Origin of Permanent Post-Capture Deadlock (`qbh.smali`, `pkh.smali`, `pki.smali`, `oge.smali`)**:
+   - When a shot begins, `qbh.smali:627` increments `vys.i` (`AtomicInteger` shots in flight counter).
+   - `pkh.smali:86` checks `if-lez v0, :cond_1` (`v0 = vys.i.get()`). If `v0 > 0`, it returns `pci(false, SHOTS_IN_FLIGHT)`.
+   - The counter is decremented ONLY in `pki.smali:close()`.
+   - When a frame encounters an abort or microvideo mismatch (`RuntimeException: Number of motion and video frames substantially differ at oge.close`), `pki.close()` is skipped, leaving `vys.i > 0` permanently.
+   - `pkh.smali` then returns `pci(false, SHOTS_IN_FLIGHT)` forever.
+   - On completion of the shot, `rus.smali:391` queries `ome.h()`, sees `false`, and permanently invokes `ooa.g(false) -> kja.aR(false, sss.i, ...)`, locking the button forever.
+4. **Module Capture Abort Gate (`ooa.smali`, `osx.smali`, `otk.smali`, `otz.smali`)**:
+   - When the user tapped the button, `ooa.smali:1554` (Photo), `osx.smali:1143` (Portrait), `otk.smali:1923` (Night Sight), and `otz.smali:1876` (Motion) checked `pci.a`.
+   - If `!pci.a`, the capture was aborted with log: `"Not taking picture since the Camera is not ready to take a picture (%s)."`.
+
+### 23.3 Permanent Multi-Tier Fix Architecture
+To make the shutter button completely immune to idle stalls, frame drops, and in-flight counter deadlocks without compromising legitimate UI locks (settings menus, mode transitions), a 5-tier architecture was implemented:
+
+1. **Active Reasons Filter in UI Gate (`kja.smali:aR`)**:
+   - In [`apktool_full/smali/kja.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/kja.smali), when `p1 == 0` (disable requested), intercepted `p2`:
+     - If `p2 == Lsss;->i` (`PHOTO_MODE_NOT_READY_FOR_CAPTURE`) or `p2 == Lsss;->h` (`COTTAGE_NOT_READY_FOR_CAPTURE`), the reason is stripped (`remove(p2)`) rather than added (`put(p2, p3)`).
+     - Legitimate UI reasons (`sss.b` Obscured, `sss.c` Option Menu, `sss.e` Mode Switch, `sss.f` Not In Capture UI) continue to operate normally.
+2. **Legacy Controller Guard in `ssw.smali:ab` & `ac`**:
+   - In [`apktool_full/smali_classes2/ssw.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/ssw.smali), guarded `ab(ZLsss;)V` and `ac(ZLjava/lang/Runnable;Lsss;)V` to force `p1 = 1` if reason is `sss.i` or `sss.h`.
+3. **In-Flight Shots Resilience in `pkh.smali:it`**:
+   - In [`apktool_full/smali/pkh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pkh.smali), replaced `if-lez v0, :cond_1` with `if-ge v0, 10, :cond_max_shots`. Leaked single-shot counters can no longer deadlock the readiness pipeline.
+4. **Frame Processing Readiness Override in `ozz.smali:pswitch_c`**:
+   - In [`apktool_full/smali/ozz.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/ozz.smali), eliminated transient false returns caused by multi-stream metadata dropouts, returning `pci(true, READY)` directly.
+5. **Capture Command Drop Bypass across All Modules**:
+   - In [`apktool_full/smali/ooa.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/ooa.smali), [`apktool_full/smali_classes2/osx.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/osx.smali), [`apktool_full/smali_classes2/otk.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/otk.smali), and [`apktool_full/smali_classes2/otz.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/otz.smali), changed `if-nez [pci.a], :cond_1` to unconditional `goto :cond_1`.
+6. **Automated Pipeline Integration**:
+   - Added `patch_shutter_readiness()` in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) registered in `main()`.
+
+### 23.4 On-Device Verification & Results
+- **Target Device**: Google Pixel 8 Pro (`husky`), Serial: `39041FDJG00021`.
+- **Idle Preview Test**: Verified via `uiautomator` that `ComposeShutter` remains continuously `Enabled: true` across continuous idling with active multi-stream auxiliary dropouts.
+- **Capture & Re-Enable Test**:
+  - Captured photo in Portrait Mode: Shutter re-enabled instantly within milliseconds.
+  - Rapid capture test: Tapped shutter repeatedly in rapid succession; every capture fired without dropped frames or lockups.
+  - Mode transition test: Verified switching between Photo, Portrait, and Night Sight; shutter button updates content description correctly and remains responsive.
+  - Menu overlay test: Verified settings panel opening and closing; UI overlay properly suppresses background touches while preserving button state.
+
+---
+
+## 24. Issue 24: Spatial Noise Reduction and Edge Sharpness & De-Ring Controls Non-Functional (REA & Fix)
+
+### 24.1 Original Symptoms
+- Switching **Spatial Noise Reduction** between `Off`, `Low`, and `Standard` produced identical pixel noise variance (`flat_noise_std ~ 1.725 - 1.729`).
+- Switching **Edge Sharpness & De-Ring Filter** between `Soft`, `Natural`, and `Standard` produced identical Laplacian edge variance (`laplacian_var ~ 26.0`), and artificial unsharp-masking halos persisted around contrast edges.
+- Captured test matrix images confirmed that neither setting had any visual or algorithmic effect on the output photos.
+
+### 24.2 Root Cause Analysis via Reverse Engineering (REA)
+Deep binary disassembly of `libgcastartup.so` (202.93 MB ARM64 ELF), execution tracing of `Gcam_Create` / `Gcam_StartShotCapture`, and analysis of the Camera2 pipeline revealed four compounding root causes:
+
+1. **Camera2 ISP Hardware Bypass**:
+   - The original mod attempted to control noise and sharpness by setting `CaptureRequest.NOISE_REDUCTION_MODE` and `CaptureRequest.EDGE_MODE` inside `plh.smali`.
+   - In Google Camera, however, the Qualcomm/Tensor hardware ISP is used solely for the viewfinder YUV stream. Still captures ingest raw Bayer sensor frames (`RAW10` / `RAW16`) and process them entirely within Google's proprietary software Halide/OpenCL pipeline (`FinishRaw`) inside `libgcastartup.so`. Camera2 ISP keys are completely ignored by the capture engine.
+
+2. **One-Time `.rodata` Protobuf Tuning Deserialization**:
+   - `libgcastartup.so` contains an internal asset filesystem indexed by a Table of Contents (`filewrapper_toc`) located at `0xcaebb80` (virtual address `0x79fb000`).
+   - The TOC references 97 embedded Protobuf tuning files (70 `sharpen_*.binarypb` and 27 `*denoise*.binarypb`).
+   - During camera initialization, `GcamModuleJNI.Gcam_Create` reads these `.rodata` assets **exactly once** and deserializes them into C++ heap objects (`gcam::Tuning`). Any runtime modification attempted after `Gcam_Create` has zero effect on the active camera session.
+
+3. **Dynamic Protobuf Schema & Fixed-Pattern Failure**:
+   - Protobuf messages inside `.binarypb` assets use variable-length sub-messages rather than a fixed schema:
+     - `CurveParams` (Sharpening): Tag `0x0d` (Field 1, 32-bit float) represents frequency band gain multipliers; Tag `0x2d` (Field 5, 32-bit float) represents the de-ring overshoot/halo suppression clamp.
+     - `LumaDenoiseParams` / `ChromaDenoiseParams` (Denoising): Tag `0x0d` (Field 1, 32-bit float) represents filter strength/sigma. Sub-message container lengths vary (20, 15, 10, or 5 bytes).
+   - Early byte-scanning patterns looking for fixed byte triplets (`0x0a, 0x14, 0x0d`) missed over 90% of curve multipliers and failed entirely on chroma denoisers.
+
+4. **Multi-Model ML Denoiser Hierarchy**:
+   - Even when classical bilateral spatial denoising was scaled down, Google's neural network denoisers (Pecan, Walnut, Chess, Bento/Edamame, Almond, Mochi, and Sky Denoise) continued to run per-shot via `ShotParams`.
+   - These ML models consume the noise residual and eliminate micro-textures unless explicitly instructed to bypass processing for the shot.
+
+### 24.3 Permanent Multi-Tier Fix Architecture
+
+1. **Dynamic Protobuf Tag Scanner Engine (`libpropatcher.so`)**:
+   - Implemented in [`jni/propatcher/propatcher.c`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/jni/propatcher/propatcher.c) using Android NDK Clang (`-O3`).
+   - Scans the internal asset TOC dynamically at runtime:
+     - All 70 sharpen tuning files: Parses Tag `0x0d` (1,322 gain floats) and scales multipliers according to UI selection (`0.0f` for Soft, `0.5f` for Natural, `1.0f` for Standard). Clamps Tag `0x2d` (995 de-ring floats) for Soft/Natural to completely eliminate edge ringing.
+     - All 27 denoise tuning files: Parses Tag `0x0d` (713 denoise floats) and scales spatial bilateral filter strength (`0.001f` for Off, `0.40f` for Low/Minimal, `1.0f` for Standard).
+   - Dynamic memory patching uses `mprotect(PROT_READ | PROT_WRITE)` on page-aligned `.rodata` boundaries.
+
+2. **Pre-`Gcam_Create` Lifecycle Hook (`msr.smali`)**:
+   - Injected `invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V` in [`apktool_full/smali/msr.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/msr.smali) immediately preceding `GcamModuleJNI.Gcam_Create`.
+   - Guarantees that the native tuning curves are modified in `.rodata` memory before Gcam deserializes them into heap objects.
+
+3. **Secondary ML Denoiser Gatekeeper (`mtt.smali` & `TomteInitHelper.smali`)**:
+   - Implemented `TomteInitHelper.applyShotParamsDenoiseAndSharpen(ShotParams)` in [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali).
+   - When noise reduction is set to `Off` (0) or `Low` (1), it explicitly disables all secondary ML denoisers on the active `ShotParams`:
+     - `ShotParams_force_pecan_set(..., false)`
+     - `ShotParams_pecan_model_type_set(..., 0)`
+     - `ShotParams_walnut_enabled_set(..., false)`
+     - `ShotParams_chess_enabled_set(..., false)`
+     - `ShotParams_force_chess_set(..., false)`
+     - `ShotParams_bento_edamame_enabled_set(..., false)`
+     - `ShotParams_bento_edamame_force_apply_set(..., false)`
+     - `ShotParams_almond_enabled_set(..., false)`
+     - `ShotParams_mochi_enabled_set(..., false)`
+     - `ShotParams_mochi_force_apply_set(..., false)`
+     - `ShotParams_strengthen_denoise_for_sky_set(..., false)`
+   - Injected the hook into `mtt.K()` in [`apktool_full/smali/mtt.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/mtt.smali) right before returning the finalized `ShotParams`.
+
+4. **Synchronized Build Pipelines**:
+   - Automated in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) (`patch_msr_smali()` and `patch_mtt_smali()`).
+   - Integrated into Morphe patch suite ([`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt)), with reassembled [`TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex).
+
+---
+
+### Section 25: Root Cause — Spatial Noise Reduction & Edge Sharpness Settings Non-Functional After Change
+
+**Symptom**: User changes "Spatial Noise Reduction" (Off/Low/Standard) or "Edge Sharpness & De-Ring" (Soft/Natural/Standard) in the Pro settings tab, but captured photos show no measurable difference in noise detail preservation or edge ringing.
+
+#### Root Cause (REA-Confirmed)
+
+`libgcastartup.so` stores its tuning curves (sharpen band gains, de-ring halo clamps, bilateral denoise filter strengths) as Protobuf `.binarypb` assets in the ELF `.rodata` section. These are **deserialized once** into C++ heap-allocated `gcam::Tuning` objects during `Gcam_Create()` (called from `msr.smali` line 1741):
+
+```
+Gcam_Create() → reads .rodata Protobuf curves → copies into heap → never reads .rodata again
+```
+
+The existing `nativeApplyTuning()` hook (called before `Gcam_Create` in `msr.smali`) correctly patches `.rodata` in-place using `mprotect(PROT_READ|PROT_WRITE)`. This works for the **initial** camera launch because `Gcam_Create` reads the patched values.
+
+However, when the user changes settings mid-session via the Pro settings panel, `TomteProSettingsPanel$6.onClick()` was calling `applyNativeTuning()` which patched `.rodata` — but `Gcam_Create` had **already finished** and the heap copies were locked in. The `.rodata` modifications were invisible.
+
+#### Fix Architecture
+
+Since `gcam::Tuning` heap objects have opaque, version-dependent layouts (unsafe to patch directly), the fix forces a clean **camera process restart** when noise/sharpness settings change:
+
+1. **`TomteInitHelper.restartCameraForTuning()`** (new method):
+   - Logs the restart reason to logcat
+   - Gets the launch intent via `PackageManager.getLaunchIntentForPackage()`
+   - Starts the activity with `FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_NEW_TASK`
+   - Kills the process via `Process.killProcess(Process.myPid())`
+
+2. **`TomteProSettingsPanel$6.onClick()`** (modified):
+   - After committing the new preference value to `SharedPreferences`
+   - Checks if the preference key is `pref_camera_noise_reduction_key` or `pref_camera_sharpness_key`
+   - If yes → calls `restartCameraForTuning()` (process dies, relaunches automatically)
+   - If no (JPEG quality, RAW format, etc.) → continues normally (no restart needed)
+
+3. **On relaunch** (automatic):
+   - `TomteInitHelper.<clinit>()` loads `libpropatcher.so`
+   - `msr.smali` hook calls `applyNativeTuning()` which reads the **new** SharedPreferences values
+   - `.rodata` is patched with the new sharpen/denoise multipliers
+   - `Gcam_Create()` deserializes the patched values into fresh heap objects ✓
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) | Added `restartCameraForTuning()` method |
+| [`smali_patches/TomteProSettingsPanel$6.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProSettingsPanel$6.smali) | Conditional restart for tuning pref keys |
+| [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) | Added `.locals` bump for `oal.smali` methods `e()` and `s()` |
+
+#### Tuning Pipeline Lifecycle Summary
+
+```
+User taps "Soft" in Edge Sharpness
+  → TomteProSettingsPanel$6.onClick()
+    → SharedPreferences.commit("pref_camera_sharpness_key", "soft")
+    → restartCameraForTuning()
+      → startActivity(launchIntent)  [posted to ActivityManager service]
+      → Process.killProcess(myPid()) [camera process dies]
+
+Android relaunches camera (new process)
+  → TomteInitHelper.<clinit>()
+    → System.loadLibrary("propatcher")
+  → msr.smali → applyNativeTuning()
+    → getSharpnessFactor() → reads "soft" → returns 0.0f
+    → nativeApplyTuning(0.0f, 2)
+      → patches 70 sharpen assets: gains × 0.0f, de-rings × 0.25f
+  → Gcam_Create()
+    → deserializes patched .rodata into heap → soft edges, zero ringing ✓
+```
+
+
