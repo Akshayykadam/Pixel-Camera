@@ -121,12 +121,18 @@ Stock Pixel Camera hardcodes `com.google.android.apps.photos` for image review. 
 
 ### 4.2 Solution
 Hooked photo review intent builders [`hwb.w`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/PixelCameraPatchUtils.kt#L294) (11.1) and `hpq.cD` (11.0) via [`PixelCameraPatchUtils.hookGalleryReviewIntent`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/PixelCameraPatchUtils.kt#L294):
-- Routes the intent to [`TomteInitHelper.configureGalleryIntent(Intent)`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali#L1950).
-- If `pref_gallery_package_key` is set, directs intent to that installed gallery package.
-- If unset (or set to `"default"`):
-  - Clears the package constraint (`setPackage(null)`).
-  - Replaces proprietary Google Photos MARS API actions (`ACTION_REVIEW_SECURE`) with standard Android `Intent.ACTION_VIEW`.
-  - Prompts the Android system's standard App Chooser, allowing the user to select their preferred gallery app.
+- Routes the intent to [`TomteInitHelper.configureGalleryIntent(Intent)`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali#L3996).
+- **Lock-Screen / Keyguard Secure Review Support**:
+  - Detects secure review state via `KeyguardManager.isKeyguardLocked()` and intent actions (`ACTION_REVIEW_SECURE`).
+  - Emits the standard Android platform action `android.provider.action.REVIEW_SECURE` (`MediaStore.ACTION_REVIEW_SECURE`) supported across all secure gallery implementations (Aves, Fossify Gallery, Simple Gallery, GrapheneOS Gallery, Google Gallery Go, Google Photos).
+  - Explicitly binds to the resolved secure gallery package, bypassing Android Keyguard's block on `ResolverActivity` (the system chooser) while locked.
+  - Automatically queries and routes to any installed secure gallery if Google Photos is absent, preventing null resolution crashes.
+- **Unlocked Camera Gallery Review**:
+  - Uses standard Android `Intent.ACTION_VIEW`.
+  - Routes directly to custom gallery package (`pref_gallery_package_key`) or prompts the system App Chooser when set to `"default"`.
+- **Viewfinder Freeze Safeguard**:
+  - Patched [`lys.smali:cond_4`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/lys.smali#L1947) to call `qyr.v()` to unpause/resume the camera preview if activity resolution ever aborts, preventing dark viewfinder freezes.
+
 
 ---
 
@@ -136,7 +142,7 @@ Hooked photo review intent builders [`hwb.w`](file:///Users/akshaykadam/Document
 |---|---|---|
 | **Camera Looks Backport (All 13 Looks)** | [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) | Unlocks all 13 Camera Looks (Subtle group: Original, Natural, Vanilla, Editorial; Individual looks: Shadows, Velvet, Classic, Digi, Black Tie, Minimal; plus the 3 new Pixel Camera 11.1 looks: Flat, Buffalo, Dijon). Injects `Lqvd;` (Flat), `Lqvg;` (Buffalo), and `Lqvi;` (Dijon) into `Lqxg;-><init>`, hooks selection handlers, and activates `vku.l/g/f` spoofing and Halide EXIF tags (`rfx.Z`). |
 | **Pro Manual Controls** | [`ProControlsPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/pro/ProControlsPatch.kt) | Unlocks Manual Focus, Shutter Speed, ISO, and Focus Peaking by removing touch-drag suppression in `qaa.v`, `qbb.v`, `nrn.t`. |
-| **Telephoto Portrait & 10x Zoom** | [`TelephotoPortraitAndZoomPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/portrait/TelephotoPortraitAndZoomPatch.kt) | Adds 10x Quick Zoom button (`knq`, `knk`) and telephoto camera streaming. |
+| **Telephoto Portrait & 10x Zoom** | [`TelephotoPortraitAndZoomPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/portrait/TelephotoPortraitAndZoomPatch.kt) | Adds 10x Quick Zoom button (`knq`, `knk`), dynamic 1x focal length cycling (1.0x -> 1.2x -> 1.5x), and automatic persistence of the last used focal length across app launches (`guh`, `kmd`). |
 | **Portrait Mode Fix** | [`PortraitModeFixPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/portrait/PortraitModeFixPatch.kt) | Routes portrait segmentation to verified pure TFLite models (`midasnet`, `portrait_matting_mask`). |
 | **Pixel 10 Photo Saving Fix** | [`PhotoSavingFixPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/photosaving/PhotoSavingFixPatch.kt) | Fixes 12MP photo saving by disabling failing Flare Removal (`ceftazidime`) and Eclipse AE, with binned RAW stream fallbacks. |
 | **Creator Suite** | [`CreatorSuitePatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/creator/CreatorSuitePatch.kt) | Enables Audio Zoom, Cinematic Pan, Speech Enhancement, and 4K60 options. |
@@ -361,4 +367,181 @@ Camera2 HAL ──► HardwareBuffer ──► qmb.a(vlm, vlm) ──► wlo.d(v
      ```
    - Integrated into standalone patcher pipeline ([`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py)) via `patch_wlo_smali()`.
    - Reassembled and synchronized [`TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex).
+
+---
+
+## 12. Root Cause Analysis & Fix: Pro Controls Manual ISO Slider
+
+### 12.1 The Problem
+When the user adjusted the manual ISO slider in the Pro Controls drawer without touching the Shutter Speed slider, the viewfinder brightness remained unchanged (the sensor sensitivity setting was completely ignored by the Camera2 HAL). The manual ISO only took effect after the user touched or dragged the Shutter Speed slider.
+
+### 12.2 Deep-Dive Root Cause Analysis
+Decompilation and reverse-engineering of the camera capture request pipeline uncovered 4 interconnected bugs:
+
+1. **Logical OR in `psk.smali` (`CONTROL_AE_MODE` calculation):**
+   - In [`psk.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/psk.smali#L331-L349), `CONTROL_AE_MODE` was computed via:
+     ```smali
+     invoke-static {v7}, Lusa;->g(Ljava/util/Collection;)Lurt;
+     ```
+     where collection `v7` contained both `[shutter.isAuto, iso.isAuto]`. `usa.g()` performs a boolean logical OR.
+   - When ISO is manual (`iso.isAuto == false`) but Shutter is untouched (`shutter.isAuto == true`):
+     $$\text{true} \lor \text{false} = \text{true}$$
+   - This passed `Boolean.TRUE` to `qdy` (switch 1), resolving `CONTROL_AE_MODE` to `1` (`CONTROL_AE_MODE_ON`).
+   - According to the Android Camera2 specification, when `CONTROL_AE_MODE == CONTROL_AE_MODE_ON`, `CaptureRequest.SENSOR_SENSITIVITY` (ISO) is **strictly ignored** by the HAL because the Auto-Exposure routine overrides it.
+
+2. **Tensor HAL Ignores AE Priority Mode:**
+   - In [`pti.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pti.smali), Google Camera attempted to set `REQUEST_CONTROL_AE_PRIORITY_MODE = 2` (ISO Priority).
+   - However, the Tensor Camera HAL either does not support ISO priority under `CONTROL_AE_MODE_ON` or rejects it because `CaptureRequest.SENSOR_EXPOSURE_TIME` was passed as `0L` (`qef.b` is 0 when shutter is auto).
+
+3. **Dual Condition in `nku.smali` (`nku.o` HAL parameter override):**
+   - In [`nku.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/nku.smali#L1538-L1553), method `nku.o` checked if `nzu.f` (ISO) is present:
+     ```smali
+     iget-object v3, p2, Lnzu;->f:Lj$/util/Optional;
+     invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+     move-result v3
+     if-eqz v3, :cond_2
+     iget-object v3, p2, Lnzu;->g:Lj$/util/Optional;
+     invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+     move-result v3
+     if-eqz v3, :cond_2
+     ```
+   - It only set `CONTROL_AE_MODE = 0` (`OFF`) if **both** ISO (`nzu.f`) and Shutter (`nzu.g`) were manually set. If Shutter was untouched (`nzu.g.isPresent() == false`), it skipped setting `CONTROL_AE_MODE = 0` and left it at `1` (`ON`).
+   - Once the user touched Shutter Speed, `nzu.g.isPresent()` became `true`, causing `CONTROL_AE_MODE` to switch to `0` (`OFF`), which unlocked manual exposure control.
+
+4. **Zero Exposure Time Validation Failure in `qdy.smali`:**
+   - When `CONTROL_AE_MODE` is forced to `0` (`OFF`), the Camera2 HAL requires a valid, non-zero `CaptureRequest.SENSOR_EXPOSURE_TIME`.
+   - When Shutter Speed is untouched (Auto), `qef.b` is `0L`. A `0L` exposure time causes HAL capture request rejection.
+
+### 12.3 Solution & Implementation
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Camera2 AE State Machine                        │
+├──────────────────┬─────────────────┬─────────────────┬────────────────┤
+│ ISO Mode         │ Shutter Mode    │ CONTROL_AE_MODE │ SENSOR_EXP_TIME│
+├──────────────────┼─────────────────┼─────────────────┼────────────────┤
+│ Auto (v8=true)   │ Auto (v5=true)  │ 1 (ON)          │ Auto (HAL)     │
+│ Auto (v8=true)   │ Manual (v5=false│ 1 (ON / Pri)    │ Manual Shutter │
+│ Manual (v8=false)│ Auto (v5=true)  │ 0 (OFF)         │ lastExposureNs │
+│ Manual (v8=false)│ Manual (v5=false│ 0 (OFF)         │ Manual Shutter │
+└──────────────────┴─────────────────┴─────────────────┴────────────────┘
+```
+
+1. **Real-time Preview Exposure Caching ([`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali)):**
+   - Added volatile field `public static volatile lastExposureTimeNs:J = 20000000L` (1/50s default).
+   - Added `updateLastExposureTime(J)` to track non-zero exposure times from preview metadata frames.
+   - Added `getLastExposureTime()J` fallback method.
+
+2. **Preview Metadata Hook ([`qkw.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/qkw.smali)):**
+   - In `qkw.is(Lvli;)V`, hooked after `Lqlb;->b(J)V` to call:
+     ```smali
+     invoke-static {v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateLastExposureTime(J)V
+     ```
+
+3. **Fallback Non-Zero Exposure Time ([`qdy.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/qdy.smali)):**
+   - In `:pswitch_13`, if `qef.b <= 0L`, fallback to `TomteInitHelper.getLastExposureTime()` so `SENSOR_EXPOSURE_TIME` is always valid.
+
+4. **Direct ISO Binding to AE Mode ([`psk.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/psk.smali)):**
+   - Replaced `usa.g()` result in `CONTROL_AE_MODE` stream with `v8` (`iso.isAuto`).
+   - If `iso.isAuto == false`, `CONTROL_AE_MODE` is directly mapped to `0` (`OFF`).
+
+5. **Removed Secondary Shutter Requirement ([`nku.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/nku.smali)):**
+   - In `nku.o`, when `nzu.f` (ISO) is present, immediately set `vef.e = 0` (`CONTROL_AE_MODE_OFF`) without requiring `nzu.g` (shutter).
+
+6. **Automated in Standalone & Morphe Pipelines:**
+   - Standalone: [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) via `patch_pro_iso_and_shutter_exposure()`.
+   - Morphe: Section 12 bytecode transformations in [`ProControlsPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/pro/ProControlsPatch.kt).
+
+---
+
+## 13. Non-Pro Model Picture Quality & Pro RAW Exclusivity Gating
+
+### 13.1 The Problem & Requirement
+Under **Camera Settings $\rightarrow$ Photo Resolution (`pref_category_resolution_camera`)**, custom image quality preferences were added:
+1. **JPEG Quality** (`pref_camera_jpeg_quality_key`)
+2. **Spatial Noise Reduction** (`pref_camera_noise_reduction_key`)
+3. **RAW DNG Format** (`pref_camera_raw_compression_key`)
+4. **Edge Sharpness & De-Ring** (`pref_camera_sharpness_key`)
+
+On **non-Pro devices** (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, etc.) or devices where RAW mode is not supported, the user requirement dictates:
+- **Only show JPEG Quality** (`pref_camera_jpeg_quality_key`).
+- **Hide the other 3 options** (Noise Reduction, RAW Compression, Sharpness). These advanced image-tuning and RAW DNG options must be strictly restricted to Pro models that support RAW photography.
+
+### 13.2 Architectural Analysis & Root Cause of Initial False Suppression
+In Google Camera 11.1, the settings fragment is managed by [`rfl.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rfl.smali) and the preferences exclusion repository is managed by [`rex.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rex.smali):
+1. **Initial Over-Filtering Issue:**
+   - In earlier iterations, secondary checks on internal Gcam RAW flags (`kqd.bC` / `camera.enable_raw_setting`) and search queries for `"pref_camera_raw_output_option_available_key"` were executed.
+   - Because `camera.enable_raw_setting` defaults to false on certain Gcam configurations and `"pref_camera_raw_output_option_available_key"` is filtered or relocated, these checks evaluated to null/false, triggering accidental suppression even on Pro devices like the Pixel 8 Pro (`husky`).
+2. **The Permanent Architecture: Pure Hardware Pro Model Gating:**
+   - The device check is anchored directly to [`TomteInitHelper.isProDevice()`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali), which verifies `Build.MODEL` ("Pro") and `Build.DEVICE` against pro codenames (`husky`, `cheetah`, `raven`, `caiman`, `komodo`, `comet`).
+   - If `TomteInitHelper.isProDevice()` is `true` (e.g. Pixel 8 Pro), the branch directly skips exclusion and removal, preserving all 4 options.
+   - If `TomteInitHelper.isProDevice()` is `false` (e.g. Pixel 7, 7a, 8, etc.), the options are added to exclusions (`rex.f`) and removed via `rfl.aC()`, exposing solely **JPEG Quality**.
+
+### 13.3 Dual-Layer Gating Implementation
+
+```
+┌────────────────────────────────────────────────────────┐
+│             Device & Feature Gating Check              │
+├────────────────────────────────────────────────────────┤
+│             TomteInitHelper.isProDevice()              │
+└───────────────────────────┬────────────────────────────┘
+                            │
+            ┌───────────────┴───────────────┐
+            │                               │
+    [isProDevice() == true]        [isProDevice() == false]
+    (Pixel 8 Pro / husky, etc.)    (Pixel 6/7/8 non-pro, etc.)
+            │                               │
+            ▼                               ▼
+    Retain all 4 options:           Add to Exclusions (rex.f)
+    - JPEG Quality                  & direct removal (rfl.ar):
+    - Spatial Noise Reduction       - Spatial Noise Reduction ──► HIDDEN
+    - RAW DNG Format                - RAW DNG Format          ──► HIDDEN
+    - Edge Sharpness                - Edge Sharpness          ──► HIDDEN
+                                    - JPEG Quality            ──► VISIBLE
+```
+
+1. **`TomteInitHelper` Detection Logic ([`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali)):**
+   - Utilizes `TomteInitHelper.isProDevice()` inspecting `Build.MODEL` and `Build.DEVICE`.
+   - Updated helper `filterProPreferences(Ljava/lang/Object;)V` to remove preferences strictly if `!isProDevice()`.
+
+2. **Hook 31: Exclusion Layer ([`rex.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rex.smali)):**
+   - In `rex.a(Context)`:
+     ```smali
+     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+     move-result v1
+     if-nez v1, :cond_keep_pro_extras
+     iget-object v1, p0, Lrex;->f:Ljava/lang/Object;
+     const-string v3, "pref_camera_noise_reduction_key"
+     invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+     const-string v3, "pref_camera_raw_compression_key"
+     invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+     const-string v3, "pref_camera_sharpness_key"
+     invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+     :cond_keep_pro_extras
+     ```
+   - On Pro models (`v1 != 0`), jumps to `:cond_keep_pro_extras`.
+   - `pref_camera_jpeg_quality_key` is never added to exclusions, remaining visible everywhere.
+
+3. **Hook 32: UI Pruning ([`rfl.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rfl.smali)):**
+   - In `rfl.ar()`, right before invoking `aw()`:
+     ```smali
+     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+     move-result v0
+     if-nez v0, :cond_skip_pro_removal
+     const-string v0, "pref_camera_noise_reduction_key"
+     invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+     const-string v0, "pref_camera_raw_compression_key"
+     invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+     const-string v0, "pref_camera_sharpness_key"
+     invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+     :cond_skip_pro_removal
+     invoke-virtual {p0}, Lrfl;->aw()V
+     ```
+   - On Pro models (`v0 != 0`), jumps straight to `:cond_skip_pro_removal`, preserving all entries.
+
+4. **Integration in Morphe & Standalone Build Pipelines:**
+   - **Morphe Patches:** Implemented in [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) (Hook 31 & 32) and verified by [`PatcherExecutionTest.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/test/kotlin/PatcherExecutionTest.kt).
+   - **Standalone Builder:** Implemented in `patch_image_quality_preferences()` inside [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
+   - **Live Device Verification:** Verified via `uiautomator dump` on connected Pixel 8 Pro (`husky`), confirming `JPEG Quality`, `Spatial Noise Reduction`, `RAW DNG Format`, and `Edge Sharpness & De-Ring` are all live and rendered.
+
 

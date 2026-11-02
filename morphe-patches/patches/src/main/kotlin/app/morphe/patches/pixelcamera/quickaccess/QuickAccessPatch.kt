@@ -7,6 +7,8 @@ import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction22c
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c
@@ -53,6 +55,92 @@ val quickAccessPatch = bytecodePatch(
                 return v0
             """.trimIndent()
             PixelCameraPatchUtils.replaceMethodBody(clazz, "G", "Z", smaliG)
+        }
+
+        // ── 1b. Hook nzr.v(nzx, boolean) → Unsuppress fine-tuning sliders visibility ──
+        mutableClassDefByOrNull("Lnzr;")?.let { clazz ->
+            val smaliV = """
+                iget-object v0, p0, Lnzr;->k:Loba;
+                invoke-virtual {v0, p1, p2}, Loba;->g(Lnzx;Z)V
+                return-void
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "v", "V", smaliV)
+        }
+
+        // ── 1c. Hook nzr.P() → Unconditionally activate fine-tuning sliders (Contrast, Highlights, Vibrance, Tint) ──
+        mutableClassDefByOrNull("Lnzr;")?.let { clazz ->
+            val smaliP = """
+                sget-object v0, Lnzx;->j:Lnzx;
+                const/4 v1, 0x1
+                invoke-virtual {p0, v0, v1}, Lnzr;->v(Lnzx;Z)V
+                sget-object v0, Lnzx;->k:Lnzx;
+                invoke-virtual {p0, v0, v1}, Lnzr;->v(Lnzx;Z)V
+                sget-object v0, Lnzx;->m:Lnzx;
+                invoke-virtual {p0, v0, v1}, Lnzr;->v(Lnzx;Z)V
+                sget-object v0, Lnzx;->n:Lnzx;
+                invoke-virtual {p0, v0, v1}, Lnzr;->v(Lnzx;Z)V
+                iget-object v0, p0, Lnzr;->R:Lj$/util/Optional;
+                if-eqz v0, :cond_done
+                invoke-virtual {v0}, Lj$/util/Optional;->isPresent()Z
+                move-result v1
+                if-eqz v1, :cond_done
+                invoke-virtual {v0}, Lj$/util/Optional;->get()Ljava/lang/Object;
+                move-result-object v0
+                check-cast v0, Lurt;
+                invoke-static {v0}, Lurp;->a(Lurt;)Lurt;
+                move-result-object v0
+                new-instance v1, Lmpd;
+                const/16 v2, 0x13
+                invoke-direct {v1, p0, v2}, Lmpd;-><init>(Ljava/lang/Object;I)V
+                iget-object v2, p0, Lnzr;->c:Luqp;
+                invoke-interface {v0, v1, v2}, Lurt;->go(Luxa;Ljava/util/concurrent/Executor;)Luww;
+                move-result-object v0
+                iput-object v0, p0, Lnzr;->X:Luww;
+                :cond_done
+                return-void
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "P", "V", smaliP)
+        }
+
+        // ── 1d. Force nzr.o = true in constructor (is_sauce_supported = true) ──
+        mutableClassDefByOrNull("Lnzr;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "<init>" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                for (i in 0 until impl.instructions.size) {
+                    val ins = impl.instructions[i]
+                    if (ins.opcode == Opcode.IPUT_BOOLEAN) {
+                        val ref = (ins as? Instruction22c)?.reference as? FieldReference
+                        if (ref?.name == "o" && ref.definingClass == "Lnzr;") {
+                            val const1 = "const/4 p1, 0x1".toInstructions(method).first()
+                            impl.replaceInstruction(i - 1, const1)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 1e. Hook qdi.smali to unblock Pro & Fine-Tuning slider CaptureRequest keys ──
+        mutableClassDefByOrNull("Lqdi;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.returnType == "Ljava/util/Set;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                for (i in 0 until impl.instructions.size) {
+                    val ins = impl.instructions[i]
+                    if (ins.opcode == Opcode.INVOKE_VIRTUAL) {
+                        val ref = (ins as? ReferenceInstruction)?.reference?.toString()
+                        if (ref?.contains("Ltbp;->f()Z") == true) {
+                            for (j in i until minOf(i + 8, impl.instructions.size)) {
+                                val nextIns = impl.instructions[j]
+                                if (nextIns.opcode == Opcode.IF_EQZ || nextIns.opcode == Opcode.IF_NEZ) {
+                                    impl.replaceInstruction(j, BuilderInstruction10x(Opcode.NOP))
+                                }
+                            }
+                            impl.replaceInstruction(i, BuilderInstruction10x(Opcode.NOP))
+                            break
+                        }
+                    }
+                }
+            }
         }
 
         // ── 2. Hook nzx.a()Z → true for Pro controls, Dual Exposure & Single Exposure ────
@@ -674,6 +762,11 @@ val quickAccessPatch = bytecodePatch(
                     }
                 }
             }
+        }
+
+        // ── 10. Hook qrg.i()Z → Always return false (viewfinder controls persist) ────
+        mutableClassDefByOrNull("Lqrg;")?.let { clazz ->
+            PixelCameraPatchUtils.forceReturnFalse(clazz, "i")
         }
 
     }

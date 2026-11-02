@@ -9702,30 +9702,30 @@ def copy_to_desktop(signed_apk):
     if os.path.isdir(desktop_dir):
         dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
         shutil.copy2(signed_apk, dest_apk)
-        dest_v110 = os.path.join(desktop_dir, "PixelCamera-1.1.0.apk")
-        shutil.copy2(signed_apk, dest_v110)
+        dest_v111 = os.path.join(desktop_dir, "PixelCamera-1.1.1.apk")
+        shutil.copy2(signed_apk, dest_v111)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v110} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v111} ({size_mb:.2f} MB)")
 
         # Also copy the Morphe .mpp patch file to Desktop
-        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.0.mpp")
+        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.1.mpp")
         if not os.path.exists(mpp_src):
-            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.0.mpp")
+            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.1.mpp")
             if os.path.exists(built_mpp):
                 mpp_src = built_mpp
         if os.path.exists(mpp_src):
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.0.mpp"))
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.1.0.mpp"))
-            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.1.0.mpp')}")
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.1.mpp"))
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.1.1.mpp"))
+            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.1.1.mpp')}")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.0.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.1.apk"))
             if os.path.exists(mpp_src):
-                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.0.mpp"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.0.apk")
-        return dest_v110
+                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.1.mpp"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.1.apk")
+        return dest_v111
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
@@ -9748,11 +9748,11 @@ def install_and_launch(signed_apk):
     print(f"    {res.stdout.strip()}")
     if "Success" in res.stdout:
         # Also copy Morphe .mpp patch to device Download directory
-        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.0.mpp")
+        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.1.mpp")
         if os.path.exists(mpp_file):
             print(f"[*] Copying {os.path.basename(mpp_file)} to device /sdcard/Download/...")
-            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.0.mpp"], stdout=subprocess.DEVNULL)
-            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/patches-1.1.0.mpp"], stdout=subprocess.DEVNULL)
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.1.mpp"], stdout=subprocess.DEVNULL)
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/patches-1.1.1.mpp"], stdout=subprocess.DEVNULL)
             print("    [+] Successfully copied Morphe patch to /sdcard/Download/ on device!")
         print(f"[*] Launching PixelCamera on {target_device} (com.google.android.GoogleCameraEng)...")
         subprocess.run(["adb", "-s", target_device, "shell", "am", "force-stop", "com.google.android.GoogleCameraEng"])

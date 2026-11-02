@@ -54,8 +54,34 @@ val cameraLooksPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lqwj;", smali)
         }
 
+        // ── 4. Force Real Camera Looks UI Controls (qut.smali) ───────────────────────────
+        mutableClassDefByOrNull("Lqut;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val orElseIdx = impl.instructions.indexOfFirst {
+                    (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("orElse") == true
+                }
+                if (orElseIdx != -1) {
+                    val gotoIdx = impl.instructions.subList(orElseIdx, impl.instructions.size).indexOfFirst {
+                        it.opcode == Opcode.GOTO || it.opcode == Opcode.GOTO_16 || it.opcode == Opcode.GOTO_32
+                    }
+                    if (gotoIdx != -1) {
+                        val absGotoIdx = orElseIdx + gotoIdx
+                        val startIdx = maxOf(0, orElseIdx - 1)
+                        for (i in startIdx..absGotoIdx) {
+                            impl.replaceInstruction(i, BuilderInstruction10x(Opcode.NOP))
+                        }
+                    }
+                }
+            }
+        }
+
         // ── 5. Add 3 New Signature Looks (Flat, Buffalo, Dijon) & Notify Selection (qxg.smali) ──
         mutableClassDefByOrNull("Lqxg;")?.let { clazz ->
+            // Unconditionally allow looks in all camera modes
+            PixelCameraPatchUtils.forceReturnTrue(clazz, "j")
+            PixelCameraPatchUtils.forceReturnTrue(clazz, "k")
+
             // 5a. Populate Flat (qvd), Buffalo (qvg), Dijon (qvi) in qxg.<init>
             clazz.methods.firstOrNull { it.name == "<init>" }?.let { method ->
                 val impl = method.implementation ?: return@let
@@ -106,45 +132,14 @@ val cameraLooksPatch = bytecodePatch(
 
         // ── 6. Sauce EXIF Metadata Fallback & Compose State Sync (rfx.smali) ──────────────
         mutableClassDefByOrNull("Lrfx;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "D" }?.let { method ->
-                val impl = method.implementation ?: return@let
-                val hookSmali = """
-                    if-eqz p0, :cond_skip_compose_look
-                    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqvj;)V
-                    :cond_skip_compose_look
-                """.trimIndent()
-                try {
-                    val instructions = hookSmali.toInstructions(method)
-                    val idx = impl.instructions.indexOfFirst {
-                        it.opcode == com.android.tools.smali.dexlib2.Opcode.CHECK_CAST
-                    }
-                    if (idx != -1) {
-                        var pos = idx + 1
-                        for (ins in instructions) {
-                            impl.addInstruction(pos++, ins)
-                        }
-                    }
-                } catch (_: Throwable) {}
-            }
-            clazz.methods.firstOrNull { it.name == "Z" }?.let { method ->
-                val impl = method.implementation ?: return@let
-                val hookSmali = """
-                    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookOrFallback(Lqvj;)Lqvj;
-                    move-result-object v0
-                """.trimIndent()
-                try {
-                    val instructions = hookSmali.toInstructions(method)
-                    val idx = impl.instructions.indexOfFirst {
-                        it.opcode == com.android.tools.smali.dexlib2.Opcode.CHECK_CAST
-                    }
-                    if (idx != -1) {
-                        var pos = idx + 1
-                        for (ins in instructions) {
-                            impl.addInstruction(pos++, ins)
-                        }
-                    }
-                } catch (_: Throwable) {}
-            }
+            val smaliD = """
+                invoke-interface {p0}, Lcbt;->fk()Ljava/lang/Object;
+                move-result-object p0
+                check-cast p0, Lqvj;
+                invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqvj;)V
+                return-object p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "D", "Lqvj;", smaliD)
         }
 
         // ── 7. Effective Look ID for Native Halide Processing (mla.smali) ────────────────
@@ -664,20 +659,118 @@ val cameraLooksPatch = bytecodePatch(
 
         // ── 28. Force Viewfinder Stream to ImageReader for VFE (ozw.b) ──
         mutableClassDefByOrNull("Lozw;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "b" && it.parameterTypes == listOf("Lusx;", "Lvgu;") }?.let { method ->
+            val smaliB = """
+                invoke-virtual {p0, p1}, Lozw;->a(Lusx;)Luwy;
+                move-result-object p0
+                invoke-static {}, Lvbg;->a()Lvbf;
+                move-result-object p1
+                sget-object v0, Lvbj;->a:Lvbj;
+                iput-object v0, p1, Lvbf;->a:Lvbj;
+                invoke-virtual {p1, p2}, Lvbf;->b(Lvgu;)V
+                invoke-virtual {p1, p0}, Lvbf;->p(Luwy;)V
+                const/16 p0, 0x22
+                invoke-virtual {p1, p0}, Lvbf;->j(I)V
+                const/4 p0, 0x7
+                invoke-virtual {p1, p0}, Lvbf;->c(I)V
+                const-wide/16 v0, 0x922
+                invoke-virtual {p1, v0, v1}, Lvbf;->t(J)V
+                invoke-virtual {p1}, Lvbf;->a()Lvbg;
+                move-result-object p0
+                return-object p0
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lvbg;", smaliB)
+        }
+
+        // ── 29. Hook qwh.smali to connect Tone & Color Fine-Tuning sliders to TomteInitHelper ──
+        mutableClassDefByOrNull("Lqwh;")?.let { clazz ->
+            // 29a. Hook qwh.l(IFZ)V for Tone fine tuning (Contrast, Shadows, Highlights)
+            clazz.methods.firstOrNull { it.name == "l" && it.parameterTypes == listOf("I", "F", "Z") }?.let { method ->
                 val impl = method.implementation ?: return@let
-                val ifNezIdx = impl.instructions.indexOfFirst { it.opcode == Opcode.IF_NEZ }
-                if (ifNezIdx != -1) {
-                    val gotoCond0 = "goto :cond_0".toInstructions(method)
-                    impl.replaceInstruction(ifNezIdx, gotoCond0[0])
+                val hookSmali = """
+                    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateToneFineTuning(IF)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+
+            // 29b. Hook qwh.j(IFZ)V for Color fine tuning (Vibrance, Tint)
+            for (mName in listOf("j")) {
+                clazz.methods.firstOrNull { it.name == mName && it.parameterTypes == listOf("I", "F", "Z") }?.let { method ->
+                    val impl = method.implementation ?: return@let
+                    val hookSmali = """
+                        invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var insertPos = 0
+                        for (ins in instructions) {
+                            impl.addInstruction(insertPos++, ins)
+                        }
+                    } catch (_: Throwable) {}
                 }
-                // Update buffer usage to 0x922 for CPU cacheable performance
-                val constWideIdx = impl.instructions.indexOfFirst {
-                    it.opcode == Opcode.CONST_WIDE_16 && (it as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction)?.narrowLiteral == 0x100
+            }
+        }
+
+        // ── 30. Hook ListPreference.o(Ljava/lang/String;)V to restart camera on Noise/Sharpness change in Settings ──
+        mutableClassDefByOrNull("Landroidx/preference/ListPreference;")?.let { clazz ->
+            val smali = """
+                iget-object v0, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+                if-eqz v0, :cond_initial_load
+                invoke-static {v0, p1}, Landroid/text/TextUtils;->equals(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Z
+                move-result v0
+                if-nez v0, :cond_done
+                iput-object p1, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+                const/4 v0, 0x1
+                iput-boolean v0, p0, Landroidx/preference/ListPreference;->E:Z
+                invoke-virtual {p0, p1}, Landroidx/preference/Preference;->ab(Ljava/lang/String;)V
+                invoke-virtual {p0}, Landroidx/preference/Preference;->d()V
+                iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+                if-eqz v0, :cond_done
+                const-string v1, "pref_camera_noise_reduction_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v1
+                if-nez v1, :cond_restart_tuning
+                const-string v1, "pref_camera_sharpness_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v0
+                if-eqz v0, :cond_done
+                :cond_restart_tuning
+                iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+                invoke-static {v0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setPrefEntry(Ljava/lang/String;Ljava/lang/String;)V
+                invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->restartCameraForTuning()V
+                :cond_done
+                return-void
+                :cond_initial_load
+                iput-object p1, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+                const/4 v0, 0x1
+                iput-boolean v0, p0, Landroidx/preference/ListPreference;->E:Z
+                invoke-virtual {p0, p1}, Landroidx/preference/Preference;->ab(Ljava/lang/String;)V
+                invoke-virtual {p0}, Landroidx/preference/Preference;->d()V
+                return-void
+            """.trimIndent()
+            PixelCameraPatchUtils.replaceMethodBody(clazz, "o", "V", smali)
+        }
+
+        // ── 31. Hook Lrfl; to directly filter out Pro preferences in GM3 settings ──
+        mutableClassDefByOrNull("Lrfl;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "ar" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val awIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lrfl;->aw()V") == true
                 }
-                if (constWideIdx != -1) {
-                    val constUsage = "const-wide/16 v0, 0x922".toInstructions(method)
-                    impl.replaceInstruction(constWideIdx, constUsage[0])
+                if (awIdx != -1) {
+                    val hookSmali = "invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterProPreferences(Ljava/lang/Object;)V"
+                    try {
+                        val ins = hookSmali.toInstructions(method).firstOrNull()
+                        if (ins != null) {
+                            impl.addInstruction(awIdx, ins)
+                        }
+                    } catch (_: Throwable) {}
                 }
             }
         }

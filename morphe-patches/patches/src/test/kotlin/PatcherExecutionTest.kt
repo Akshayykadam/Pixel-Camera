@@ -124,6 +124,8 @@ class PatcherExecutionTest {
         var foundRdbHook = false
         var foundPoyHook = false
         var foundAutobahnHook = false
+        var foundRexHook = false
+        var foundRflHook = false
         for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
             for (c in dex.classes) {
@@ -155,13 +157,21 @@ class PatcherExecutionTest {
                         foundAutobahnHook = true
                     }
                 }
+                if (c.type == "Lrfl;") {
+                    val arMethod = c.methods.firstOrNull { it.name == "ar" }
+                    val instructions = arMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (instructions.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("filterProPreferences") == true }) {
+                        foundRflHook = true
+                    }
+                }
             }
         }
         assertTrue(foundOnsHook, "ons.e must be hooked with isProDevice()")
         assertTrue(foundRdbHook, "rdb.C must be hooked with isProDevice()")
         assertTrue(foundPoyHook, "poy.M must be hooked with TomteProSettingsPanel")
         assertTrue(foundAutobahnHook, "AutobahnViewPager.onMeasure must be hooked with Math.max")
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook")
+        assertTrue(foundRflHook, "rfl.ar must be hooked with pro preferences direct removal")
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook")
     }
 }
 

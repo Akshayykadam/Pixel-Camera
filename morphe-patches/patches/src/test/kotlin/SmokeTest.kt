@@ -255,7 +255,7 @@ class SmokeTest {
 
         val tomteSmaliFiles = mutableListOf(tomteSmali)
         val proPanelSmaliFiles = java.io.File(rootDir, "smali_patches").listFiles { file ->
-            file.name.startsWith("TomteProSettingsPanel") && file.name.endsWith(".smali")
+            (file.name.startsWith("TomteProSettingsPanel") || file.name.startsWith("TomteProPatcherLoader")) && file.name.endsWith(".smali")
         }?.toList() ?: emptyList()
         tomteSmaliFiles.addAll(proPanelSmaliFiles.sortedBy { it.name })
 
@@ -290,7 +290,10 @@ class SmokeTest {
         val zoomSmaliFiles = listOf(
             java.io.File(rootDir, "apktool_full/smali_classes2/knq.smali"),
             java.io.File(rootDir, "apktool_full/smali_classes2/knk.smali"),
-            java.io.File(rootDir, "apktool_full/smali_classes2/kmd.smali"),
+            if (java.io.File(rootDir, "smali_patches/kmd.smali").exists())
+                java.io.File(rootDir, "smali_patches/kmd.smali")
+            else
+                java.io.File(rootDir, "apktool_full/smali_classes2/kmd.smali"),
             java.io.File(rootDir, "apktool_full/smali/kmo.smali"),
             if (java.io.File(rootDir, "smali_patches/guh.smali").exists())
                 java.io.File(rootDir, "smali_patches/guh.smali")

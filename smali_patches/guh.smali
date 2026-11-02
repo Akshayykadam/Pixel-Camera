@@ -319,9 +319,7 @@
 
     if-gez v3, :cond_focal_check_1_0x_guh
 
-    const/high16 v2, 0x3f800000    # 1.0f
-
-    goto :cond_apply_focal_zoom_guh
+    goto :cond_focal_outside_guh
 
     :cond_focal_check_1_0x_guh
     const v3, 0x3f933333    # 1.15f
@@ -359,7 +357,13 @@
     :cond_focal_outside_guh
     const/high16 v2, 0x3f800000    # 1.0f
 
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSavedFocalLength(F)F
+
+    move-result v2
+
     :cond_apply_focal_zoom_guh
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->saveFocalLength(F)V
+
     invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
 
     move-result p1

@@ -113,7 +113,6 @@
 
     goto :goto_0
 
-    .line 824
     :goto_1
     iget-object p1, p0, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$6;->val$prefs:Landroid/content/SharedPreferences;
 
@@ -131,8 +130,10 @@
 
     invoke-interface {p1}, Landroid/content/SharedPreferences$Editor;->commit()Z
 
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setPrefEntry(Ljava/lang/String;Ljava/lang/String;)V
+
     # Check if this pref change requires a camera restart for native tuning
-    # v0 still holds val$prefKey from line 124
+    # v0 still holds val$prefKey
     const-string v1, "pref_camera_noise_reduction_key"
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z

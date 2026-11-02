@@ -239,5 +239,77 @@ val proControlsPatch = bytecodePatch(
             """.trimIndent()
             PixelCameraPatchUtils.replaceMethodBody(clazz, "onMeasure", "V", smali)
         }
+
+        // ── 12. Unblock Manual ISO Without Requiring Manual Shutter Speed ──────────────
+        // a) Record latest metered exposure time in qkw.is(Lvli;)V
+        mutableClassDefByOrNull("Lqkw;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "is" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val idx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lqlb;->b(J)V") == true
+                }
+                if (idx != -1) {
+                    val smali = "invoke-static {v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateLastExposureTime(J)V"
+                    val insList = smali.toInstructions(method)
+                    var pos = idx + 1
+                    for (ins in insList) {
+                        impl.addInstruction(pos++, ins)
+                    }
+                }
+            }
+        }
+
+        // b) Fallback to last metered exposure time in qdy.apply(Object) when qef.b <= 0
+        mutableClassDefByOrNull("Lqdy;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "apply" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val idx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lqef;->b:J") == true
+                }
+                if (idx != -1 && idx + 1 < impl.instructions.size) {
+                    val smali = "invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sanitizeExposureTime(J)Ljava/lang/Long;"
+                    val replacementIns = smali.toInstructions(method).firstOrNull()
+                    if (replacementIns != null) {
+                        impl.removeInstruction(idx + 1)
+                        impl.addInstruction(idx + 1, replacementIns)
+                    }
+                }
+            }
+        }
+
+        // c) Drive CONTROL_AE_MODE by iso.isAuto in psk.a()
+        mutableClassDefByOrNull("Lpsk;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val idx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lusa;->g(Ljava/util/Collection;)Lurt;") == true
+                }
+                if (idx != -1 && idx + 2 < impl.instructions.size) {
+                    // idx + 2 is `invoke-static {v7}, Lurp;->a(Lurt;)Lurt;`
+                    // Replace v7 with v8 so v7 becomes urp.a(v8) in place without shifting switch offsets
+                    val smali = "invoke-static {v8}, Lurp;->a(Lurt;)Lurt;"
+                    val replacementIns = smali.toInstructions(method).firstOrNull()
+                    if (replacementIns != null) {
+                        impl.removeInstruction(idx + 2)
+                        impl.addInstruction(idx + 2, replacementIns)
+                    }
+                }
+            }
+        }
+
+        // d) Force CONTROL_AE_MODE to OFF when ISO is manual in nku.o
+        mutableClassDefByOrNull("Lnku;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "o" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val gIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lnzu;->g:Lj$/util/Optional;") == true
+                }
+                if (gIdx != -1) {
+                    repeat(4) {
+                        impl.removeInstruction(gIdx)
+                    }
+                }
+            }
+        }
     }
 }
