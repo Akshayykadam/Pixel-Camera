@@ -1,12 +1,12 @@
-# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.0.9)
+# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.1.1)
 
 ---
 
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.1 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.1.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.1 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.1.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.1.mpp)
 * **Morphe Patches Source**: [morphe-patches/README.md](morphe-patches/README.md)
 * **Smali Reference & Helper Classes**: [smali_patches/README.md](smali_patches/README.md)
 * **Unified Smali Diffs**: [patches/README.md](patches/README.md)
@@ -25,6 +25,7 @@ This document provides a comprehensive, engineering-grade record of the root-cau
 5. **Temperature Slider Visually Responsive but Operationally Ineffective**
 6. **Portrait Mode Complete Failure & Flat Non-Blurred Photos on Rear and Front Cameras**
 7. **Viewfinder Brightness & Shadow Controls Degradation, Capture Disconnect & Camera Image Quality Overhaul**
+8. **Pro Controls Manual ISO Slider Ignored by Camera HAL Until Shutter Speed Touched**
 
 All fixes have been implemented directly in the decompiled smali sources ([`apktool_full/`](apktool_full/)), automated within the standalone build pipeline ([`build_and_patch_pixelcamera.py`](build_and_patch_pixelcamera.py)), and synchronized with the bytecode patch suite ([`morphe-patches`](morphe-patches)).
 
@@ -912,8 +913,10 @@ return-object v0
    - **Root Cause:** Forcing fake `1.0f` tone parameters when `o == null` in `pzj.a(FF)` bypassed `:goto_0`, preventing the camera from reading the actual initial sensor baseline `(l, m, n)` upon session creation or resume.
    - **Resolution:** Restored clean `if-eqz v3, :cond_4` check so that `:goto_0` accurately samples sensor baseline metadata and returns clean neutral `pzi(0, 0, 0, 0, 0)` on session resume.
 
-5. **1x Main Camera Focal Length Cycling:**
+5. **1x Main Camera Focal Length Cycling & Persistence Across App Restarts:**
    - **Feature:** Added dynamic focal length cycling in [`guh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/guh.smali): tapping the `1x` button cycles between `1.0x` (24mm) -> `1.2x` (28mm) -> `1.5x` (35mm) -> `1.0x`.
+   - **Persistence Engine:** Integrated `saveFocalLength(F)V` and `getSavedFocalLength(F)F` in [`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes4/com/google/android/patch/cameralooks/TomteInitHelper.smali), storing the selected ratio in `SharedPreferences` (`pixel_camera_focal_prefs`).
+   - **Cold Start & Pipeline Restoration:** Hooked default zoom initialization in [`kmd.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/kmd.smali) and [`kmo.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/kmo.smali), ensuring the camera pipeline, LiveData zoom state, and viewfinder launch directly at the remembered focal length (1.0x, 1.2x, or 1.5x) across cold launches and app restarts.
 
 ### 14.2 Release Artifacts
 - **Standalone Patched APK:** [`Desktop/PixelCamera-1.0.9.apk`](file:///Users/akshaykadam/Desktop/PixelCamera-1.0.9.apk) (1.61 GB, zip-aligned and signed)
@@ -1370,33 +1373,45 @@ However, when the user changes settings mid-session via the Pro settings panel, 
 
 #### Fix Architecture
 
-Since `gcam::Tuning` heap objects have opaque, version-dependent layouts (unsafe to patch directly), the fix forces a clean **camera process restart** when noise/sharpness settings change:
+Since `gcam::Tuning` heap objects have opaque, version-dependent layouts (unsafe to patch directly), the fix forces a clean **camera process restart** when noise/sharpness settings change.
 
-1. **`TomteInitHelper.restartCameraForTuning()`** (new method):
-   - Logs the restart reason to logcat
-   - Gets the launch intent via `PackageManager.getLaunchIntentForPackage()`
-   - Starts the activity with `FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_NEW_TASK`
-   - Kills the process via `Process.killProcess(Process.myPid())`
+To prevent race conditions where Android's `ActivityTaskManager` aborts the launch transaction when a `singleTask` process is immediately terminated via `Process.killProcess`, the restart is scheduled via the system `AlarmManager`:
 
-2. **`TomteProSettingsPanel$6.onClick()`** (modified):
-   - After committing the new preference value to `SharedPreferences`
-   - Checks if the preference key is `pref_camera_noise_reduction_key` or `pref_camera_sharpness_key`
-   - If yes → calls `restartCameraForTuning()` (process dies, relaunches automatically)
-   - If no (JPEG quality, RAW format, etc.) → continues normally (no restart needed)
+1. **`TomteProSettingsPanel$6.onClick()` & `ListPreference.o()`**:
+   - Compares the tapped preset with the current preference value; skips restart if the value did not change (prevents spurious restarts).
+   - Commits the new preference value to `SharedPreferences`.
+   - In Pro Settings: updates UI descriptions (`valueView`) and button group selection pills so the user sees their selection activate.
+   - In Camera Settings (`ListPreference.o()`): checks `Preference.r` (preference key); if `pref_camera_noise_reduction_key` or `pref_camera_sharpness_key` changed → triggers `restartCameraForTuning()`.
+   - If the preference key is `pref_camera_noise_reduction_key` or `pref_camera_sharpness_key` → triggers `restartCameraForTuning()`.
 
-3. **On relaunch** (automatic):
-   - `TomteInitHelper.<clinit>()` loads `libpropatcher.so`
-   - `msr.smali` hook calls `applyNativeTuning()` which reads the **new** SharedPreferences values
-   - `.rodata` is patched with the new sharpen/denoise multipliers
+2. **`TomteInitHelper.restartCameraForTuning()`**:
+   - Displays a brief system Toast: *"Applying tuning… Restarting camera"*.
+   - Retrieves the launcher ComponentName via `PackageManager.getLaunchIntentForPackage().getComponent()`, falling back to `new ComponentName(packageName, "com.android.camera.CameraLauncher")`.
+   - Uses Android's official task restart factory `Intent.makeRestartActivityTask(componentName)`:
+     - Configures `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED`.
+   - Dispatches `context.startActivity(restartIntent)` while the application is in the foreground (avoids all Background Activity Launch / BAL restrictions).
+   - Pauses for 150ms (`Thread.sleep`) allowing the IPC transaction to be processed by `ActivityTaskManagerService`.
+   - Terminates cleanly via `Process.killProcess(Process.myPid())` to guarantee immediate process teardown.
+   - Catches and logs any unexpected exceptions with full stack trace to logcat.
+
+3. **On Relaunch** (fresh base task started cleanly by Android):
+   - Android launches a brand new camera process.
+   - `TomteInitHelper.<clinit>()` loads `libpropatcher.so`.
+   - `msr.smali` hook calls `applyNativeTuning()` which reads the **new** SharedPreferences values.
+   - `.rodata` is patched with the new sharpen/denoise multipliers.
    - `Gcam_Create()` deserializes the patched values into fresh heap objects ✓
 
 #### Files Modified
 
 | File | Change |
 |------|--------|
-| [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) | Added `restartCameraForTuning()` method |
-| [`smali_patches/TomteProSettingsPanel$6.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProSettingsPanel$6.smali) | Conditional restart for tuning pref keys |
-| [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) | Added `.locals` bump for `oal.smali` methods `e()` and `s()` |
+| [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) | Implemented `Intent.makeRestartActivityTask` + process kill reliable restart |
+| [`smali_patches/TomteProSettingsPanel$6.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProSettingsPanel$6.smali) | Direct trigger after `commit()` in Pro Settings |
+| [`apktool_full/smali_classes2/androidx/preference/ListPreference.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/androidx/preference/ListPreference.smali) | Hooked `o(Ljava/lang/String;)V` to auto-restart on Camera Settings changes |
+| [`morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) | Added bytecode transform for `ListPreference.o` in Morphe |
+| [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) | Added automated `ListPreference.smali` patch in build script |
+| [`morphe-patches/patches/src/main/resources/TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex) | Reassembled via `SmokeTest.testAssembleDexes` |
+| [`morphe-patches/src/main/resources/TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/src/main/resources/TomteInitHelper.dex) | Synchronized release DEX artifact |
 
 #### Tuning Pipeline Lifecycle Summary
 
@@ -1405,18 +1420,324 @@ User taps "Soft" in Edge Sharpness
   → TomteProSettingsPanel$6.onClick()
     → SharedPreferences.commit("pref_camera_sharpness_key", "soft")
     → restartCameraForTuning()
-      → startActivity(launchIntent)  [posted to ActivityManager service]
-      → Process.killProcess(myPid()) [camera process dies]
+      → Toast.makeText("Applying tuning… Restarting camera").show()
+      → Intent.makeRestartActivityTask(componentName)
+      → startActivity(restartIntent)  [dispatched while foreground]
+      → Thread.sleep(250ms)           [ATMS processes transaction]
+      → Runtime.getRuntime().exit(0)  [clean VM shutdown]
 
-Android relaunches camera (new process)
-  → TomteInitHelper.<clinit>()
-    → System.loadLibrary("propatcher")
+Android launches fresh base task
+  → Fresh process starts
+  → TomteInitHelper.<clinit>() → System.loadLibrary("propatcher")
   → msr.smali → applyNativeTuning()
     → getSharpnessFactor() → reads "soft" → returns 0.0f
-    → nativeApplyTuning(0.0f, 2)
-      → patches 70 sharpen assets: gains × 0.0f, de-rings × 0.25f
+    → nativeApplyTuning(0.0f, 2) → patches 70 sharpen assets (.rodata)
   → Gcam_Create()
     → deserializes patched .rodata into heap → soft edges, zero ringing ✓
 ```
+
+---
+
+## 8. Issue 8: Pro Controls Manual ISO Slider Ignored by Camera HAL Until Shutter Speed Touched
+
+### 8.1 Symptoms
+- Opening Pro Controls and sliding ISO from Auto to manual values (e.g. 100, 400, 1600, 3200) has zero effect on viewfinder exposure/brightness.
+- The ISO slider moves visually, but the Camera2 HAL continues running in Auto-Exposure mode.
+- As soon as the user touches or drags the Shutter Speed slider, the viewfinder brightness jumps and manual ISO immediately begins working as expected.
+
+### 8.2 Root Cause Analysis
+Decompilation and reverse-engineering of the camera capture request pipeline uncovered 4 interconnected bugs:
+
+1. **Logical OR in `psk.smali` (`CONTROL_AE_MODE` calculation):**
+   - In [`psk.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/psk.smali#L331-L349), `CONTROL_AE_MODE` was computed via:
+     ```smali
+     invoke-static {v7}, Lusa;->g(Ljava/util/Collection;)Lurt;
+     ```
+     where collection `v7` contained both `[shutter.isAuto, iso.isAuto]`. `usa.g()` performs a boolean logical OR.
+   - When ISO is manual (`iso.isAuto == false`) but Shutter is untouched (`shutter.isAuto == true`):
+     $$\text{true} \lor \text{false} = \text{true}$$
+   - This passed `Boolean.TRUE` to `qdy` (switch 1), resolving `CONTROL_AE_MODE` to `1` (`CONTROL_AE_MODE_ON`).
+   - In the Android Camera2 specification, when `CONTROL_AE_MODE == CONTROL_AE_MODE_ON`, `CaptureRequest.SENSOR_SENSITIVITY` (ISO) is **strictly ignored** by the HAL because the Auto-Exposure routine overrides it.
+
+2. **Tensor HAL Ignores AE Priority Mode:**
+   - In [`pti.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pti.smali), Google Camera attempted to set `REQUEST_CONTROL_AE_PRIORITY_MODE = 2` (ISO Priority).
+   - However, the Tensor Camera HAL either does not support ISO priority under `CONTROL_AE_MODE_ON` or rejects it because `CaptureRequest.SENSOR_EXPOSURE_TIME` was passed as `0L` (`qef.b` is 0 when shutter is auto).
+
+3. **Dual Condition in `nku.smali` (`nku.o` HAL parameter override):**
+   - In [`nku.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/nku.smali#L1538-L1553), method `nku.o` checked if `nzu.f` (ISO) is present:
+     ```smali
+     iget-object v3, p2, Lnzu;->f:Lj$/util/Optional;
+     invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+     move-result v3
+     if-eqz v3, :cond_2
+     iget-object v3, p2, Lnzu;->g:Lj$/util/Optional;
+     invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+     move-result v3
+     if-eqz v3, :cond_2
+     ```
+   - It only set `CONTROL_AE_MODE = 0` (`OFF`) if **both** ISO (`nzu.f`) and Shutter (`nzu.g`) were manually set. If Shutter was untouched (`nzu.g.isPresent() == false`), it skipped setting `CONTROL_AE_MODE = 0` and left it at `1` (`ON`).
+   - Once the user touched Shutter Speed, `nzu.g.isPresent()` became `true`, causing `CONTROL_AE_MODE` to switch to `0` (`OFF`), which unlocked manual exposure control.
+
+4. **Zero Exposure Time Validation Failure in `qdy.smali`:**
+   - When `CONTROL_AE_MODE` is forced to `0` (`OFF`), the Camera2 HAL requires a valid, non-zero `CaptureRequest.SENSOR_EXPOSURE_TIME`.
+   - When Shutter Speed is untouched (Auto), `qef.b` is `0L`. A `0L` exposure time causes HAL capture request rejection.
+
+### 8.3 Fixes & Implementations
+
+1. **Real-time Preview Exposure Caching ([`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali)):**
+   - Added volatile field `public static volatile lastExposureTimeNs:J = 20000000L` (1/50s default).
+   - Added `updateLastExposureTime(J)` to track non-zero exposure times from preview metadata frames.
+   - Added `getLastExposureTime()J` fallback method.
+
+2. **Preview Metadata Hook ([`qkw.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/qkw.smali)):**
+   - In `qkw.is(Lvli;)V`, hooked after `Lqlb;->b(J)V` to call `TomteInitHelper.updateLastExposureTime(v6, v7)`.
+
+3. **Fallback Non-Zero Exposure Time ([`qdy.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/qdy.smali)):**
+   - In `:pswitch_13`, if `qef.b <= 0L`, fallback to `TomteInitHelper.getLastExposureTime()` so `SENSOR_EXPOSURE_TIME` is always valid.
+
+4. **Direct ISO Binding to AE Mode ([`psk.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/psk.smali)):**
+   - Replaced `usa.g()` result in `CONTROL_AE_MODE` stream with `v8` (`iso.isAuto`).
+   - If `iso.isAuto == false`, `CONTROL_AE_MODE` is directly mapped to `0` (`OFF`).
+
+5. **Removed Secondary Shutter Requirement ([`nku.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/nku.smali)):**
+   - In `nku.o`, when `nzu.f` (ISO) is present, immediately set `vef.e = 0` (`CONTROL_AE_MODE_OFF`) without requiring `nzu.g` (shutter).
+
+6. **Automated in Standalone & Morphe Pipelines:**
+   - Standalone: [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) via `patch_pro_iso_and_shutter_exposure()`.
+   - Morphe: Section 12 bytecode transformations in [`ProControlsPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/pro/ProControlsPatch.kt).
+
+---
+
+## 9. Issue 9: Clean Bottom Sheet UI & Unification with Camera Settings
+
+### 9.1 Background & Objective
+- The viewfinder bottom sheet "Pro" tab previously injected custom pill selectors for:
+  1. **JPEG Quality** (95%, 97%, 100%)
+  2. **Spatial Noise Reduction** (Off, Low, Standard)
+  3. **RAW DNG Format** (16-Bit RAW, Standard)
+  4. **Edge Sharpness & De-Ring** (Soft, Natural, Standard)
+- Injecting native tuning rows directly inside the viewfinder bottom sheet cluttered the pro controls (crowding Google Camera's native **Lens Selection**), and tuning adjustments (which necessitate native pipeline reload via restart) risked interrupting active photography in the viewfinder.
+- **Goal**: Remove/hide all four custom tuning rows from the bottom sheet Pro tab while keeping them organized in the main Camera Settings activity, and keeping Google Camera's native "Lens Selection" and solid bottom sheet styling intact.
+
+### 9.2 Implementation Details
+1. **[`smali_patches/TomteProSettingsPanel.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProSettingsPanel.smali):**
+   - Updated `buildOrUpdatePanel(Ljava/lang/Object;Landroid/widget/LinearLayout;)V` to enforce solid background styling (`enforceSolidBackground`), check for any existing `"tomte_pro_panel"` view tag, and remove it from the bottom sheet `options_menu_internal_list`.
+   - Removed injection and addition of the 4 custom rows into the bottom sheet.
+2. **Synchronized Sources & Artifacts:**
+   - Mirrored changes into [`apktool_full/smali_classes4/com/google/android/patch/cameralooks/TomteProSettingsPanel.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes4/com/google/android/patch/cameralooks/TomteProSettingsPanel.smali) and [`scratch/TomteProSettingsPanel.java`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/scratch/TomteProSettingsPanel.java).
+   - Reassembled `TomteInitHelper.dex` via Morphe Gradle test suite (`SmokeTest.testAssembleDexes`).
+   - Built, aligned, signed, and deployed standalone APK via [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
+3. **Behavioral Verification:**
+   - **Pro Tab Bottom Sheet**: Only native controls ("Lens Selection", etc.) are displayed; custom tuning rows are hidden.
+   - **Camera Settings**: Advanced tuning options remain fully accessible and functional in Camera Settings with reliable auto-restart upon modification.
+
+---
+
+## 10. Issue 10: Tapping Bottom Sheet 3-Dots Settings Button Triggered Unintended App Restart
+
+### 10.1 Symptoms & Problem Description
+- When tapping the `...` (3-dots "More settings") button in the viewfinder bottom sheet to open the full Camera Settings screen, the app immediately closed and restarted instead of displaying the Settings activity.
+
+### 10.2 Root Cause Analysis
+1. **AndroidX Preference Lifecycle Inflation:**
+   - In [`options_bottomsheet.xml`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/res/layout/options_bottomsheet.xml), the 3-dots button (`@id/options_menu_more_button`) launches [`CameraGm3SettingsActivity`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/com/google/android/apps/camera/settings/activity/CameraGm3SettingsActivity.smali) via `poy.smali` -> `ife.s()`.
+   - As `CameraGm3SettingsActivity` inflates [`camera_gm3_preferences.xml`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/res/xml/camera_gm3_preferences.xml), the framework creates each preference item (including [`ListWithDescriptionsPreferenceCompat`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/com/google/android/apps/camera/ui/preference/ListWithDescriptionsPreferenceCompat.smali), a subclass of [`ListPreference`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/androidx/preference/ListPreference.smali)).
+   - AndroidX invokes `onSetInitialValue(Object defaultValue)` (`ListPreference.h(Object)`), which reads the persisted string from disk and passes it to `setValue(String)` (`ListPreference.o(String)`).
+2. **False-Positive User Change Detection:**
+   - When `o(String)` was originally hooked to trigger `TomteInitHelper.restartCameraForTuning()`, it checked `!TextUtils.equals(oldValue, newValue)`.
+   - On the very first inflation of `ListPreference`, the in-memory `oldValue` (`this.i`) was `null`, while `newValue` was `"stock"`.
+   - `TextUtils.equals(null, "stock")` evaluated to `false`, falsely indicating a user value modification on initial layout inflation.
+   - Consequently, opening Camera Settings immediately killed the camera process and initiated an auto-restart.
+
+### 10.3 Permanent Resolution
+1. **Initial Load Guard in [`ListPreference.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/androidx/preference/ListPreference.smali):**
+   - Modified `ListPreference.o(Ljava/lang/String;)V` to inspect `this.i` prior to equality evaluation:
+     ```smali
+     iget-object v0, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+     if-eqz v0, :cond_initial_load
+     ```
+   - When `v0 == null` (the initial load from disk), execution branches directly to `:cond_initial_load`, saving the value and notifying the preference summary without evaluating restart conditions.
+   - If `v0 != null`, execution verifies that `newValue` differs from `oldValue` before checking preference keys (`pref_camera_noise_reduction_key` or `pref_camera_sharpness_key`) and invoking `restartCameraForTuning()`.
+2. **Synchronized Pipelines:**
+   - Standalone builder: Updated `patch_image_quality_preferences()` in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
+   - Bytecode patches: Updated Section 30 in [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt).
+3. **Verification:**
+   - Tapping `...` (3-dots button) opens `CameraGm3SettingsActivity` instantly with zero restarts.
+   - Changing Spatial Noise Reduction or Edge Sharpness inside the settings dialog correctly triggers the restart mechanism to reload hardware tuning.
+
+---
+
+## 11. Issue 11: Non-Pro Devices Picture Quality Settings vs Pro RAW Gating
+
+### 11.1 Requirement & Symptoms
+- **User Request:** On non-Pro models, only show "JPEG Quality" (`pref_camera_jpeg_quality_key`). Do not show the other advanced image tuning options (`pref_camera_noise_reduction_key`, `pref_camera_raw_compression_key`, `pref_camera_sharpness_key`).
+- These 3 advanced options must only be visible on Pro models that support RAW photos.
+
+### 11.2 Root Cause Analysis
+1. **Unfiltered Preference Addition:**
+   - In [`camera_gm3_preferences.xml`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/res/xml/camera_gm3_preferences.xml), all 4 preferences were originally added under the `"pref_category_resolution_camera"` category.
+   - Google Camera 11.1 does not automatically hide custom preference keys unless they are registered in the exclusions list (`rex.f`) or removed in the settings fragment (`rfl.ar()`).
+2. **Device & RAW Support Verification:**
+   - Pro models (`husky`, `cheetah`, `raven`, `caiman`, `komodo`, `comet`) have full hardware support for RAW photos and manual sensor calibration.
+   - Non-Pro models (e.g. Pixel 6, 6a, 7, 7a, 8, 8a) lack telephoto sensors and hardware-level RAW tuning pipelines, meaning options like RAW DNG Format, Spatial Noise Reduction, and Edge Sharpness are not applicable.
+   - Only **JPEG Quality** should be exposed on non-Pro models, allowing users to select standard compression qualities (100% Maximum, 97% High, 90% Standard).
+
+### 11.3 Permanent Resolution
+1. **Root Cause of Initial False Suppression on Pixel 8 Pro:**
+   - In the initial implementation, checks on internal Gcam RAW configuration flags (`kqd.bC` / `camera.enable_raw_setting`) and UI searches for `"pref_camera_raw_output_option_available_key"` were combined with the device check.
+   - Because `camera.enable_raw_setting` evaluated to false and `gcm.a("pref_camera_raw_output_option_available_key")` returned `null` in `rfl`, the logic erroneously classified even the Pixel 8 Pro (`husky`) as non-qualifying and removed the preferences.
+2. **Simplified, Rock-Solid Device Gating via [`TomteInitHelper.isProDevice()`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali):**
+   - The gating was updated to rely strictly on `TomteInitHelper.isProDevice()`, which detects Pro devices via `Build.MODEL` ("Pro") and `Build.DEVICE` (`husky`, `cheetah`, `raven`, `caiman`, `komodo`, `comet`).
+   - If `TomteInitHelper.isProDevice()` is `true`: execution branches directly to skip exclusions and skip UI removal, guaranteeing all 4 options are displayed.
+   - If `TomteInitHelper.isProDevice()` is `false`: execution falls through to populate `rex.f` (exclusions) and invoke `rfl.aC()` on the three advanced options, exposing exclusively **JPEG Quality**.
+
+3. **Exclusion Injection in [`rex.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rex.smali) (`Lrex;->a(Landroid/content/Context;)V`):**
+   ```smali
+   invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+   move-result v1
+   if-nez v1, :cond_keep_pro_extras
+   iget-object v1, p0, Lrex;->f:Ljava/lang/Object;
+   const-string v3, "pref_camera_noise_reduction_key"
+   invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+   const-string v3, "pref_camera_raw_compression_key"
+   invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+   const-string v3, "pref_camera_sharpness_key"
+   invoke-interface {v1, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+   :cond_keep_pro_extras
+   ```
+
+4. **Direct Fragment Filtering in [`rfl.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rfl.smali) (`Lrfl;->ar()V`):**
+   ```smali
+   invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+   move-result v0
+   if-nez v0, :cond_skip_pro_removal
+   const-string v0, "pref_camera_noise_reduction_key"
+   const-string v0, "pref_camera_raw_compression_key"
+   invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+   const-string v0, "pref_camera_sharpness_key"
+   invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+   :cond_skip_pro_removal
+   invoke-virtual {p0}, Lrfl;->aw()V
+   ```
+
+5. **Morphe & Standalone Pipelines:**
+   - **Morphe Patches:** Hook 32 (`rfl.ar`) updated in [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) and verified by [`PatcherExecutionTest.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/test/kotlin/PatcherExecutionTest.kt). Hook 31 (`rex.a`) was safely retired to avoid Dalvik register conflicts.
+   - **Standalone Builder:** Implemented via direct `removePreference` in `rfl.smali` (`patch_image_quality_preferences()`) inside [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
+
+---
+
+## XVIII. FIX FOR DYNAMIC TUNING PERSISTENCE (SPATIAL NOISE REDUCTION & SHARPNESS)
+
+### 1. Issue Description
+Users changing **Spatial Noise Reduction** (e.g. to *Minimal* or *Off*) or **Edge Sharpness & De-Ring** (e.g. to *Soft* or *Natural*) in Camera Settings reported that the camera restarted, but the dynamic tuning was not taking effect:
+On every restart, logcat reported stock tuning values:
+```
+Dynamic Tuning Applied: Sharpen=1.00x (70 assets, 1322 gains, 995 de-rings), Denoise=1.000x (mode=2, 27 assets, 713 floats)
+```
+
+### 2. Root Cause Analysis
+1. **SharedPreferences File Mismatch & Shadowing**:
+   - The in-app Camera Settings screen uses AndroidX `ListPreference` backed by [`gcu.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/gcu.smali), which stores preferences in `<packageName>_preferences.xml`.
+   - However, [`TomteInitHelper.getPrefEntry()`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) was checking `<packageName>_preferences_camera.xml` *first*.
+   - Because `_preferences_camera.xml` gets seeded with default entries (`pref_camera_noise_reduction_key = "stock"`, `pref_camera_sharpness_key = "standard"`) during initial GCam setup, `containsKey()` in `_preferences_camera` returned `true`, returning stock values on every launch and completely shadowing user selections stored in `_preferences.xml`!
+2. **Asynchronous `apply()` Aborted by `SIGKILL`**:
+   - AndroidX `Preference.ab()` persists strings via `editor.apply()`, queuing disk writes in Android's background `QueuedWork`.
+   - Immediately following `ab()`, `restartCameraForTuning()` executed:
+     `Intent.makeRestartActivityTask(...) -> startActivity(...) -> Thread.sleep(150) -> Process.killProcess(Process.myPid())`.
+   - Calling `killProcess` after just 150ms abruptly terminated the process before `QueuedWork` could flush dirty preferences to disk.
+3. **Morphe Pipeline Disconnect**:
+   - `CameraLooksPatch.kt` (Hook 30) also contained the same asynchronous apply and file priority mismatch.
+
+### 3. Solution Implemented
+1. **Added Synchronous Preference Committer [`TomteInitHelper.setPrefEntry(String key, String value)`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali):**
+   - Retrieves the application context using the 4-tier fallback mechanism.
+   - Executes synchronous blocking `.commit()` to **both** `<packageName>_preferences` (primary AndroidX store) and `<packageName>_preferences_camera` (GCam store).
+   - Logs committed key and value to `PATCH_LOOKS`.
+2. **Updated [`TomteInitHelper.getPrefEntry(String key)`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali):**
+   - Prioritizes `<packageName>_preferences` (Primary AndroidX store) first so user-configured UI options take precedence.
+   - Falls back to `<packageName>_preferences_camera` if not present.
+3. **Hardened [`TomteInitHelper.restartCameraForTuning()`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali):**
+   - Increased post-launch delay to 350ms (`0x15e`) to ensure `ActivityManager` queues the launch task before `Process.killProcess(myPid())` terminates the old process.
+4. **Hooked `ListPreference.o(Ljava/lang/String;)V`:**
+   - In [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py), [`apktool_full/smali_classes2/androidx/preference/ListPreference.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/androidx/preference/ListPreference.smali), and [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt):
+     Invokes `TomteInitHelper.setPrefEntry(v0, p1)` directly upon user change prior to `restartCameraForTuning()`.
+5. **Hooked [`TomteProSettingsPanel$6.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProSettingsPanel$6.smali):**
+   - Also calls `TomteInitHelper.setPrefEntry(v0, v1)` to keep both storage files in sync when toggled from the Pro settings segmented row.
+
+---
+
+## XIX. RESOLUTION OF SETTINGS CRASH (VERIFYERROR IN REX.SMALI)
+
+### 1. Symptoms & Diagnostics
+- Tapping **More settings** (`...` icon on Photo settings bottom sheet) crashed immediately in both standalone signed APK and Morphe patched APK.
+- **Logcat fatal stack trace:**
+  ```text
+  java.lang.VerifyError: Verifier rejected class rex: void rex.a(android.content.Context) failed to verify:
+  [0x5B] register v1 has type Conflict but expected Reference java.lang.Object
+  ```
+  In Morphe:
+  ```text
+  java.lang.VerifyError: Verifier rejected class rex: void rex.a(android.content.Context) failed to verify:
+  [0x74] register v1 has type Reference java.lang.Object but expected Reference: kps
+  ```
+
+### 2. Root Cause
+- An earlier hook injected `filterProPreferencesForRex(v1)` at `:cond_6` in `rex.a(Context)`.
+- In `rex.a`, register `v1` is alternately reused as boolean (`int`) and `List<String>`. A branch instruction `if-nez v1, :cond_6` jumped to `:cond_6` where `v1` was still an `int` along that path, causing a Dalvik register type conflict (`int` vs `Reference`) and rejecting the entire class `rex` upon loading `CameraGm3SettingsActivity`.
+- In addition, [rfl.smali](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rfl.smali) (`rfl.ar()`) already directly and safely removes Pro preferences on non-Pro models via `aC(key)` (`removePreference`). Hooking `rex.a` was redundant and unstable.
+
+### 3. Resolution
+1. Restored [`apktool_full/smali_classes2/rex.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali_classes2/rex.smali) to clean bytecode without the invalid hook.
+2. Updated Hook 9 in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py) to clean up `rex.smali` rather than injecting it.
+3. Removed Hook 31 from [`CameraLooksPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt).
+4. Rebuilt, tested, and verified on Google Pixel 8 Pro (`husky`): `CameraGm3SettingsActivity` opens smoothly without crash, and preferences persist and apply dynamic native tuning cleanly.
+
+---
+
+## XX. RESOLUTION OF PIXEL 9 / 9 PRO STARTUP CRASH (CLASSCASTEXCEPTION IN POC.SMALI)
+
+### 1. Symptoms & Diagnostics
+- On Google Pixel 9 and Pixel 9 Pro devices (FHD+ 1080x2424 display, dual/triple camera with vendor zoom keys e.g. Dokkaebi / Barghest), launching the camera produced an immediate fatal crash on camera startup.
+- **Logcat fatal stack trace (`logcat_recording_2026-11-02_08-12-23.txt`):**
+  ```text
+  FATAL EXCEPTION: main
+  Process: com.google.android.GoogleCameraEng, PID: 13463
+  pir: Failed to start OneCamera (retry disabled)
+  ...
+  Caused by: java.lang.ClassCastException: java.lang.Float cannot be cast to java.util.List
+  	at poc.apply(PG:360)
+  	at urx.e(PG:2)
+  	at usl.w(PG:2)
+  	at usk.d(PG:30)
+  	at urp.d(PG:2)
+  	at usl.d(PG:2)
+  	at urp.d(PG:2)
+  	at pqe.a(PG:118)
+  ```
+
+### 2. Root Cause Analysis
+- In [`plh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/plh.smali) (`plh.a()`), register `v7` was originally initialized to `const/4 v7, 0x1` at method entry (line 192).
+- An earlier patch attempted to force `CaptureRequest.EDGE_MODE = 2` and `NOISE_REDUCTION_MODE = 2` by altering line 192 to `const/4 v7, 0x2`.
+- However, register `v7` was reused in switch case `:pswitch_2` (line 391) as the 4th constructor parameter to instantiate `poc`:
+  ```smali
+  new-instance v4, Lpoc;
+  invoke-direct {v4, v1, v3, v2, v7}, Lpoc;-><init>(Lvgr;Ltmu;Lj$/util/Optional;I)V
+  ```
+- In `poc.smali`, the 4th parameter `p4` is stored in `this.d` as the discriminator for `poc.apply(Object)`:
+  - Mode `1`: Expects `p1` to be a `Float` (the active viewfinder zoom ratio) and transforms it into a `List<CaptureRequest.Key, Float>`.
+  - Mode `2`: Expects `p1` to be a `List<swf>` (`check-cast p1, Ljava/util/List`).
+- Because `v7` was set to `2` instead of `1`, `poc` was initialized with `d = 2`. When the reactive zoom ratio observable emitted a `Float`, `poc.apply` ran mode 2 (`check-cast p1, java.util.List`), instantly throwing `ClassCastException: java.lang.Float cannot be cast to java.util.List`!
+- **Why this was Pixel 9-specific:** Switch case `:pswitch_2` checks `v2.a.isPresent()` (vendor zoom ratio key, `Lorq.a`). On older Pixels without vendor zoom keys, `isPresent()` evaluates to `false`, taking `:cond_1` and bypassing `poc` entirely. On Pixel 9 / 9 Pro, vendor zoom keys are present, triggering the execution path and the fatal crash.
+
+### 3. Resolution
+1. **Restored Register `v7 = 1` in [`plh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/plh.smali):**
+   - Restored method start constant at line 192 to `const/4 v7, 0x1`.
+   - Injected an explicit guard `const/4 v7, 0x1` immediately prior to line 391 (`invoke-direct {v4, v1, v3, v2, v7}, Lpoc;-><init>`).
+   - Corrected `:goto_4` to use `const/4 v7, 0x1` for the `pjz` constructor.
+2. **Updated Build Script Pipeline [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py):**
+   - Modified `patch_camera_tuning_and_raw()` Hook 5 to guarantee `v7` is never clobbered or set to 2, ensuring `v7=1` is enforced for `poc` and `pjz`.
+3. **Rebuilt Standalone Signed APK & Updated SourceForge Distribution:**
+   - Assembled clean dexes, aligned, signed with release key, and uploaded to SourceForge.
+
 
 

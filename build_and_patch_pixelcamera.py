@@ -334,9 +334,36 @@ def patch_vku_smali():
     content = replace_method(content, "l()Z", "const/4 v0, 0x1\n\n    return v0")
     content = replace_method(content, "q()Z", "const/4 v0, 0x1\n\n    return v0")
 
+    # Ensure e()Z checks T (Pixel 10 base), U (Pixel 10 Pro XL), and V (Pixel 10 Pro)
+    e_code = """iget-boolean v0, p0, Lvku;->T:Z
+
+    if-nez v0, :cond_1
+
+    iget-boolean v0, p0, Lvku;->U:Z
+
+    if-nez v0, :cond_1
+
+    iget-boolean p0, p0, Lvku;->V:Z
+
+    if-eqz p0, :cond_0
+
+    goto :goto_0
+
+    :cond_0
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_1
+    :goto_0
+    const/4 p0, 0x1
+
+    return p0"""
+    content = replace_method(content, "e()Z", e_code)
+
     with open(vku_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] vku.smali patched: l() and q() return true (device recognized and supported). e(), g() and f() preserved.")
+    print("    [+] vku.smali patched: l(), q() return true; e() checks T, U, V (Pixel 10 family recognized).")
 
 def patch_ksf_smali():
     print("[*] Patching ksf.smali (Gouda flags, Mantis, Looks, Segmenter model interception, was klm)...")
@@ -1739,6 +1766,19 @@ def patch_hpq_smali():
                 f.write(hwb_content)
             print("    [+] hwb.smali: patched hwb.w for custom/default gallery targets.")
 
+    # Also patch lys.smali to prevent black screen freeze on gallery launch cancellation
+    lys_path = os.path.join(APKTOOL_DIR, "smali", "lys.smali")
+    if os.path.exists(lys_path):
+        with open(lys_path, "r", encoding="utf-8") as f:
+            lys_content = f.read()
+        target_lys = """    :cond_4\n    iget-object p0, p0, Llys;->g:Lacnh;"""
+        repl_lys = """    :cond_4\n    iget-object v0, p0, Llys;->l:Lqyr;\n\n    if-eqz v0, :cond_skip_resume\n\n    invoke-interface {v0}, Lqyr;->v()V\n\n    :cond_skip_resume\n    iget-object p0, p0, Llys;->g:Lacnh;"""
+        if target_lys in lys_content:
+            lys_content = lys_content.replace(target_lys, repl_lys)
+            with open(lys_path, "w", encoding="utf-8") as f:
+                f.write(lys_content)
+            print("    [+] lys.smali: added qyr.v() preview resume safeguard on gallery launch cancellation.")
+
 def patch_kic_smali():
     print("[*] Patching kov.smali / kic.smali (Nulling failing TPU PD models)...")
     kic_path = os.path.join(APKTOOL_DIR, "smali_classes2", "kov.smali")
@@ -2062,6 +2102,23 @@ def build_propatcher():
         res = subprocess.run(cmd)
         if res.returncode == 0:
             print(f"    [+] Compiled libpropatcher.so -> {out}")
+            try:
+                import base64
+                with open(out, "rb") as f_so:
+                    so_bytes = f_so.read()
+                so_b64 = base64.b64encode(so_bytes).decode("ascii")
+                so_size = len(so_bytes)
+                loader_smali = os.path.join(ROOT_DIR, "smali_patches", "TomteProPatcherLoader.smali")
+                if os.path.exists(loader_smali):
+                    with open(loader_smali, "r", encoding="utf-8") as f_loader:
+                        c_loader = f_loader.read()
+                    c_loader = re.sub(r'\.field private static final EXPECTED_SIZE:I = 0x[0-9a-fA-F]+', f'.field private static final EXPECTED_SIZE:I = {hex(so_size)}', c_loader)
+                    c_loader = re.sub(r'\.field private static final SO_BASE64:Ljava/lang/String; = "[^"]+"', f'.field private static final SO_BASE64:Ljava/lang/String; = "{so_b64}"', c_loader)
+                    with open(loader_smali, "w", encoding="utf-8") as f_loader:
+                        f_loader.write(c_loader)
+                    print(f"    [+] Updated TomteProPatcherLoader.smali embedded SO_BASE64 ({so_size} bytes)")
+            except Exception as e:
+                print(f"    [!] Note: could not update SO_BASE64 in TomteProPatcherLoader.smali: {e}")
         else:
             print("    [!] Warning: Failed to compile libpropatcher.so with NDK")
     elif os.path.exists(out):
@@ -3232,54 +3289,35 @@ def patch_camera_app_smali():
     print("    [+] CameraApp.smali patched successfully.")
 
 def inject_tomte_init_helper():
-    print("[*] Injecting TomteInitHelper and ProSettingsPanel...")
-    helper_src = os.path.join(ROOT_DIR, "smali_patches", "TomteInitHelper.smali")
-    if not os.path.exists(helper_src):
-        helper_src = os.path.join(ROOT_DIR, "scratch", "smali_out", "smali", "com", "google", "android", "patch", "cameralooks", "TomteInitHelper.smali")
+    print("[*] Injecting TomteInitHelper, TomteProPatcherLoader, and ProSettingsPanel...")
     helper_dst_dir = os.path.join(APKTOOL_DIR, "smali_classes4", "com", "google", "android", "patch", "cameralooks")
     os.makedirs(helper_dst_dir, exist_ok=True)
-    helper_dst = os.path.join(helper_dst_dir, "TomteInitHelper.smali")
-    if os.path.exists(helper_src):
-        shutil.copyfile(helper_src, helper_dst)
-        print(f"    [+] Injected {helper_dst}")
-    else:
-        print(f"    [!] Warning: {helper_src} not found!")
 
     import glob
-    for smali_file in glob.glob(os.path.join(ROOT_DIR, "smali_patches", "TomteProSettingsPanel*.smali")):
+    for smali_file in glob.glob(os.path.join(ROOT_DIR, "smali_patches", "Tomte*.smali")):
         dst = os.path.join(helper_dst_dir, os.path.basename(smali_file))
         shutil.copyfile(smali_file, dst)
         print(f"    [+] Injected {os.path.basename(smali_file)}")
 
 def patch_mkm_smali():
-    print("[*] Patching mkm.smali (Make Flare Removal a safe no-op to prevent FinishShot crashes)...")
-    mkm_path = os.path.join(APKTOOL_DIR, "smali", "mkm.smali")
-    if not os.path.exists(mkm_path):
-        return
-    with open(mkm_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    target = """.method private final j(Lmnz;Loui;)V
-    .locals 18
-
-    move-object/from16 v0, p0"""
-
-    replacement = """.method private final j(Lmnz;Loui;)V
-    .locals 18
-
-    return-void
-
-    move-object/from16 v0, p0"""
-
-    if target in content:
-        content = content.replace(target, replacement)
-        with open(mkm_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("    [+] mkm.smali: Added return-void to mkm.j.")
-    elif "return-void" in content[content.find(".method private final j("):content.find(".method private final j(")+120]:
-        print("    [+] mkm.smali: already patched with return-void.")
-    else:
-        print("    [!] Warning: mkm.smali target not found.")
+    print("[*] Patching mkm.smali & mtf.smali (Make Flare Removal a safe no-op to prevent FinishShot crashes on Pixel 10)...")
+    for smali_name, method_sig in [("mkm.smali", ".method private final j(Lmnz;Loui;)V"), ("mtf.smali", ".method private final j(Lmwt;Lpeb;)V")]:
+        p = os.path.join(APKTOOL_DIR, "smali", smali_name)
+        if not os.path.exists(p):
+            continue
+        with open(p, "r", encoding="utf-8") as f:
+            content = f.read()
+        if method_sig in content:
+            idx = content.find(method_sig)
+            locals_idx = content.find(".locals", idx)
+            nl = content.find("\n", locals_idx)
+            if "return-void" not in content[nl:nl+40]:
+                content = content[:nl+1] + "\n    return-void\n" + content[nl+1:]
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"    [+] {smali_name}: Added return-void to {method_sig}.")
+            else:
+                print(f"    [+] {smali_name}: already patched with return-void.")
 
 def patch_ejn_smali():
     print("[*] Patching ejn.smali (Disable ceftazidime flags and remove missing asset paths on Pixel 10)...")
@@ -3662,6 +3700,18 @@ def patch_rfx_smali():
         return
     with open(rfx_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    target_d = """    check-cast p0, Lqvj;
+
+    return-object p0"""
+    replacement_d = """    check-cast p0, Lqvj;
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onLookObjectSelected(Lqvj;)V
+
+    return-object p0"""
+    if target_d in content:
+        content = content.replace(target_d, replacement_d, 1)
+        print("    [+] rfx.smali: Hooked method D with TomteInitHelper.onLookObjectSelected.")
 
     target = """    :goto_4
     sget-object v12, Lcau;->c:Lcau;"""
@@ -6206,7 +6256,13 @@ def patch_zoom_controllers():
     :cond_focal_outside_guh
     const/high16 v2, 0x3f800000    # 1.0f
 
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSavedFocalLength(F)F
+
+    move-result v2
+
     :cond_apply_focal_zoom_guh
+    invoke-static {v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->saveFocalLength(F)V
+
     invoke-static {p0, v2}, Ladtc;->e(Ljava/lang/Float;F)Z
 
     move-result p1
@@ -6706,47 +6762,37 @@ def patch_brightness_shadows_controllers():
                 f.write(oau_c)
             print("    [+] oau.smali: Loau.o initialized to 0.5f neutral.")
 
-    # 5. Patch plh.smali: Dynamically route NOISE_REDUCTION_MODE to TomteInitHelper.getNoiseReductionMode()
+    # 5. Patch plh.smali: Route NOISE_REDUCTION_MODE / EDGE_MODE and preserve v7=1 for poc/pjz
     plh_path = os.path.join(APKTOOL_DIR, "smali", "plh.smali")
     if os.path.exists(plh_path):
         with open(plh_path, "r", encoding="utf-8") as f:
             plh_c = f.read()
-        target_plh_stock = """    const/4 v7, 0x1
 
-    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+        # Critical fix: Ensure register v7 is initialized to 1 at method start (line 192)
+        target_v7_2 = "    const/4 v7, 0x2\n\n    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;"
+        repl_v7_1 = "    const/4 v7, 0x1\n\n    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;"
+        if target_v7_2 in plh_c:
+            plh_c = plh_c.replace(target_v7_2, repl_v7_1)
+            print("    [+] plh.smali: Restored primitive int v7=1 at method start.")
 
-    move-result-object v8"""
-        target_plh_hq = """    const/4 v7, 0x2
+        # Critical fix: poc constructor discriminator for zoom stream MUST be 1 (Float -> List<CaptureRequest.Key, Float>).
+        # If v7 is 2, poc.apply attempts check-cast p1, List, crashing OneCamera on Pixel 9 / 9 Pro.
+        poc_call_target = "    new-instance v4, Lpoc;\n\n    invoke-direct {v4, v1, v3, v2, v7}, Lpoc;-><init>(Lvgr;Ltmu;Lj$/util/Optional;I)V"
+        poc_call_repl = "    const/4 v7, 0x1\n\n    new-instance v4, Lpoc;\n\n    invoke-direct {v4, v1, v3, v2, v7}, Lpoc;-><init>(Lvgr;Ltmu;Lj$/util/Optional;I)V"
+        if poc_call_target in plh_c:
+            plh_c = plh_c.replace(poc_call_target, poc_call_repl)
+            print("    [+] plh.smali: Guarded poc constructor call with explicit v7=1.")
 
-    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+        # Ensure primitive int v7=1 at goto_4 for pjz constructor
+        if "const/4 v7, 0x2\n    move-object/from16 v18, v3" in plh_c:
+            plh_c = plh_c.replace("const/4 v7, 0x2\n    move-object/from16 v18, v3", "const/4 v7, 0x1\n    move-object/from16 v18, v3")
+            print("    [+] plh.smali: Corrected v7=1 at goto_4.")
+        elif ":goto_4\n    move-object/from16 v18, v3" in plh_c:
+            plh_c = plh_c.replace(":goto_4\n    move-object/from16 v18, v3", ":goto_4\n    const/4 v7, 0x1\n\n    move-object/from16 v18, v3")
+            print("    [+] plh.smali: Restored primitive int v7=1 at goto_4.")
 
-    move-result-object v8"""
-        repl_plh = """    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
-
-    move-result v7
-
-    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v8"""
-        target_plh_pxp = """    new-instance v15, Lpxp;
-
-    sget-object v3, Ltpb;->a:Landroid/hardware/camera2/CaptureRequest$Key;"""
-        repl_plh_pxp = """    new-instance v15, Lpxp;
-
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
-
-    move-result v7
-
-    invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-
-    move-result-object v8
-
-    sget-object v3, Ltpb;->a:Landroid/hardware/camera2/CaptureRequest$Key;"""
-        if "const/4 v7, 0x2\n\n    move-object/from16 v18, v3" not in plh_c:
-            plh_c = plh_c.replace(":goto_4\n    move-object/from16 v18, v3", ":goto_4\n    const/4 v7, 0x2\n\n    move-object/from16 v18, v3")
-            with open(plh_path, "w", encoding="utf-8") as f:
-                f.write(plh_c)
-            print("    [+] plh.smali: Restored primitive int v7=2 at goto_4.")
+        with open(plh_path, "w", encoding="utf-8") as f:
+            f.write(plh_c)
 
         if "TomteInitHelper;->getEdgeMode" not in plh_c and "TomteInitHelper;->getNoiseReductionMode" in plh_c:
             edge_target = """    move-result-object v8
@@ -6798,23 +6844,8 @@ def patch_brightness_shadows_controllers():
             with open(plh_path, "w", encoding="utf-8") as f:
                 f.write(plh_c)
             print("    [+] plh.smali: EDGE_MODE hooked to TomteInitHelper.getEdgeMode().")
-        elif "TomteInitHelper;->getNoiseReductionMode" in plh_c:
+        else:
             print("    [+] plh.smali: NOISE_REDUCTION_MODE and EDGE_MODE already hooked.")
-        elif target_plh_pxp in plh_c:
-            plh_c = plh_c.replace(target_plh_pxp, repl_plh_pxp)
-            with open(plh_path, "w", encoding="utf-8") as f:
-                f.write(plh_c)
-            print("    [+] plh.smali: NOISE_REDUCTION_MODE hooked to TomteInitHelper.getNoiseReductionMode().")
-        elif target_plh_stock in plh_c:
-            plh_c = plh_c.replace(target_plh_stock, repl_plh)
-            with open(plh_path, "w", encoding="utf-8") as f:
-                f.write(plh_c)
-            print("    [+] plh.smali: NOISE_REDUCTION_MODE hooked to TomteInitHelper.getNoiseReductionMode().")
-        elif target_plh_hq in plh_c:
-            plh_c = plh_c.replace(target_plh_hq, repl_plh)
-            with open(plh_path, "w", encoding="utf-8") as f:
-                f.write(plh_c)
-            print("    [+] plh.smali: NOISE_REDUCTION_MODE updated to TomteInitHelper.getNoiseReductionMode().")
 
     # 6. Patch pin.smali: Bypass jsn fallback overwrite loop so dual-EV settings persist
     pin_path = os.path.join(APKTOOL_DIR, "smali", "pin.smali")
@@ -7065,7 +7096,7 @@ def patch_brightness_shadows_controllers():
         elif orig_qwh_l in c:
             c = c.replace(orig_qwh_l, repl_qwh_l_new, 1)
 
-        # 10b. Hook qwh.i (Color: Vibrance=0, Tint=1)
+        # 10b. Ensure qwh.i (Look Intensity) is not hooked to updateColorFineTuning
         orig_qwh_i = """.method public final i(IFZ)V
     .locals 5
 
@@ -7076,10 +7107,10 @@ def patch_brightness_shadows_controllers():
     invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
 
     iget-object v0, p0, Lqwh;->e:Lurt;"""
-        if orig_qwh_i in c:
-            c = c.replace(orig_qwh_i, repl_qwh_i, 1)
+        if repl_qwh_i in c:
+            c = c.replace(repl_qwh_i, orig_qwh_i, 1)
 
-        # 10c. Hook qwh.j (Color: Vibrance=0, Tint=1 alternate)
+        # 10c. Hook qwh.j (Color: Vibrance=0, Tint=1)
         orig_qwh_j = """.method public final j(IFZ)V
     .locals 5
 
@@ -7096,6 +7127,23 @@ def patch_brightness_shadows_controllers():
         with open(qwh_path, "w", encoding="utf-8") as f:
             f.write(c)
         print("    [+] qwh.smali: Tone and Color fine-tuning sliders connected to TomteInitHelper.")
+
+    # 10d. Patch izt.smali: Hook Reset All to TomteInitHelper.resetFineTuning()
+    izt_path = os.path.join(APKTOOL_DIR, "smali", "izt.smali")
+    if os.path.exists(izt_path):
+        with open(izt_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        orig_izt = """:pswitch_5
+    iget-object p0, p0, Lizt;->a:Ljava/lang/Object;"""
+        repl_izt = """:pswitch_5
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->resetFineTuning()V
+
+    iget-object p0, p0, Lizt;->a:Ljava/lang/Object;"""
+        if orig_izt in c:
+            c = c.replace(orig_izt, repl_izt, 1)
+            with open(izt_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] izt.smali: Hooked Reset All to TomteInitHelper.resetFineTuning().")
 
     # 11. Ensure pzq.smali preserves standard pzq.c initialization (twilight mode disabled by default)
     pzq_path = os.path.join(APKTOOL_DIR, "smali", "pzq.smali")
@@ -7288,6 +7336,152 @@ def patch_pro_controls_live():
             print("    [+] odr.smali: Null-guarded tdn.a and tdn.b in manual AWB dispatch")
         else:
             print("    [+] odr.smali: already patched or target not found")
+
+def patch_pro_iso_and_shutter_exposure():
+    """Fix manual ISO slider ignored by Camera2 HAL until shutter speed is touched.
+    Root cause:
+    1. In psk.smali, CONTROL_AE_MODE was calculated by ORing shutter.isAuto and iso.isAuto.
+       When ISO is manual but shutter is auto, CONTROL_AE_MODE remained 1 (ON), causing
+       the HAL to ignore SENSOR_SENSITIVITY.
+    2. In nku.smali, nku.o checked if BOTH ISO and shutter were present before setting
+       CONTROL_AE_MODE = 0 (OFF).
+    3. In qdy.smali, when shutter is auto, qef.b is 0L, which HAL rejects when AE is OFF.
+       We fallback to TomteInitHelper.getLastExposureTime() which tracks real-time preview shutter.
+    4. In qkw.smali, we hook qkw.is(Lvli;)V to cache non-zero preview exposure times in TomteInitHelper.
+    """
+    print("[*] Patching Pro ISO and Shutter exposure control (fixing manual ISO without touching shutter)...")
+
+    def get_smali_path(name):
+        for sub in ["smali", "smali_classes2", "smali_classes3", "smali_classes4"]:
+            p = os.path.join(APKTOOL_DIR, sub, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    # 1. qkw.smali: Cache preview exposure time into TomteInitHelper
+    qkw_path = get_smali_path("qkw.smali")
+    if qkw_path and os.path.exists(qkw_path):
+        with open(qkw_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = "    invoke-virtual {v4, v6, v7}, Lqlb;->b(J)V\\n\\n    :cond_3"
+        repl = "    invoke-virtual {v4, v6, v7}, Lqlb;->b(J)V\\n\\n    invoke-static {v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateLastExposureTime(J)V\\n\\n    :cond_3"
+        if "TomteInitHelper;->updateLastExposureTime" in c:
+            print("    [+] qkw.smali: already hooked with updateLastExposureTime")
+        elif "invoke-virtual {v4, v6, v7}, Lqlb;->b(J)V\n\n    :cond_3" in c:
+            c = c.replace("invoke-virtual {v4, v6, v7}, Lqlb;->b(J)V\n\n    :cond_3",
+                          "invoke-virtual {v4, v6, v7}, Lqlb;->b(J)V\n\n    invoke-static {v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateLastExposureTime(J)V\n\n    :cond_3", 1)
+            with open(qkw_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] qkw.smali: hooked updateLastExposureTime")
+        else:
+            print("    [!] Warning: qkw.smali target not found")
+
+    # 2. qdy.smali: Fallback to cached exposure time when qef.b <= 0L
+    qdy_path = get_smali_path("qdy.smali")
+    if qdy_path and os.path.exists(qdy_path):
+        with open(qdy_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """    :pswitch_13
+    check-cast p1, Lqef;
+
+    iget-wide p0, p1, Lqef;->b:J
+
+    invoke-static {p0, p1}, Ljava/lang/Long;->valueOf(J)Ljava/lang/Long;"""
+        repl = """    :pswitch_13
+    check-cast p1, Lqef;
+
+    iget-wide p0, p1, Lqef;->b:J
+
+    invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sanitizeExposureTime(J)Ljava/lang/Long;"""
+        if "TomteInitHelper;->sanitizeExposureTime" in c or "TomteInitHelper;->getLastExposureTime" in c:
+            print("    [+] qdy.smali: already hooked with sanitizeExposureTime fallback")
+        elif target in c:
+            c = c.replace(target, repl, 1)
+            with open(qdy_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] qdy.smali: hooked getLastExposureTime fallback")
+        else:
+            print("    [!] Warning: qdy.smali target not found")
+
+    # 3. psk.smali: Map CONTROL_AE_MODE to iso.isAuto (OFF when ISO is manual)
+    psk_path = get_smali_path("psk.smali")
+    if psk_path and os.path.exists(psk_path):
+        with open(psk_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """    invoke-static {v7}, Lurp;->a(Lurt;)Lurt;
+
+    move-result-object v7
+
+    new-instance v8, Lqdy;"""
+        repl = """    invoke-static {v7}, Lurp;->a(Lurt;)Lurt;
+
+    move-result-object v7
+
+    move-object v7, v8
+
+    new-instance v8, Lqdy;"""
+        if "move-object v7, v8\n\n    new-instance v8, Lqdy;" in c:
+            print("    [+] psk.smali: already patched to bind AE mode to iso.isAuto")
+        elif target in c:
+            c = c.replace(target, repl, 1)
+            with open(psk_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] psk.smali: bound AE mode to iso.isAuto (CONTROL_AE_MODE_OFF when ISO manual)")
+        else:
+            print("    [!] Warning: psk.smali target not found")
+
+    # 4. nku.smali: Set CONTROL_AE_MODE = 0 whenever ISO is manual (remove secondary shutter check)
+    nku_path = get_smali_path("nku.smali")
+    if nku_path and os.path.exists(nku_path):
+        with open(nku_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """    if-eqz v8, :cond_3
+
+    iget-object v3, p2, Lnzu;->f:Lj$/util/Optional;
+
+    invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+
+    move-result v3
+
+    if-eqz v3, :cond_2
+
+    iget-object v3, p2, Lnzu;->g:Lj$/util/Optional;
+
+    invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+
+    move-result v3
+
+    if-eqz v3, :cond_2
+
+    move-object v3, v1
+
+    check-cast v3, Lvef;
+
+    iput-object v4, v3, Lvef;->e:Ljava/lang/Integer;"""
+        repl = """    if-eqz v8, :cond_3
+
+    iget-object v3, p2, Lnzu;->f:Lj$/util/Optional;
+
+    invoke-virtual {v3}, Lj$/util/Optional;->isPresent()Z
+
+    move-result v3
+
+    if-eqz v3, :cond_2
+
+    move-object v3, v1
+
+    check-cast v3, Lvef;
+
+    iput-object v4, v3, Lvef;->e:Ljava/lang/Integer;"""
+        if "Lnzu;->g:Lj$/util/Optional;" not in c and "Lnzu;->f:Lj$/util/Optional;" in c:
+            print("    [+] nku.smali: already patched (AE mode OFF on ISO manual)")
+        elif target in c:
+            c = c.replace(target, repl, 1)
+            with open(nku_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] nku.smali: removed secondary shutter check in nku.o")
+        else:
+            print("    [!] Warning: nku.smali target not found")
 
 def patch_sauce_onboarding():
     print("[*] Patching Sauce Onboarding & Pixel Looks Tutorial...")
@@ -9337,23 +9531,25 @@ def inject_splits():
         ("pecan-p26-custom_op.tflite.uncompressed", "pecan-p24-pie-custom_op.tflite.uncompressed"),
         ("pecan-p26-custom_op.tflite.uncompressed", "pecan-p26-pie-custom_op.tflite.uncompressed"),
         ("pecan-p26-v2-custom_op.tflite.uncompressed", "pecan-p25-v2-custom_op.tflite.uncompressed"),
-        ("pecan-p23-luma-hybrid-custom_op.tflite.uncompressed", "pecan-p25-luma-hybrid-custom_op.tflite.uncompressed"),
+        ("pecan-p25-custom_op.tflite.uncompressed", "pecan-p25-luma-hybrid-custom_op.tflite.uncompressed"),
         ("walnut-p26-custom_op.tflite.uncompressed", "walnut-p25-custom_op.tflite.uncompressed"),
         ("lancet_alpha_v2-p26.tflite.uncompressed", "lancet_alpha_v2-p25.tflite.uncompressed"),
         ("lancet_alpha_v2-p26.tflite.uncompressed", "lancet_alpha_v2-p24.tflite.uncompressed"),
         ("cyclops_tpu_26.tflite.uncompressed", "cyclops_tpu.tflite.uncompressed"),
         ("cyclops_tpu_26.tflite.uncompressed", "cyclops_tpu_25.tflite.uncompressed"),
-        ("avenh-model0-rio.tflite.uncompressed", "avenh-model0-buenos.tflite.uncompressed"),
-        ("avenh-model0-rio.tflite.uncompressed", "avenh-model0-janeiro.tflite.uncompressed"),
-        ("avenh-model0-rio.tflite.uncompressed", "avenh-model0-abrolhos.tflite.uncompressed"),
-        ("deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p23.tflite.uncompressed", "deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p25.tflite.uncompressed"),
-        ("deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p23.tflite.uncompressed", "deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op.tflite.uncompressed"),
-        ("siamese_fe_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_buenos_b0.tflite.uncompressed"),
-        ("siamese_fe_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_abrolhos_b0.tflite.uncompressed"),
-        ("siamese_fe_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_janeiro_a0.tflite.uncompressed"),
-        ("siamese_end2end_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_buenos_b0.tflite.uncompressed"),
-        ("siamese_end2end_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_abrolhos_b0.tflite.uncompressed"),
-        ("siamese_end2end_darwinn_custom_op_rio_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_janeiro_a0.tflite.uncompressed"),
+        ("cyclops_tpu_25.tflite.uncompressed", "cyclops_tpu_p25.tflite.uncompressed"),
+        ("avenh-model0-p26.tflite.uncompressed", "avenh-model0-buenos.tflite.uncompressed"),
+        ("avenh-model0-p26.tflite.uncompressed", "avenh-model0-janeiro.tflite.uncompressed"),
+        ("avenh-model0-p26.tflite.uncompressed", "avenh-model0-abrolhos.tflite.uncompressed"),
+        ("avenh-model0-p26.tflite.uncompressed", "avenh-model0-rio.tflite.uncompressed"),
+        ("siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_buenos_b0.tflite.uncompressed"),
+        ("siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_abrolhos_b0.tflite.uncompressed"),
+        ("siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_janeiro_a0.tflite.uncompressed"),
+        ("siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_rio_a0.tflite.uncompressed"),
+        ("siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_buenos_b0.tflite.uncompressed"),
+        ("siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_abrolhos_b0.tflite.uncompressed"),
+        ("siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_janeiro_a0.tflite.uncompressed"),
+        ("siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_rio_a0.tflite.uncompressed"),
         ("fssd_custom-op_tpu_26.tflite.uncompressed", "fssd_custom-op_tpu_25.tflite.uncompressed"),
         ("raid_person_segmenter_from_face_detection_with_occlusions-graph-custom_op_tpu_26.tflite.uncompressed", "raid_person_segmenter_from_face_detection_with_occlusions-graph-custom_op_tpu_25.tflite.uncompressed"),
         ("matting_v2_768_custom-op_tpu_26.tflite.uncompressed", "matting_v2_768_custom-op_tpu_25.tflite.uncompressed"),
@@ -9367,14 +9563,30 @@ def inject_splits():
         ("midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt-graph-custom_op_tpu_26.tflite.uncompressed", "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt-graph-custom_op_tpu_p25.tflite.uncompressed"),
         ("panoptic_segmenter_61586074_fp16_custom-op_tpu_26_meta.tflite.uncompressed", "panoptic_segmenter_61586074_fp16_custom-op_tpu_25_meta.tflite.uncompressed"),
         ("pssd_large_8bit_v2_300x300-graph-custom_op_tpu_26.tflite.uncompressed", "pssd_large_8bit_v2_300x300-graph-custom_op_tpu_25.tflite.uncompressed"),
-        ("motion-custom_op-p23.tflite.uncompressed", "motion-custom_op-v4.tflite.uncompressed"),
-        ("saliency-custom_op-p23.tflite.uncompressed", "saliency-custom_op-v4.tflite.uncompressed"),
+        ("motion-custom_op-v6.tflite.uncompressed", "motion-custom_op-v4.tflite.uncompressed"),
+        ("motion-custom_op-v6.tflite.uncompressed", "motion-custom_op-p23.tflite.uncompressed"),
+        ("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-v4.tflite.uncompressed"),
+        ("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed"),
+        ("hawk_full_fov_custom-op-2.tflite.uncompressed", "hawk_full_fov_custom-op-p25.tflite.uncompressed"),
+        ("edamame_0521-p26.tflite.uncompressed", "edamame_0521-p25.tflite.uncompressed"),
+        ("all_in_film_blender.tflite.uncompressed", "all_in_film_blender_sharded_512_256-graph-custom_op_tpu_p25.tflite.uncompressed"),
     ]
     for src_name, dst_name in model_mirrors:
         src_file = os.path.join(target_assets_dir, src_name)
         dst_file = os.path.join(target_assets_dir, dst_name)
         if os.path.exists(src_file) and not os.path.exists(dst_file):
             shutil.copy2(src_file, dst_file)
+
+    # Mirror kepler model directory for p25/p24
+    kepler_src = os.path.join(target_assets_dir, "kepler_v3", "p26", "base.tflite.uncompressed")
+    if os.path.exists(kepler_src):
+        for k_dst in [
+            os.path.join(target_assets_dir, "kepler_v2", "p25", "base.tflite.uncompressed"),
+            os.path.join(target_assets_dir, "kepler_v2", "p24", "base.tflite.uncompressed"),
+        ]:
+            if not os.path.exists(k_dst):
+                os.makedirs(os.path.dirname(k_dst), exist_ok=True)
+                shutil.copy2(kepler_src, k_dst)
     print("    [+] Mirrored neural models for Pixel 10 (p25 / Buenos) compatibility.")
 
     print("    [+] Neural models, calibration tables, and feature assets merged successfully.")
@@ -9490,30 +9702,30 @@ def copy_to_desktop(signed_apk):
     if os.path.isdir(desktop_dir):
         dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
         shutil.copy2(signed_apk, dest_apk)
-        dest_v109 = os.path.join(desktop_dir, "PixelCamera-1.0.9.apk")
-        shutil.copy2(signed_apk, dest_v109)
+        dest_v110 = os.path.join(desktop_dir, "PixelCamera-1.1.0.apk")
+        shutil.copy2(signed_apk, dest_v110)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v109} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v110} ({size_mb:.2f} MB)")
 
         # Also copy the Morphe .mpp patch file to Desktop
-        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.0.9.mpp")
+        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.0.mpp")
         if not os.path.exists(mpp_src):
-            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.0.9.mpp")
+            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.0.mpp")
             if os.path.exists(built_mpp):
                 mpp_src = built_mpp
         if os.path.exists(mpp_src):
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.0.9.mpp"))
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.0.9.mpp"))
-            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.0.9.mpp')}")
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.0.mpp"))
+            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.1.0.mpp"))
+            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.1.0.mpp')}")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
             shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.0.9.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.0.apk"))
             if os.path.exists(mpp_src):
-                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.0.9.mpp"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.0.9.apk")
-        return dest_v109
+                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.0.mpp"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.0.apk")
+        return dest_v110
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
@@ -9535,6 +9747,13 @@ def install_and_launch(signed_apk):
     res = subprocess.run(["adb", "-s", target_device, "install", "-r", "-d", "-g", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(f"    {res.stdout.strip()}")
     if "Success" in res.stdout:
+        # Also copy Morphe .mpp patch to device Download directory
+        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.0.mpp")
+        if os.path.exists(mpp_file):
+            print(f"[*] Copying {os.path.basename(mpp_file)} to device /sdcard/Download/...")
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.0.mpp"], stdout=subprocess.DEVNULL)
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/patches-1.1.0.mpp"], stdout=subprocess.DEVNULL)
+            print("    [+] Successfully copied Morphe patch to /sdcard/Download/ on device!")
         print(f"[*] Launching PixelCamera on {target_device} (com.google.android.GoogleCameraEng)...")
         subprocess.run(["adb", "-s", target_device, "shell", "am", "force-stop", "com.google.android.GoogleCameraEng"])
         subprocess.run(["adb", "-s", target_device, "shell", "am", "start", "-n", "com.google.android.GoogleCameraEng/com.android.camera.CameraLauncher"])
@@ -10033,6 +10252,137 @@ def patch_image_quality_preferences():
         with open(aaei_path, "w", encoding="utf-8") as f:
             f.write(content)
 
+    # 8. Patch ListPreference.smali (Auto-restart on Noise Reduction or Sharpness changes in Settings)
+    list_pref_path = os.path.join(APKTOOL_DIR, "smali_classes2", "androidx", "preference", "ListPreference.smali")
+    if os.path.exists(list_pref_path):
+        with open(list_pref_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        repl_lp = """.method public final o(Ljava/lang/String;)V
+    .locals 2
+
+    iget-object v0, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+
+    if-eqz v0, :cond_initial_load
+
+    invoke-static {v0, p1}, Landroid/text/TextUtils;->equals(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_done
+
+    iput-object p1, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+
+    const/4 v0, 0x1
+
+    iput-boolean v0, p0, Landroidx/preference/ListPreference;->E:Z
+
+    invoke-virtual {p0, p1}, Landroidx/preference/Preference;->ab(Ljava/lang/String;)V
+
+    invoke-virtual {p0}, Landroidx/preference/Preference;->d()V
+
+    # Check if this preference requires a restart to apply native tuning
+    iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+
+    if-eqz v0, :cond_done
+
+    const-string v1, "pref_camera_noise_reduction_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_restart_tuning
+
+    const-string v1, "pref_camera_sharpness_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_done
+
+    :cond_restart_tuning
+    iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+
+    invoke-static {v0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setPrefEntry(Ljava/lang/String;Ljava/lang/String;)V
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->restartCameraForTuning()V
+
+    :cond_done
+    return-void
+
+    :cond_initial_load
+    iput-object p1, p0, Landroidx/preference/ListPreference;->i:Ljava/lang/String;
+
+    const/4 v0, 0x1
+
+    iput-boolean v0, p0, Landroidx/preference/ListPreference;->E:Z
+
+    invoke-virtual {p0, p1}, Landroidx/preference/Preference;->ab(Ljava/lang/String;)V
+
+    invoke-virtual {p0}, Landroidx/preference/Preference;->d()V
+
+    return-void
+.end method"""
+        if "setPrefEntry" not in content:
+            # Replace method o
+            import re
+            content = re.sub(r'\.method public final o\(Ljava/lang/String;\)V[\s\S]*?\.end method', repl_lp, content)
+            with open(list_pref_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] ListPreference.smali: o(Ljava/lang/String;)V hooked with conditional restart and setPrefEntry.")
+        else:
+            print("    [+] ListPreference.smali: already hooked with conditional restart and setPrefEntry.")
+
+    # 9. Clean up any invalid rex.smali hook (Direct removal is handled cleanly by rfl.smali)
+    rex_path = os.path.join(APKTOOL_DIR, "smali_classes2", "rex.smali")
+    if os.path.exists(rex_path):
+        with open(rex_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "filterProPreferencesForRex" in content:
+            content = content.replace("    invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterProPreferencesForRex(Ljava/lang/Object;)V\n\n", "")
+            with open(rex_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] rex.smali: removed invalid filterProPreferencesForRex hook.")
+
+    # 10. Patch rfl.smali (Direct removal of Pro preferences in Camera GM3 Settings Fragment on non-Pro models)
+    rfl_path = os.path.join(APKTOOL_DIR, "smali_classes2", "rfl.smali")
+    if os.path.exists(rfl_path):
+        with open(rfl_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        rfl_target = """    :cond_1b
+    invoke-virtual {p0}, Lrfl;->aw()V"""
+        rfl_repl = """    :cond_1b
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
+
+    move-result v0
+
+    if-nez v0, :cond_skip_pro_removal
+
+    const-string v0, "pref_camera_noise_reduction_key"
+
+    invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+
+    const-string v0, "pref_camera_raw_compression_key"
+
+    invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+
+    const-string v0, "pref_camera_sharpness_key"
+
+    invoke-direct {p0, v0}, Lrfl;->aC(Ljava/lang/String;)V
+
+    :cond_skip_pro_removal
+    invoke-virtual {p0}, Lrfl;->aw()V"""
+        if "cond_skip_pro_removal" in content:
+            print("    [+] rfl.smali: already hooked with pro preferences filter.")
+        elif rfl_target in content:
+            content = content.replace(rfl_target, rfl_repl)
+            with open(rfl_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] rfl.smali: ar() hooked to remove pro preferences on non-pro models.")
+
+
 def patch_fzf_smali():
     print("[*] Patching fzf.smali (AV1 10-bit HDR graceful fallback to HEVC)...")
     fzf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "fzf.smali")
@@ -10356,8 +10706,81 @@ def patch_shutter_readiness():
             print("    [+] pkj.smali: Picture taker timeout abort already bypassed.")
 
 def patch_gei_smali():
-    # Preserved as clean no-op: gei.i is for Pixel 9 Pro Centaur/Boba only and must not be forced on Pixel 8 Pro
-    pass
+    print("[*] Patching gei.smali and fue.smali (Pixel 10 / P25 / Buenos missing model & asset sanitization)...")
+    gei_path = os.path.join(APKTOOL_DIR, "smali", "gei.smali")
+    if os.path.exists(gei_path):
+        with open(gei_path, "r", encoding="utf-8") as f:
+            gei_content = f.read()
+
+        gei_replacements = [
+            ("asset:/centaur_p25_manifest_config_default_variant.pb", ""),
+            ("centaur_p25", ""),
+            ("avenh-model0-buenos.tflite.uncompressed", "avenh-model0-p26.tflite.uncompressed"),
+            ("deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p25.tflite.uncompressed", ""),
+            ("b881ce5aefc948e1a9118dd65eb9f8f1.tflite.uncompressed", ""),
+            ("siamese_fe_darwinn_custom_op_buenos_b0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed"),
+            ("siamese_end2end_darwinn_custom_op_buenos_b0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed"),
+            ("hawk_full_fov_custom-op-p25.tflite.uncompressed", "hawk_full_fov_custom-op-2.tflite.uncompressed"),
+            ("cyclops_tpu_p25.tflite.uncompressed", "cyclops_tpu_25.tflite.uncompressed"),
+            ("edamame_0521-p25.tflite.uncompressed", "edamame_0521-p26.tflite.uncompressed"),
+            ("ceftazidime_035838eb4ec74fd1ba1dc562d3250bcb.uncompressed", ""),
+            ("ceftazidime_98a4b0297dce495183ba5c126c51eb6b.uncompressed", ""),
+            ("ceftazidime_e32cd107e5b1428b964fff0bedbab700.uncompressed", ""),
+            ("motion-custom_op-v4.tflite.uncompressed", "motion-custom_op-v6.tflite.uncompressed"),
+            ("saliency-custom_op-v4.tflite.uncompressed", "saliency-custom_op-v6.tflite.uncompressed"),
+            ("b7cb6e56422e4271b5f2f588de8b93d2/b7cb6e56422e4271b5f2f588de8b93d2.uncompressed", ""),
+            ("88de8b93d2b7cb6e56422e4271b5f2f5/88de8b93d2b7cb6e56422e4271b5f2f5.uncompressed", ""),
+            ("08e967b6f63f458aa0046dd8b7e0a790/08e967b6f63f458aa0046dd8b7e0a790.uncompressed", ""),
+            ("cae83107a704470c904c365601cd7ce5/cae83107a704470c904c365601cd7ce5.uncompressed", ""),
+            ("0b2b230344f74db8868ffd9f1c042393/0b2b230344f74db8868ffd9f1c042393.uncompressed", ""),
+            ("01bac7b33fc440d59b8ddc817ce91b7c/01bac7b33fc440d59b8ddc817ce91b7c.uncompressed", ""),
+            ("2a34d8be893844f799d8b56c678860f1/2a34d8be893844f799d8b56c678860f1.uncompressed", ""),
+            ("f4d498c17ff445c395da824c601acbc9/f4d498c17ff445c395da824c601acbc9.uncompressed", ""),
+            ("a8b044b9956f4fea8c40e347223b0447/a8b044b9956f4fea8c40e347223b0447.uncompressed", ""),
+            ("kepler_v2/p25", ""),
+            ("pecan-p25-luma-hybrid-custom_op.tflite.uncompressed", "pecan-p25-custom_op.tflite.uncompressed"),
+            ("d2a25917ee4345b2b406b428b2ca0a12.uncompressed", ""),
+            ("1497ad4cfd5b4362804e2f59813e986d.uncompressed", ""),
+            ("bc3e81f6daa74c7eab24d7f3eb22d458.uncompressed", ""),
+            ("a598d3b5915840aba93217796ea91a11.uncompressed", ""),
+            ("e7c70ea5dedf8a14631bf31d89bf26dd.uncompressed", ""),
+            ("89bf26dde7c70ea5dedf8a14631bf31d.uncompressed", ""),
+            ("76584ee8343944f985fd0ca49b5c778c/76584ee8343944f985fd0ca49b5c778c.uncompressed", ""),
+            ("8f8f04c8160444b9994367d3c0863f18/8f8f04c8160444b9994367d3c0863f18.uncompressed", ""),
+            ("5712d9433c92464496f2668a824dbd3d/5712d9433c92464496f2668a824dbd3d.uncompressed", ""),
+            ("all_in_film_blender_sharded_512_256-graph-custom_op_tpu_p25.tflite.uncompressed", "all_in_film_blender.tflite.uncompressed"),
+        ]
+
+        for src, dst in gei_replacements:
+            gei_content = gei_content.replace(f'"{src}"', f'"{dst}"')
+
+        with open(gei_path, "w", encoding="utf-8") as f:
+            f.write(gei_content)
+        print("    [+] gei.smali patched: 36 missing Buenos / P25 neural models safely remapped/bypassed.")
+
+    fue_path = os.path.join(APKTOOL_DIR, "smali", "fue.smali")
+    if os.path.exists(fue_path):
+        with open(fue_path, "r", encoding="utf-8") as f:
+            fue_content = f.read()
+
+        fue_replacements = [
+            ("2a34d8be893844f799d8b56c678860f1/2a34d8be893844f799d8b56c678860f1.uncompressed", ""),
+            ("avenh-model0-buenos.tflite.uncompressed", "avenh-model0-p26.tflite.uncompressed"),
+            ("deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p25.tflite.uncompressed", ""),
+            ("siamese_fe_darwinn_custom_op_buenos_b0.tflite.uncompressed", "siamese_fe_darwinn_custom_op_yooto_a0.tflite.uncompressed"),
+            ("siamese_end2end_darwinn_custom_op_buenos_b0.tflite.uncompressed", "siamese_end2end_darwinn_custom_op_yooto_a0.tflite.uncompressed"),
+            ("motion-custom_op-v4.tflite.uncompressed", "motion-custom_op-v6.tflite.uncompressed"),
+            ("saliency-custom_op-v4.tflite.uncompressed", "saliency-custom_op-v6.tflite.uncompressed"),
+            ("kepler_v2/p25", ""),
+            ("pecan-p25-luma-hybrid-custom_op.tflite.uncompressed", "pecan-p25-custom_op.tflite.uncompressed"),
+        ]
+
+        for src, dst in fue_replacements:
+            fue_content = fue_content.replace(f'"{src}"', f'"{dst}"')
+
+        with open(fue_path, "w", encoding="utf-8") as f:
+            f.write(fue_content)
+        print("    [+] fue.smali patched: 9 missing Rango / P25 neural models safely remapped/bypassed.")
 
 def patch_viewfinder_and_hires_fix():
     # Preserved as clean no-op: viewfinder and stream resolutions are handled natively by stock CameraCharacteristics
@@ -10408,6 +10831,7 @@ def main():
     patch_viewfinder_qac_exposure_and_shadows()
     patch_brightness_shadows_controllers()
     patch_pro_controls_live()
+    patch_pro_iso_and_shutter_exposure()
     patch_looks_fine_tuning_and_grain()
     patch_display_max_brightness()
     patch_image_quality_preferences()
@@ -10417,6 +10841,14 @@ def main():
     patch_shutter_readiness()
     patch_mqs_smali()
     patch_hpq_smali()
+    patch_mkm_smali()
+    patch_ejn_smali()
+    patch_psk_smali()
+    patch_psh_smali()
+    patch_klh_smali()
+    patch_kgy_smali()
+    patch_kgx_smali()
+    patch_kgs_smali()
     patch_kic_smali()
     patch_qfr_smali()
     patch_qfz_smali()
