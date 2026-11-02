@@ -67,11 +67,9 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
 
 1. **Motion Blur (Action Pan & Long Exposure) Disabled**:
    - **Reason**: Motion estimation neural networks require Google EdgeTPU hardware access (`/dev/gxp`), which the Linux kernel restricts to system-signed OEM packages. Non-root apps lack DAC and SELinux permissions to open `/dev/gxp`. Since the custom operators (`edgetpu-custom-op-2`) have no CPU/GPU fallback, the mode has been cleanly hidden via `camera.lasagna` flags to ensure captures in Photo, Portrait, Night Sight, and Video never stall.
-2. **Looks Applied Post-Capture**:
-   - **Reason**: Live 60 fps viewfinder tone-mapping on Pixel 11 relies on a proprietary vendor Camera HAL hardware tag (`REQUEST_TOMTE_TYPE`). On Tensor G1–G5, the patch utilizes Google's native Halide C++ pipeline (`tomte_tonemap.cc`) during HDR+ processing, guaranteeing full-resolution quality with zero viewfinder lag.
-3. **Creator Suite "Save to Project" Disabled**:
+2. **Creator Suite "Save to Project" Disabled**:
    - **Reason**: Cross-process gRPC calls to Google Photos require matching OEM platform signatures. The option is neutralized to prevent authorization errors.
-4. **Physical Periscope Lens Required for 10x Quick Zoom**:
+3. **Physical Periscope Lens Required for 10x Quick Zoom**:
    - **Reason**: 10x Quick Zoom utilizes Google's Super Res Zoom and telephoto fusion. Base/non-Pro devices without a physical periscope sensor use standard zoom ranges.
 
 ---
@@ -124,9 +122,6 @@ Because Morphe patches run in an unprivileged `untrusted_app` SELinux context on
   2. Verify that the file size matches the APKMirror listing (~650 MB to 1.1 GB depending on split bundle).
   3. Alternatively, rename the file to `.zip`, extract `base.apk` using ZArchiver or 7-Zip, and feed `base.apk` directly to Morphe Manager.
 
-### 2. Viewfinder Live Looks Preview vs Capture Processing (Issue #28 Part 2)
-* Live 60 fps viewfinder Looks preview requires Google's proprietary Camera HAL vendor tag `REQUEST_TOMTE_TYPE` (Pixel 11 hardware ISP).
-* On Pixel 6 through Pixel 10 (Tensor G1–G5), the viewfinder renders the standard preview stream, and full 3D LUT + Halide look styling is rendered seamlessly during HDR+ post-capture processing (`tomte_tonemap.cc`).
 
 ---
 

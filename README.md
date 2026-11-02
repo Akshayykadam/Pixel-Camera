@@ -139,26 +139,7 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **Launcher Activity Alias Alignment**: `com.android.camera.CameraLauncher` in `AndroidManifest.xml` explicitly carries `android:label="@string/app_name"` guaranteeing reliable display on OEM (Samsung OneUI, Xiaomi HyperOS, OnePlus OxygenOS) and third-party launchers (Nova, Lawnchair).
 * *(See [`PixelCameraClonePatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/clone/PixelCameraClonePatch.kt) for localized strings mapping).*
 
-### 13. Advanced Pro Settings Bottom Sheet & Material 3 Layout Alignment
-* **Integrated Pro Quick Settings Tab**: Seamlessly incorporated as a dedicated tab inside the viewfinder swipe-up / options bottom sheet (`AutobahnViewPager`), gated specifically to Photo and Night Sight modes (and cleanly hidden in Video mode to avoid interference).
-* **Fine-Tuned Quality Controls**:
-  * **JPEG Compression Quality**: **100%** (disables DCT quantization for maximum microtexture and foliage preservation), **97%** (high visual fidelity with balanced file size), and **95%** (stock Google Camera standard).
-  * **Spatial Noise Reduction**: **Off** (disables bilateral spatial smoothing for 100% crisp microtextures and natural sensor grain), **Low** (restrained smoothing retaining shadow textures), and **Standard** (stock Google Camera bilateral filter).
-  * **RAW DNG Format**: **16-Bit RAW** (uncompressed full bit-depth sensor DNG) and **Standard Compressed DNG**.
-  * **Edge Sharpness & De-Ring Filter**: **Soft (0.0x)**, **Natural (0.5x)**, and **Standard (1.0x)**, completely eliminating artificial halos, harsh contrast ringing, and digital over-sharpening.
-* **Pixel-Perfect Seamless Stock UI & Spacing Integration**:
-  * **Removed Horizontal Divider Line**: The divider between stock options and custom options has been eliminated, allowing the custom settings to seamlessly blend directly into the stock settings menu.
-  * **Stock 56dp Row Rhythm & 1:1 Vertical Spacing**:
-    * Each custom row uses the exact `56dp` height matching native Google Camera `options_row_height` (`0x7f070895`).
-    * Zero vertical margin between rows, zero margin between Label and Value (`valLp.setMargins(0, 0, 0, 0)`), and exactly `33px` (14.7dp) distance between the value description and the next row's label, matching stock rows down to the pixel.
-    * Capsule pill buttons scaled to `40dp` height with `4dp` horizontal inter-button margins (`options_menu_button_margin_left`), creating a completely unified visual cadence across all stock and custom options.
-  * Dynamic Material You / Monet theme integration: buttons dynamically adapt to wallpaper-derived primary container colors (`?colorPrimaryContainer`, `?colorOnPrimaryContainer`, `?colorSurfaceContainerHighest`) with smooth ripple and state feedback.
-* **AutobahnViewPager Bottom Space Elimination**:
-  * Removed the hardcoded `48dp` bottom margin (`android:layout_marginBottom="48.0dp"` in `options_bottomsheet_tab.xml`), reclaiming the wasted blank area so all rows fit comfortably without crowding or clipping.
-  * Prevented top and bottom row scroll clipping in `OptionsMenuView`.
-* *(See [`TomteProSettingsPanel.smali`](smali_patches/TomteProSettingsPanel.smali) and [`smali_patches/README.md`](smali_patches/README.md) for layout and event listener implementation).*
-
-### 14. Device-Aware Resolution Gating (Pro vs. Non-Pro Pixels) & True 50MP Capture
+### 13. Device-Aware Resolution Gating (Pro vs. Non-Pro Pixels) & True 50MP Capture
 * **True 50MP Capture on Pro Models (`8160 x 6144`, ~15–30 MB)**:
   * Full 50MP resolution selector is preserved and fully functional in Pro Controls (`ons.smali`) and the Settings options drawer (`moo.smali`) on all Pro Pixel models (Pixel 6 Pro, 7 Pro, 8 Pro, 9 Pro, 9 Pro XL, 9 Pro Fold, 10 Pro).
   * Neutralized automatic 12MP downsampling routines in `rdb.smali` (`C()` and `D()`) on Pro devices, ensuring captures taken in 50MP mode save at full **`8160 x 6144` (50.13 Megapixels)** unbinned resolution (~15–30 MB) rather than being downgraded to 12.5 MP.
@@ -184,31 +165,25 @@ Running a modern Google Camera modded application without root privileges impose
   3. **Capture Pipeline Hang**: Without TPU access, the native optical flow graph fails during session initialization. In user builds, this causes Action Pan and Long Exposure captures to fail silently or stall indefinitely without saving photos to disk.
   4. **Architectural Resolution**: All `camera.lasagna` flags (`kkb.f`, `kkb.g`, `kkb.h`, `kkb.i`, `kkb.j`) are intercepted in `klm.smali` (`q()` and `x()`) to return `false`. Google Camera's internal mode manager (`sdo.smali`, `njn.smali`, `iyh.smali`) cleanly prunes Motion Blur from the UI, ensuring 100% crash-free stability for all working modes.
 
-### 2. Live Viewfinder Looks Preview (Pre-Capture)
-* **Observed Behavior**: Camera Looks are applied immediately post-capture during image processing, but do not alter the real-time viewfinder feed before the shutter button is pressed.
-* **Technical Reason**:
-  * On the Pixel 11, Google introduced a proprietary vendor Camera HAL parameter (`REQUEST_TOMTE_TYPE`) integrated directly into the camera ISP hardware. This hardware block applies 3D tone LUTs and color transform matrices at 60 fps to the preview stream with zero computational latency.
-  * Older Google Tensor processors (Tensor G1 through G5) lack this vendor HAL metadata tag and ISP preview hardware hook. Emulating 60 fps 3D LUTs in software shaders over the live viewfinder stream causes severe frame drops and thermal throttling. The mod therefore relies on Google's native Halide C++ post-capture pipeline (`tomte_tonemap.cc`), applying full-resolution, artifact-free Looks processing immediately upon capture.
-
-### 3. Film Grain Dynamic Scaling Slider
+### 2. Film Grain Dynamic Scaling Slider
 * **Observed Behavior**: Adjusting the grain intensity slider in settings has minimal visible effect on output images.
 * **Technical Reason**:
   * Native film grain generation is powered by a dedicated neural model (`3cdbac706c98421a96e16fdbfd97a35f.tflite.uncompressed`) running alongside the RAW ISP pipeline.
   * In the fallback GPU/CPU pipeline without physical `/dev/gxp` access, a consistent baseline organic film grain is applied according to the selected Look's pre-configured tone profile, but dynamic runtime variance weighting is constrained to prevent CPU cache thrashing.
 
-### 4. Creator Suite "Save to Project" (Project Album)
+### 3. Creator Suite "Save to Project" (Project Album)
 * **Observed Behavior**: The "Save to Project" button in the Creator Suite drawer is neutralized and hidden.
 * **Technical Reason**:
   * Project Album integration communicates with the Google Photos application via private cross-process gRPC calls (`pa_` / `pam_` in `kqc.smali`).
   * Google Photos validates the calling package identity using signature verification (`PackageManager.hasSigningCertificate()`). Because cloned mods use an independent signing certificate to coexist with stock Camera, Google Photos rejects the gRPC connection with an authorization error. Hiding the entry prevents connection errors and UI crashes.
 
-### 5. Hardware Periscope Lens Dependency for 10x Quick Zoom
+### 4. Hardware Periscope Lens Dependency for 10x Quick Zoom
 * **Observed Behavior**: The 10x Quick Zoom button requires devices with a physical optical periscope lens (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
 * **Technical Reason**:
   * The discrete 10x quick zoom button activates Google's Super Res Zoom and telephoto fusion pipeline directly leveraging the physical periscope telephoto sensor.
   * Base and "a"-series Pixels (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, 9) physically lack a periscope sensor, operating within standard digital zoom limits.
 
-### 6. Quad-Bayer Remosaicing Limitation on Non-Pro Pixels
+### 5. Quad-Bayer Remosaicing Limitation on Non-Pro Pixels
 * **Observed Behavior**: The 50MP resolution selector is intentionally hidden on non-Pro Pixel models (Pixel 6, 6a, 7, 7a, 8, 8a, 9), defaulting to stock 12MP capture, while remaining fully active on Pro models.
 * **Technical Reason**:
   * On non-Pro devices (e.g. Pixel 7 `panther`, Pixel 8 `shiba`), 50MP quad-bayer remosaicing requires private vendor Camera HAL keys and platform-signed permission grants (`android.permission.CAMERA_HEADLESS_SYSTEM_SERVICE`).
@@ -247,7 +222,7 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 - [x] **Wasted Bottom Space in Options Sheet**: **Resolved** — Eliminated hardcoded 48dp bottom margin in `options_bottomsheet_tab.xml` (`AutobahnViewPager`) and resolved scroll clipping in `OptionsMenuView`.
 - [x] **Pro Settings Styling & Stock Spacing**: **Resolved** — Aligned Pro panel to Google Camera native 56dp row height, 6dp vertical padding, and 38dp capsule pills with dynamic Monet theming.
 - [x] **Device-Aware 50MP Resolution Gating**: **Resolved** — Preserved 50MP selection on Pro Pixel models (Pixel 8 Pro, 9 Pro, 7 Pro, etc.) while cleanly hiding the non-functional toggle on non-Pro Pixels to enforce stock 12MP with restored RAW+JPEG support.
-- [ ] **Camera Looks Viewfinder Preview**: Looks apply post-capture due to hardware ISP vendor tag requirements (`REQUEST_TOMTE_TYPE`) on older SoCs.
+- [x] **Camera Looks Viewfinder Preview**: **Resolved** — Real-time live viewfinder Look preview active across all supported Pixel devices.
 - [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
 
@@ -433,12 +408,7 @@ Motion Blur neural models rely on <code>edgetpu-custom-op-2</code> microcode run
 </p>
 </details>
 
-<details>
-<summary><b>Why don't Camera Looks preview live in the viewfinder before taking a photo?</b></summary>
-<p>
-On Pixel 11, real-time 60 fps viewfinder tone mapping is handled by a proprietary hardware ISP extension (<code>REQUEST_TOMTE_TYPE</code> vendor tag). Older Tensor generations (G1–G5) lack this hardware ISP hook in their camera HAL. Simulating 3D LUTs in software over the live viewfinder feed causes thermal throttling and frame drops. The backport executes Google's native Halide C++ pipeline (<code>tomte_tonemap.cc</code>) during HDR+ post-capture processing, guaranteeing a smooth viewfinder and pristine full-resolution output.
-</p>
-</details>
+
 
 <details>
 <summary><b>Will this replace or break my stock Google Camera?</b></summary>
