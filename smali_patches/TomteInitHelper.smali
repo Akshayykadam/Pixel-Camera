@@ -209,41 +209,15 @@
     :cond_not_null
     sget v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
 
-    const/4 v0, 0x2
+    const/4 v0, 0x1
 
-    if-ne v1, v0, :cond_chk_4
+    if-ne v1, v0, :cond_ret
 
-    return-void
-
-    :cond_chk_4
-    const/4 v0, 0x4
-
-    if-ne v1, v0, :cond_chk_14
-
-    return-void
-
-    :cond_chk_14
-    const/16 v0, 0xe
-
-    if-ne v1, v0, :cond_chk_15
-
-    return-void
-
-    :cond_chk_15
-    const/16 v0, 0xf
-
-    if-ne v1, v0, :cond_mode_ok
-
-    return-void
-
-    :cond_mode_ok
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
 
     move-result v0
 
-    if-ltz v0, :cond_ret
-
-    if-nez v0, :cond_active
+    if-gtz v0, :cond_active
 
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->hasActiveFineTuning()Z
 
@@ -251,33 +225,16 @@
 
     if-nez v1, :cond_active
 
+    :cond_ret
     return-void
 
     :cond_active
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteProPatcherLoader;->isLoaded()Z
-
-    move-result v1
-
-    if-nez v1, :cond_do_native
-
-    sget-object v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
-
-    if-eqz v1, :cond_do_native
-
-    :try_start_ensure_load
-    invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteProPatcherLoader;->load(Landroid/content/Context;)V
-    :try_end_ensure_load
-    .catch Ljava/lang/Throwable; {:try_start_ensure_load .. :try_end_ensure_load} :catch_ensure_load
-
-    :catch_ensure_load
-    :cond_do_native
     :try_start_0
     invoke-static {p0, v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeProcessHardwareBuffer(Landroid/hardware/HardwareBuffer;I)V
     :try_end_0
-    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_0
 
     :catch_0
-    :cond_ret
     return-void
 .end method
 
@@ -744,13 +701,11 @@
 
     if-nez v0, :cond_custom
 
-    # Default viewfinder usage: CPU_READ_OFTEN (0x2) | CPU_WRITE_OFTEN (0x20) | GPU_SAMPLED (0x100) | COMPOSER_OVERLAY (0x800)
     const-wide/16 v0, 0x922
 
     return-wide v0
 
     :cond_custom
-    # Ensure CPU_READ_OFTEN (0x2) and CPU_WRITE_OFTEN (0x20) are always included (0x22)
     const-wide/16 v0, 0x22
 
     or-long/2addr p0, v0
@@ -5283,7 +5238,7 @@
 
     :pswitch_3
     # Look 3: Shadows (deep moody shadows, cool shadow tone)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = pow(c, vec3(1.18));\n  c = clamp((c - 0.5) * 1.15 + 0.5, 0.0, 1.0);\n  c.b = clamp(c.b + (1.0 - l) * 0.04, 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = pow(c, vec3(1.18));\n  c = clamp((c - 0.5) * 1.15 + 0.5, 0.0, 1.0);\n  c.b = clamp(c.b + (1.0 - l) * 0.04, 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
 
     return-object v0
 
@@ -5331,13 +5286,13 @@
 
     :pswitch_11
     # Look 11: Editorial (high fashion contrast & punch, Kodachrome)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r = pow(c.r, 0.90);\n  c.g = pow(c.g, 1.02);\n  c.b = pow(c.b, 1.08);\n  c = clamp((c - 0.5) * 1.22 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.12), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r = pow(c.r, 0.90);\n  c.g = pow(c.g, 1.02);\n  c.b = pow(c.b, 1.08);\n  c = clamp((c - 0.5) * 1.22 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.12), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
 
     return-object v0
 
     :pswitch_12
     # Look 12: Velvet (rich deep velvety tones, vibrant saturation, Velvia)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.g = pow(c.g, 0.94);\n  c.b = pow(c.b, 0.92);\n  c = clamp((c - 0.5) * 1.18 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.38), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.g = pow(c.g, 0.94);\n  c.b = pow(c.b, 0.92);\n  c = clamp((c - 0.5) * 1.18 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.38), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
 
     return-object v0
 

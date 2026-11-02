@@ -2116,6 +2116,10 @@ def build_propatcher():
                     c_loader = re.sub(r'\.field private static final SO_BASE64:Ljava/lang/String; = "[^"]+"', f'.field private static final SO_BASE64:Ljava/lang/String; = "{so_b64}"', c_loader)
                     with open(loader_smali, "w", encoding="utf-8") as f_loader:
                         f_loader.write(c_loader)
+                    apktool_loader_smali = os.path.join(APKTOOL_DIR, "smali_classes4", "com", "google", "android", "patch", "cameralooks", "TomteProPatcherLoader.smali")
+                    if os.path.exists(apktool_loader_smali):
+                        with open(apktool_loader_smali, "w", encoding="utf-8") as f_apktool:
+                            f_apktool.write(c_loader)
                     print(f"    [+] Updated TomteProPatcherLoader.smali embedded SO_BASE64 ({so_size} bytes)")
             except Exception as e:
                 print(f"    [!] Note: could not update SO_BASE64 in TomteProPatcherLoader.smali: {e}")
