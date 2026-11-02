@@ -169,6 +169,14 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeApplyTuning(
             // Handle Sharpen & De-Ring assets
             if (strstr(name, "sharpen_")) {
                 patched_sharpen_files++;
+                int is_tele = (strstr(name, "tele") != NULL);
+                // Issue 11 fix: Telephoto optics (5x/10x periscope) require full unsharp masking
+                // to overcome aperture diffraction and optical softness. When edge control is lowered
+                // (Natural 0.5x or Soft 0.0x), exempt telephoto curves so telephoto keeps 100% acutance
+                // and stock de-ring suppression, while wide/ultrawide have edge halos eliminated.
+                float asset_sharpen_scale = is_tele ? fmaxf(1.0f, sharpenScale) : sharpenScale;
+                float asset_dering_scale  = is_tele ? 1.0f : (0.25f + 0.75f * sharpenScale);
+
                 size_t off = 0;
                 while (off + 5 <= entry->sz) {
                     uint8_t tag = s_backup[rel_offset + off];
@@ -176,7 +184,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeApplyTuning(
                         float orig_val;
                         memcpy(&orig_val, &s_backup[rel_offset + off + 1], sizeof(float));
                         if (orig_val >= 0.01f && orig_val <= 50.0f) {
-                            float new_val = orig_val * sharpenScale;
+                            float new_val = orig_val * asset_sharpen_scale;
                             memcpy((void*)(data_addr + off + 1), &new_val, sizeof(float));
                             patched_sharpen_floats++;
                         }
@@ -186,7 +194,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeApplyTuning(
                         memcpy(&orig_val, &s_backup[rel_offset + off + 1], sizeof(float));
                         if (orig_val >= 0.01f && orig_val <= 10.0f) {
                             // When soft (0.0x) or natural (0.5x), clamp overshoot to eliminate edge ringing
-                            float new_val = orig_val * (0.25f + 0.75f * sharpenScale);
+                            float new_val = orig_val * asset_dering_scale;
                             memcpy((void*)(data_addr + off + 1), &new_val, sizeof(float));
                             patched_dering_floats++;
                         }
@@ -591,9 +599,9 @@ static inline void lut_grade_channel_planar(uint8_t* data, uint32_t width, uint3
     lut_grade_y(data, width, height, stride, lut);
 }
 
-// Luminance-preserving color grading for RGBA frames with optional Film Grain
-static inline void lut_grade_rgba(uint8_t* data, uint32_t width, uint32_t height, uint32_t stride,
-                                  const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome) {
+// Luminance-preserving color grading for RGB (3 channels) or RGBA (4 channels) frames with optional Film Grain
+static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride,
+                                    const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome) {
     int s_q8 = (int)roundf(sat * 256.0f);
     int s_r = (int)roundf(shift_v * 1.402f);
     int s_g = (int)roundf(-0.344136f * shift_u - 0.714136f * shift_v);
@@ -606,7 +614,7 @@ static inline void lut_grade_rgba(uint8_t* data, uint32_t width, uint32_t height
 
         if (is_monochrome) {
             for (uint32_t x = 0; x < width; x++) {
-                uint8_t* pix = row + x * 4;
+                uint8_t* pix = row + x * channels;
                 uint8_t gray = (uint8_t)((pix[0]*77 + pix[1]*150 + pix[2]*29) >> 8);
                 uint8_t out = lut_y[gray];
                 if (grain_on) {
@@ -618,7 +626,7 @@ static inline void lut_grade_rgba(uint8_t* data, uint32_t width, uint32_t height
             }
         } else {
             for (uint32_t x = 0; x < width; x++) {
-                uint8_t* pix = row + x * 4;
+                uint8_t* pix = row + x * channels;
                 int r = pix[0], g = pix[1], b = pix[2];
                 int luma = (r * 77 + g * 150 + b * 29) >> 8;
                 int graded_luma = lut_y[luma];
@@ -636,6 +644,11 @@ static inline void lut_grade_rgba(uint8_t* data, uint32_t width, uint32_t height
             }
         }
     }
+}
+
+static inline void lut_grade_rgba(uint8_t* data, uint32_t width, uint32_t height, uint32_t stride,
+                                  const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome) {
+    lut_grade_raster(data, width, height, 4, stride, lut_y, sat, shift_u, shift_v, is_monochrome);
 }
 
 JNIEXPORT void JNICALL
@@ -799,6 +812,49 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
     }
 
     AHardwareBuffer_unlock(buffer, NULL);
+}
+
+JNIEXPORT void JNICALL
+Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterImage(
+    JNIEnv *env, jclass clazz, jlong dataPtr, jint width, jint height, jint channels, jint stride, jint lookId) {
+    (void)env; (void)clazz;
+    if (dataPtr == 0 || width <= 0 || height <= 0 || (channels != 3 && channels != 4) || stride <= 0) {
+        LOGE("nativeProcessRasterImage: invalid arguments (ptr=0x%lx, w=%d, h=%d, ch=%d, stride=%d)",
+             (unsigned long)dataPtr, width, height, channels, stride);
+        return;
+    }
+
+    if (lookId < 0 || lookId > 12) lookId = 0;
+
+    int has_fine_tuning = (fabsf(s_ft_contrast) > 0.01f ||
+                           fabsf(s_ft_shadows) > 0.01f ||
+                           fabsf(s_ft_highlights) > 0.01f ||
+                           fabsf(s_ft_vibrance) > 0.01f ||
+                           fabsf(s_ft_tint) > 0.01f);
+
+    if (lookId == 0 && !has_fine_tuning) {
+        return;
+    }
+
+    if (!s_luts_initialized) {
+        init_look_luts();
+    }
+
+    update_active_luts(lookId);
+
+    const uint8_t* lut_y = s_active_lut_y;
+    const LookProfile* prof = (lookId >= 0 && lookId < 13) ? &s_look_profiles[lookId] : &s_look_profiles[0];
+    int is_monochrome = prof->is_monochrome;
+
+    float sat = s_active_saturation;
+    float shift_u = s_active_shift_u;
+    float shift_v = s_active_shift_v;
+
+    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, U_shift=%.1f, V_shift=%.1f",
+         width, height, channels, stride, lookId, is_monochrome, sat, shift_u, shift_v);
+
+    lut_grade_raster((uint8_t*)dataPtr, (uint32_t)width, (uint32_t)height, (uint32_t)channels, (uint32_t)stride,
+                     lut_y, sat, shift_u, shift_v, is_monochrome);
 }
 
 

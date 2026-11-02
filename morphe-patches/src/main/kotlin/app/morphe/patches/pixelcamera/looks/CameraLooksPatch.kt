@@ -394,6 +394,19 @@ val cameraLooksPatch = bytecodePatch(
                 it.parameterTypes[1].contains("ShotMetadata")
             }?.let { method ->
                 val impl = method.implementation ?: return@let
+
+                // Hook processInterleavedImage at entry of method a for still photo look & warmth/vibrance grading
+                val hookProcessSmali = """
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V
+                """.trimIndent()
+                try {
+                    val processIns = hookProcessSmali.toInstructions(method)
+                    var p = 0
+                    for (ins in processIns) {
+                        impl.addInstruction(p++, ins)
+                    }
+                } catch (_: Throwable) {}
+
                 val finalizerIdx = impl.instructions.indexOfFirst {
                     (it as? ReferenceInstruction)?.reference?.toString()?.contains("applyTomteImageFinalizer") == true
                 }

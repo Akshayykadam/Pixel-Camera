@@ -112,6 +112,9 @@
 .method public static native nativeProcessHardwareBuffer(Landroid/hardware/HardwareBuffer;I)V
 .end method
 
+.method public static native nativeProcessRasterImage(JIIIII)V
+.end method
+
 .method public static getSelectedLookId()I
     .locals 3
 
@@ -274,6 +277,145 @@
     .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
 
     :catch_0
+    :cond_ret
+    return-void
+.end method
+
+.method public static processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V
+    .locals 10
+
+    if-nez p0, :cond_start
+
+    return-void
+
+    :cond_start
+    :try_start_proc
+    # 1. Quick check: Is a look active or fine-tuning set?
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
+
+    move-result v6
+
+    if-nez v6, :cond_check_ft
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->hasActiveFineTuning()Z
+
+    move-result v0
+
+    if-nez v0, :cond_check_ft
+
+    return-void
+
+    :cond_check_ft
+    # 2. Check mode: Video = 2, Photo Sphere/Panorama = 4, Landscape = 14, Action Pan = 15
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v1, 0x2
+
+    if-ne v0, v1, :cond_chk_4
+
+    return-void
+
+    :cond_chk_4
+    const/4 v1, 0x4
+
+    if-ne v0, v1, :cond_chk_14
+
+    return-void
+
+    :cond_chk_14
+    const/16 v1, 0xe
+
+    if-ne v0, v1, :cond_chk_15
+
+    return-void
+
+    :cond_chk_15
+    const/16 v1, 0xf
+
+    if-ne v0, v1, :cond_load
+
+    return-void
+
+    :cond_load
+    # 3. Ensure native library loaded
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteProPatcherLoader;->isLoaded()Z
+
+    move-result v0
+
+    if-nez v0, :cond_get_view
+
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
+
+    if-eqz v0, :cond_get_view
+
+    :try_start_ensure_load
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProPatcherLoader;->load(Landroid/content/Context;)V
+    :try_end_ensure_load
+    .catch Ljava/lang/Throwable; {:try_start_ensure_load .. :try_end_ensure_load} :catch_ensure_load
+
+    :catch_ensure_load
+    :cond_get_view
+    # 4. Extract read view and dimensions
+    invoke-virtual {p0}, Lcom/google/googlex/gcam/InterleavedWriteViewU8;->b()Lcom/google/googlex/gcam/InterleavedReadViewU8;
+
+    move-result-object v7
+
+    if-nez v7, :cond_extract
+
+    return-void
+
+    :cond_extract
+    :try_start_view
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->d()I
+
+    move-result v2
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->c()I
+
+    move-result v3
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->b()I
+
+    move-result v4
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->f()I
+
+    move-result v5
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->g()Laaai;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_free_view
+
+    iget-wide v0, v0, Laaai;->a:J
+
+    const-wide/16 v8, 0x0
+
+    cmp-long v8, v0, v8
+
+    if-eqz v8, :cond_free_view
+
+    invoke-static/range {v0 .. v6}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeProcessRasterImage(JIIIII)V
+
+    :cond_free_view
+    :try_end_view
+    .catchall {:try_start_view .. :try_end_view} :catchall_view
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->h()V
+
+    goto :cond_ret
+
+    :catchall_view
+    move-exception v0
+
+    invoke-virtual {v7}, Lcom/google/googlex/gcam/InterleavedReadViewU8;->h()V
+
+    throw v0
+    :try_end_proc
+    .catch Ljava/lang/Throwable; {:try_start_proc .. :try_end_proc} :catch_proc
+
+    :catch_proc
     :cond_ret
     return-void
 .end method
@@ -1618,7 +1760,7 @@
 
     :catch_jq
     :cond_default
-    const/16 v0, 0x64
+    const/16 v0, 0x5f
 
     return v0
 .end method

@@ -4017,6 +4017,18 @@ def patch_ndf_smali():
     with open(ndf_path, "r", encoding="utf-8") as f:
         content = f.read()
 
+    # Hook processInterleavedImage at method entry for still photo look & warmth/vibrance grading
+    if "invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V" not in content:
+        method_target = """.method public final a(Lcom/google/googlex/gcam/InterleavedWriteViewU8;Lcom/google/googlex/gcam/ShotMetadata;)V
+    .locals 9"""
+        method_repl = """.method public final a(Lcom/google/googlex/gcam/InterleavedWriteViewU8;Lcom/google/googlex/gcam/ShotMetadata;)V
+    .locals 9
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V"""
+        if method_target in content:
+            content = content.replace(method_target, method_repl)
+            print("    [+] ndf.smali: TomteInitHelper.processInterleavedImage hooked for still photo grading.")
+
     # Hook initTomteGrain before applyTomteImageFinalizer
     finalizer_call_target = """    invoke-static {p0}, Lcom/google/googlex/gcam/Gcam;->a(Lcom/google/googlex/gcam/Gcam;)J
 
@@ -4034,9 +4046,10 @@ def patch_ndf_smali():
 
     if finalizer_call_target in content:
         content = content.replace(finalizer_call_target, finalizer_call_repl)
-        with open(ndf_path, "w", encoding="utf-8") as f:
-            f.write(content)
         print("    [+] ndf.smali: TomteInitHelper.initTomteGrain hooked before applyTomteImageFinalizer.")
+
+    with open(ndf_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 def patch_jex_smali():
     print("[*] Patching jex.smali (Bypass catshark check to provide selected Look to Lost.p, was ioy)...")

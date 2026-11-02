@@ -2532,7 +2532,7 @@
 
     if-eqz v0, :cond_check_raw
 
-    const-string p0, "100"
+    const-string p0, "95"
 
     return-object p0
 

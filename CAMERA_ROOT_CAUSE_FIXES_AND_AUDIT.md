@@ -1812,5 +1812,64 @@ Logcat examination of the active capture session revealed:
 4. **Updated Build Script Pipeline [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py):**
    - Synchronized all `plh.smali` and `pbe.smali` patching routines to enforce `getCamera2NoiseReductionMode()` and `getCamera2EdgeMode()`.
 
+---
+
+## 15. Issue 7: Color Warmth & Vibrance Sliders Have No Effect on Captured Photos
+
+### 15.1 Symptoms
+- Adjustments to color warmth, tint, and vibrance sliders in the Looks / Pro settings UI produced visible real-time grading in the live viewfinder preview.
+- However, final saved JPEG/DNG photos showed no color warmth or vibrance shifts, appearing identical to default stock rendering.
+
+### 15.2 Root Cause
+Viewfinder preview buffers operate as `HardwareBuffer` objects processed via `nativeProcessHardwareBuffer` in `libpropatcher.so`. In contrast, Gcam still capture frames follow an offline processing pipeline where final raster images are converted into `InterleavedWriteViewU8` objects in `ndf.smali` (`muh.smali`) prior to JPEG compression. Google Camera's native `applyTomteImageFinalizer` routine only injected procedural film grain based on `ShotParams.tomte_type` and did not apply Look profile sigmoid tone curves or fine-tuning slider parameters (contrast, shadows, highlights, vibrance, warmth/tint).
+
+### 15.3 Technical Implementation
+1. **Universal Raster Image Grading Engine:**
+   - Implemented `Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterImage` in [`jni/propatcher/propatcher.c`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/jni/propatcher/propatcher.c).
+   - Dynamically handles 3-channel RGB and 4-channel RGBA rasters, applying active sigmoid Luma tone curves, saturation scaling, and warm/cool tint shifts in-place.
+   - Evaluates neutral state: if Look ID is 0 ("Original") and all fine-tuning sliders are 0.0, the function is a pure 1:1 passthrough with zero computation overhead.
+2. **Smali Bridge [`TomteInitHelper.processInterleavedImage`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali):**
+   - Safely extracts raw raster memory pointer, width, height, channels, and stride from Gcam's `InterleavedReadViewU8`.
+   - Dispatches memory directly to `nativeProcessRasterImage`, then deterministically frees temporary SWIG wrappers to prevent native memory leaks.
+3. **Capture Pipeline Finalizer Hook [`ndf.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/ndf.smali):**
+   - Hooked `TomteInitHelper.processInterleavedImage(p1)` at the entry of `ndf.a(InterleavedWriteViewU8, ShotMetadata)` before JPEG encoding (`JpgHelper.a`), ensuring all captured photos receive identical photographic grading to the live viewfinder.
+
+---
+
+## 16. Issue 10: Default JPEG Quality Set Too High (File Size Bloat)
+
+### 16.1 Symptoms
+- Captured JPEG photos averaged 15–25 MB+ (or ~9.3 MB at 12.5 MP), consuming excessive device storage and slowing sharing.
+
+### 16.2 Root Cause
+The `pref_camera_jpeg_quality_key` setting was configured with `android:defaultValue="100"` in preferences XML and `TomteInitHelper.getJpegQuality()` defaulted to `100` (`0x64`). A quality factor of 100 disables discrete cosine transform (DCT) quantization tables, multiplying file size by 2–3x for imperceptible fine texture differences.
+
+### 16.3 Technical Implementation
+1. **Stock Default Restoration (95%):**
+   - Updated factory defaults from `100` to `95` (`0x5f`) in [`camera_gm3_preferences.xml`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/res/xml/camera_gm3_preferences.xml), [`camera_preferences.xml`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/res/xml/camera_preferences.xml), and [`PixelCameraPatchUtils.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/PixelCameraPatchUtils.kt).
+   - Updated `:cond_default` in `TomteInitHelper.getJpegQuality()` to return `95` (`0x5f`).
+   - Updated `TomteProSettingsPanel.getDefaultValueForKey` for `pref_camera_jpeg_quality_key` to `"95"`.
+2. **User Flexibility Preserved:**
+   - 98% (High Quality) and 100% (Maximum Quality) remain selectable in Camera Settings for users requiring zero quantization.
+   - Default capture file size dropped by ~50% (from ~9.3 MB to ~4.6 MB for 12.5 MP captures), restoring stock Google Camera storage efficiency.
+
+---
+
+## 17. Issue 11: Edge Control Halo Elimination Causes Overly Soft Telephoto Shots
+
+### 17.1 Symptoms
+- Setting Edge Sharpness to "Natural" (0.5x) or "Soft" (0.0x) eliminated harsh halo rings on wide-angle shots, but made 5x/10x telephoto shots noticeably soft and lacking in microcontrast.
+
+### 17.2 Root Cause
+In `libpropatcher.so`, `sharpenScale` and halo suppression de-ring clamping were applied globally to all 70 sharpening curve assets in `libgcastartup.so`. Telephoto periscope optical systems have smaller entrance pupils (f/2.8–f/3.4) and higher diffraction limits; cutting telephoto sharpening gains in half or clamping de-ring halos removed necessary acutance compensation required for distant subjects.
+
+### 17.3 Technical Implementation
+1. **Per-Lens Asset Identification:**
+   - Identified telephoto tuning assets via `int is_tele = (strstr(name, "tele") != NULL);` covering all Pixel periscope profiles (`sharpen_p21_rear_tele`, `sharpen_p22_rear_tele_binned`, `sharpen_p22_rear_tele_rm`, `sharpen_v1_rear_tele`, `sharpen_v2_rear_tele`).
+2. **Telephoto Acutance Shield:**
+   - Telephoto curves enforce `asset_sharpen_scale = is_tele ? fmaxf(1.0f, sharpenScale) : sharpenScale;` and `asset_dering_scale = is_tele ? 1.0f : (0.25f + 0.75f * sharpenScale);`.
+   - Wide and Ultra-wide lenses receive full halo elimination and filmic roll-off, while the Telephoto lens retains 100% stock unsharp masking and microcontrast.
+
+
 
 
