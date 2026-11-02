@@ -1713,9 +1713,126 @@
     return v0
 .end method
 
+.method public static isPixel10Family()Z
+    .locals 3
+
+    :try_start_p10
+    sget-object v0, Landroid/os/Build;->MODEL:Ljava/lang/String;
+
+    if-eqz v0, :cond_check_p10_dev
+
+    sget-object v1, Ljava/util/Locale;->ROOT:Ljava/util/Locale;
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->toLowerCase(Ljava/util/Locale;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "pixel 10"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_p10_dev
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_p10_dev
+    sget-object v0, Landroid/os/Build;->DEVICE:Ljava/lang/String;
+
+    if-eqz v0, :cond_check_p10_board
+
+    sget-object v1, Ljava/util/Locale;->ROOT:Ljava/util/Locale;
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->toLowerCase(Ljava/util/Locale;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "frankel"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_is_p10
+
+    const-string v1, "blazer"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_is_p10
+
+    const-string v1, "mustang"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_is_p10
+
+    const-string v1, "rango"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_p10_board
+
+    :cond_is_p10
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_p10_board
+    sget-object v0, Landroid/os/Build;->HARDWARE:Ljava/lang/String;
+
+    if-eqz v0, :cond_ret_not_p10
+
+    sget-object v1, Ljava/util/Locale;->ROOT:Ljava/util/Locale;
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->toLowerCase(Ljava/util/Locale;)Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "laguna"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+    :try_end_p10
+    .catch Ljava/lang/Throwable; {:try_start_p10 .. :try_end_p10} :catch_p10
+
+    if-eqz v0, :cond_ret_not_p10
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :catch_p10
+    :cond_ret_not_p10
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
 .method public static filterPecanForce(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1733,6 +1850,17 @@
 .method public static filterPecanModelType(I)I
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1762,9 +1890,43 @@
 
     cmp-long v4, v0, v2
 
-    if-nez v4, :cond_check_denoise
+    if-nez v4, :cond_check_p10
 
     return-void
+
+    :cond_check_p10
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_check_denoise
+
+    # On Pixel 10: Disable all EdgeTPU ML denoisers to prevent errno -8 EdgeTPU permission blocks & pipeline stalls
+    const/4 v3, 0x0
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_pecan_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_pecan_model_type_set(JLcom/google/googlex/gcam/ShotParams;I)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_walnut_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_chess_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_chess_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_bento_edamame_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_almond_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_strengthen_denoise_for_sky_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    goto :cond_check_sharpen
 
     :cond_check_denoise
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
@@ -1811,6 +1973,17 @@
 .method public static filterWalnutEnabled(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1828,6 +2001,17 @@
 .method public static filterWalnutOption(I)I
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1845,6 +2029,17 @@
 .method public static filterChessEnabled(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1862,6 +2057,17 @@
 .method public static filterEdamameEnabled(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1879,6 +2085,17 @@
 .method public static filterAlmondEnabled(Z)Z
     .locals 1
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1894,6 +2111,17 @@
 .method public static filterMochiEnabled(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
@@ -1911,6 +2139,17 @@
 .method public static filterSkyDenoise(Z)Z
     .locals 2
 
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mode
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0

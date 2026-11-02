@@ -9704,8 +9704,10 @@ def copy_to_desktop(signed_apk):
         shutil.copy2(signed_apk, dest_apk)
         dest_v111 = os.path.join(desktop_dir, "PixelCamera-1.1.1.apk")
         shutil.copy2(signed_apk, dest_v111)
+        dest_sf = os.path.join(desktop_dir, "Camera-v11.1.040.982810059.19-patches-v1.1.1.apk")
+        shutil.copy2(signed_apk, dest_sf)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_v111} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk}, {dest_v111}, and {dest_sf} ({size_mb:.2f} MB)")
 
         # Also copy the Morphe .mpp patch file to Desktop
         mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.1.mpp")
@@ -10705,6 +10707,146 @@ def patch_shutter_readiness():
         elif "goto :cond_3" in c and "Take picture was invoked" in c:
             print("    [+] pkj.smali: Picture taker timeout abort already bypassed.")
 
+def patch_capture_stalling_fixes():
+    print("[*] Patching capture stalling fixes (pxd metering timeout, pxt timed frame completion, pxe abort guard)...")
+
+    # 1. pxd.smali: Increase metering frame timeout from 150ms (0x96) to 2000ms (0x7d0)
+    pxd_path = os.path.join(APKTOOL_DIR, "smali", "pxd.smali")
+    if os.path.exists(pxd_path):
+        with open(pxd_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_pxd = "const-wide/16 v6, 0x96"
+        repl_pxd = "const-wide/16 v6, 0x7d0"
+        if target_pxd in content:
+            content = content.replace(target_pxd, repl_pxd)
+            with open(pxd_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] pxd.smali: Metering frame timeout increased to 2000ms.")
+        elif repl_pxd in content:
+            print("    [+] pxd.smali: 2000ms metering timeout already present.")
+
+    # 2. pxt.smali: Replace unbounded Lucx->er wait with timed wait Lucx->es(2000ms), catch TimeoutException, conditional interrupt
+    pxt_path = os.path.join(APKTOOL_DIR, "smali", "pxt.smali")
+    if os.path.exists(pxt_path):
+        with open(pxt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_pxt_er = """    invoke-interface/range {p1 .. p1}, Luzs;->b()Luzw;
+
+    invoke-static/range {p1 .. p1}, Lucx;->er(Luzs;)V
+
+    invoke-interface/range {p1 .. p1}, Luzs;->b()Luzw;
+    :try_end_0
+    .catch Ljava/lang/InterruptedException; {:try_start_0 .. :try_end_0} :catch_1
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0"""
+
+        repl_pxt_es = """    invoke-interface/range {p1 .. p1}, Luzs;->b()Luzw;
+
+    sget-object v2, Ljava/util/concurrent/TimeUnit;->MILLISECONDS:Ljava/util/concurrent/TimeUnit;
+
+    const-wide/16 v6, 0x7d0
+
+    invoke-static {v5, v6, v7, v2}, Lucx;->es(Luzs;JLjava/util/concurrent/TimeUnit;)V
+
+    invoke-interface/range {p1 .. p1}, Luzs;->b()Luzw;
+    :try_end_0
+    .catch Ljava/lang/InterruptedException; {:try_start_0 .. :try_end_0} :catch_1
+    .catch Ljava/util/concurrent/TimeoutException; {:try_start_0 .. :try_end_0} :catch_1
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0"""
+
+        if "move-object/from16 v5, p1" not in content[:content.find(":try_start_0")]:
+            target_entry = """    move-object/from16 v1, p0
+
+    move-object/from16 v3, p2
+
+    iget-object v0, v1, Lpxt;->h:Luxt;"""
+            repl_entry = """    move-object/from16 v1, p0
+
+    move-object/from16 v3, p2
+
+    move-object/from16 v5, p1
+
+    iget-object v0, v1, Lpxt;->h:Luxt;"""
+            if target_entry in content:
+                content = content.replace(target_entry, repl_entry)
+
+        if target_pxt_er in content:
+            content = content.replace(target_pxt_er, repl_pxt_es)
+
+        target_catch = """    :catch_1
+    move-exception v0
+
+    move-object/from16 v5, p1"""
+        repl_catch = """    :catch_1
+    move-exception v0
+
+    move-object v8, v0
+
+    move-object/from16 v5, p1"""
+        if target_catch in content and "move-object v8, v0" not in content:
+            content = content.replace(target_catch, repl_catch)
+
+        target_interrupt = """    invoke-static {}, Ljava/lang/Thread;->currentThread()Ljava/lang/Thread;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/Thread;->interrupt()V
+
+    invoke-interface {v5}, Luzs;->close()V"""
+
+        repl_interrupt = """    instance-of v8, v8, Ljava/lang/InterruptedException;
+
+    if-eqz v8, :cond_pxt_skip_interrupt
+
+    invoke-static {}, Ljava/lang/Thread;->currentThread()Ljava/lang/Thread;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/Thread;->interrupt()V
+
+    :cond_pxt_skip_interrupt
+    invoke-interface {v5}, Luzs;->close()V"""
+
+        if target_interrupt in content:
+            content = content.replace(target_interrupt, repl_interrupt)
+
+        with open(pxt_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] pxt.smali: Replaced unbounded frame wait with 2000ms timed wait + safe timeout handling.")
+
+    # 3. pxe.smali: Guard cond_13 branch against metering failure (v9 == 0)
+    pxe_path = os.path.join(APKTOOL_DIR, "smali", "pxe.smali")
+    if os.path.exists(pxe_path):
+        with open(pxe_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_pxe = """    invoke-interface {v4}, Ljava/util/List;->size()I
+
+    move-result v28
+
+    if-nez v28, :cond_13
+
+    invoke-virtual {v3, v9, v6, v5, v7}, Lpxd;->d(ZLpyh;Luec;Lmwd;)Ljava/util/List;"""
+
+        repl_pxe = """    if-eqz v9, :cond_metering_failed
+
+    invoke-interface {v4}, Ljava/util/List;->size()I
+
+    move-result v28
+
+    if-nez v28, :cond_13
+
+    :cond_metering_failed
+    invoke-virtual {v3, v9, v6, v5, v7}, Lpxd;->d(ZLpyh;Luec;Lmwd;)Ljava/util/List;"""
+
+        if target_pxe in content:
+            content = content.replace(target_pxe, repl_pxe)
+            with open(pxe_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] pxe.smali: Guarded cond_13 jump against metering frame failure.")
+        elif "cond_metering_failed" in content:
+            print("    [+] pxe.smali: Metering failure guard already present.")
+
 def patch_gei_smali():
     print("[*] Patching gei.smali and fue.smali (Pixel 10 / P25 / Buenos missing model & asset sanitization)...")
     gei_path = os.path.join(APKTOOL_DIR, "smali", "gei.smali")
@@ -10839,6 +10981,7 @@ def main():
     patch_zoom_controllers()
     patch_telephoto_portrait_5x()
     patch_shutter_readiness()
+    patch_capture_stalling_fixes()
     patch_mqs_smali()
     patch_hpq_smali()
     patch_mkm_smali()
