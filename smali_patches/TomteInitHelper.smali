@@ -2299,6 +2299,60 @@
     return v0
 .end method
 
+.method public static getCamera2NoiseReductionMode()I
+    .locals 2
+
+    :try_start_c2nr
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+
+    move-result v0
+
+    if-nez v0, :cond_c2nr_fast
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_c2nr_fast
+    const/4 v0, 0x1
+
+    return v0
+    :try_end_c2nr
+    .catch Ljava/lang/Throwable; {:try_start_c2nr .. :try_end_c2nr} :catch_c2nr
+
+    :catch_c2nr
+    const/4 v0, 0x1
+
+    return v0
+.end method
+
+.method public static getCamera2EdgeMode()I
+    .locals 2
+
+    :try_start_c2em
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEdgeMode()I
+
+    move-result v0
+
+    if-nez v0, :cond_c2em_fast
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_c2em_fast
+    const/4 v0, 0x1
+
+    return v0
+    :try_end_c2em
+    .catch Ljava/lang/Throwable; {:try_start_c2em .. :try_end_c2em} :catch_c2em
+
+    :catch_c2em
+    const/4 v0, 0x1
+
+    return v0
+.end method
+
 .method public static getSharpnessFactor()F
     .locals 2
 
@@ -2700,7 +2754,7 @@
 
     sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
-    if-eqz v0, :cond_0
+    if-lez v0, :cond_0
 
     .line 53
     sget p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I

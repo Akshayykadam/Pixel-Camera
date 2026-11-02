@@ -6794,7 +6794,15 @@ def patch_brightness_shadows_controllers():
         with open(plh_path, "w", encoding="utf-8") as f:
             f.write(plh_c)
 
-        if "TomteInitHelper;->getEdgeMode" not in plh_c and "TomteInitHelper;->getNoiseReductionMode" in plh_c:
+        # Ensure Camera2 continuous requests in plh.smali use getCamera2NoiseReductionMode and getCamera2EdgeMode
+        if "TomteInitHelper;->getNoiseReductionMode" in plh_c:
+            plh_c = plh_c.replace("TomteInitHelper;->getNoiseReductionMode", "TomteInitHelper;->getCamera2NoiseReductionMode")
+            print("    [+] plh.smali: Updated to TomteInitHelper.getCamera2NoiseReductionMode().")
+        if "TomteInitHelper;->getEdgeMode" in plh_c:
+            plh_c = plh_c.replace("TomteInitHelper;->getEdgeMode", "TomteInitHelper;->getCamera2EdgeMode")
+            print("    [+] plh.smali: Updated to TomteInitHelper.getCamera2EdgeMode().")
+
+        if "TomteInitHelper;->getCamera2EdgeMode" not in plh_c and "TomteInitHelper;->getCamera2NoiseReductionMode" in plh_c:
             edge_target = """    move-result-object v8
 
     sget-object v3, Ltpb;->a:Landroid/hardware/camera2/CaptureRequest$Key;
@@ -6808,7 +6816,7 @@ def patch_brightness_shadows_controllers():
     invoke-direct {v12, v4, v8}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V"""
             edge_repl = """    move-result-object v8
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEdgeMode()I
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getCamera2EdgeMode()I
 
     move-result v7
 
@@ -6841,11 +6849,10 @@ def patch_brightness_shadows_controllers():
                 plh_c = plh_c.replace(edge_target, edge_repl)
             if cond_a_target in plh_c:
                 plh_c = plh_c.replace(cond_a_target, cond_a_repl)
-            with open(plh_path, "w", encoding="utf-8") as f:
-                f.write(plh_c)
-            print("    [+] plh.smali: EDGE_MODE hooked to TomteInitHelper.getEdgeMode().")
-        else:
-            print("    [+] plh.smali: NOISE_REDUCTION_MODE and EDGE_MODE already hooked.")
+            print("    [+] plh.smali: EDGE_MODE hooked to TomteInitHelper.getCamera2EdgeMode().")
+
+        with open(plh_path, "w", encoding="utf-8") as f:
+            f.write(plh_c)
 
     # 6. Patch pin.smali: Bypass jsn fallback overwrite loop so dual-EV settings persist
     pin_path = os.path.join(APKTOOL_DIR, "smali", "pin.smali")
@@ -10158,12 +10165,12 @@ def patch_image_quality_preferences():
     const/4 v0, 0x1"""
         pbe_noise_repl = """    sget-object p0, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getCamera2NoiseReductionMode()I
 
     move-result v0"""
         if pbe_noise_target in content:
             content = content.replace(pbe_noise_target, pbe_noise_repl)
-            print("    [+] pbe.smali: NOISE_REDUCTION_MODE hooked with TomteInitHelper.getNoiseReductionMode().")
+            print("    [+] pbe.smali: NOISE_REDUCTION_MODE hooked with TomteInitHelper.getCamera2NoiseReductionMode().")
 
         with open(pbe_path, "w", encoding="utf-8") as f:
             f.write(content)

@@ -147,6 +147,16 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeApplyTuning(
     uintptr_t tuning_start = base + TUNING_START_OFFSET;
     uintptr_t tuning_end = tuning_start + TUNING_SIZE;
 
+    // Standard mode (1.00x sharpen & stock denoise mode 2): directly restore 100% bit-for-bit stock curves
+    if (fabsf(sharpenScale - 1.0f) < 0.001f && denoiseMode == 2) {
+        if (s_backup_initialized) {
+            memcpy((void*)tuning_start, s_backup, TUNING_SIZE);
+            LOGI("Dynamic Tuning Applied: Standard Mode - Restored 100%% stock tuning curves bit-for-bit from backup buffer (Sharpen=1.00x, Denoise=Stock)");
+        }
+        mprotect((void*)page_start, protect_len, PROT_READ);
+        return;
+    }
+
     for (uintptr_t toc_ptr = base + TOC_START_OFFSET; toc_ptr < base + TOC_END_OFFSET; toc_ptr += sizeof(TocEntry)) {
         TocEntry* entry = (TocEntry*)toc_ptr;
         uintptr_t data_addr = (uintptr_t)entry->p_data;

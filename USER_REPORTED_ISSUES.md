@@ -44,29 +44,45 @@ This document tracks bugs, image tuning observations, and feature requests repor
 * **Cause:** Cloned/third-party app status causes Android to display the full privacy chip expansion animation, combined with a brief delay in applying full-screen window insets.
 * **Planned Action:** Enforce immediate immersive full-screen window flags (`WindowInsetsControllerCompat`) during Activity creation to hide the status bar before controls render.
 
-### 7. Prebuilt Standalone APK Fails to Install on Pixel 10 Pro
-* **Issue:** [#56](https://github.com/Akshayykadam/Pixel-Camera/issues/56)
-* **Reporter:** `@hubertmeier`
-* **Description:** The provided prebuilt APK cannot be installed on Pixel 10 Pro due to package signature conflicts with the stock camera (whereas the Morphe-built clone `.morphe` installs cleanly).
-* **Planned Action:** Ensure all prebuilt standalone releases use the cloned package ID (`com.google.android.GoogleCamera.morphe`) and valid signing keys.
+---
+
+### 7. Color Warmth & Vibrance Sliders Have No Effect on Captured Photos
+* **Issue:** User Feedback (Issue [#52](https://github.com/Akshayykadam/Pixel-Camera/issues/52) / Testing)
+* **Reporter:** User testing
+* **Description:** Color changes and styles are visible in the live viewfinder preview, but the actual saved photos show no color warmth/vibrance changes. The color-related adjustment sliders have no effect on the final photo.
+* **Cause:** Look fine-tuning parameters and color adjustment sliders are hooked into the viewfinder GLSL shader but not properly bound to the native `ShotParams` / `ApplyTomteImageFinalizer` offline processing pipeline.
+* **Planned Action:** Connect the warmth, vibrance, and look fine-tuning slider values to the native capture parameters so adjustments apply to saved photos.
 
 ---
 
-## ⚙️ Image Tuning & Usability Issues
+## ⚙️ Performance, Usability & Image Tuning Issues
 
-### 8. Default JPEG Quality Set Too High (File Size Bloat)
+### 8. Phone Overheating During Camera Operation
+* **Issue:** User Feedback (Issue [#52](https://github.com/Akshayykadam/Pixel-Camera/issues/52) / Testing)
+* **Reporter:** User testing
+* **Description:** The phone heats up noticeably during camera use even when JPEG compression quality is lowered to 95%.
+* **Cause:** Heavy continuous per-frame GLSL fragment shader execution on high-resolution preview buffers, combined with 100% max display backlight and background post-processing services.
+* **Planned Action:** Optimize OpenGL fragment shaders (reduce unnecessary instructions, use `lowp`/`mediump` precision), throttle shader overhead, and review display backlight enforcement.
+
+### 9. Viewfinder Preview Lag / Stutter
+* **Issue:** User Feedback (Issue [#52](https://github.com/Akshayykadam/Pixel-Camera/issues/52) / Testing)
+* **Reporter:** User testing
+* **Description:** The live viewfinder preview experiences stutter/frame drops when Look shaders are active.
+* **Planned Action:** Profile and optimize GLSL shader compilation and execution in `wlo.c` / `TomteInitHelper` to maintain smooth 60 FPS playback.
+
+### 10. Default JPEG Quality Set Too High (File Size Bloat)
 * **Issue:** [#56](https://github.com/Akshayykadam/Pixel-Camera/issues/56)
 * **Reporter:** `@hubertmeier`
 * **Description:** Out-of-the-box JPEG quality defaults to 100%, causing excessively large file sizes (15–25MB+) for everyday users.
 * **Planned Action:** Change initial factory default to stock **95%**, while keeping 98% and 100% available in Settings.
 
-### 9. Edge Control Halo Elimination Causes Overly Soft Telephoto Shots
+### 11. Edge Control Halo Elimination Causes Overly Soft Telephoto Shots
 * **Issue:** [#56](https://github.com/Akshayykadam/Pixel-Camera/issues/56)
 * **Reporter:** `@hubertmeier`
 * **Description:** Lowering edge control to remove halo rings significantly reduces microcontrast, making the telephoto lens look overly soft.
 * **Planned Action:** Explore per-lens sharpness profile tuning so telephoto retains acutance while main camera avoids halos.
 
-### 10. Elevated Shadow Noise on Pixel 10 Pro
+### 12. Elevated Shadow Noise on Pixel 10 Pro
 * **Issue:** [#56](https://github.com/Akshayykadam/Pixel-Camera/issues/56)
 * **Reporter:** `@hubertmeier`
 * **Description:** Pixel 10 Pro exhibits more noise in shadow regions compared to Pixel 8 Pro due to sensor DCG gain switching and bracketing differences.
@@ -76,14 +92,21 @@ This document tracks bugs, image tuning observations, and feature requests repor
 
 ## 💡 Feature Requests & Inquiries
 
-### 11. 10-Step Noise Reduction & Independent Luma/Chroma Control
+### 13. 10-Step Noise Reduction & Independent Luma/Chroma Control
 * **Issue:** [#56](https://github.com/Akshayykadam/Pixel-Camera/issues/56)
 * **Reporter:** `@hubertmeier`
 * **Description:** Offer a granular 10-step scale (`0.0` to `1.0` in `0.1` increments) instead of 3 coarse presets, plus separate controls for chrominance vs. luminance noise.
 * **Planned Action:** Investigate hooking Bayer denoise multipliers directly in Gcam's native pipeline.
 
-### 12. 50MP Panoramic Mode Feasibility
-* **Issue:** [#58](https://github.com/Akshayykadam/Pixel-Camera/issues/58)
-* **Reporter:** `@hubertmeier`
-* **Description:** Inquiry on whether full 50MP streaming capture can be used in Panorama mode.
-* **Status:** Hardware & memory streaming limits prevent real-time 50MP raw frames during sweep; exploring higher resolution input stream buffers (4K) to maximize stitched output sharpness.
+### 14. Grainy Photos & Degraded Clarity in Standard Mode
+* **Status:** ✅ **Fixed**
+* **Reporter:** User testing (Pixel 8 Pro `husky`)
+* **Description:** Captured photos appeared grainy, gritty, and less clear than stock Pixel Camera output even when Spatial Noise Reduction and Edge Sharpness were set to "Standard".
+* **Root Causes:**
+  1. **Continuous Camera2 Session Mode Conflict:** `plh.smali` and `pbe.smali` passed `NOISE_REDUCTION_MODE = 2` (`HIGH_QUALITY`) and `EDGE_MODE = 2` (`HIGH_QUALITY`) to continuous Camera2 requests. On Google Tensor hardware (Lyric HAL), high-quality mode on real-time preview streams caused GTNR merge failure (`FAILED_PRECONDITION: Invalid feedback image, force sharpen only process!`), which completely bypassed hardware temporal noise reduction and forced raw ISP edge sharpening.
+  2. **Active Look Override:** `TomteInitHelper.getEffectiveLookId()` persisted Look 5 ("Digi") from `pref_sauce_key` and forcibly overrode `ShotParams.tomte_type` to `5` for all still shots. Look 5 intentionally applies digital sensor grain (`TomteGrainRunner`) and punchy digicam edge contrast.
+  3. **Loss of Stock Curve Bit-Parity in ProPatcher:** In `libpropatcher.so`, standard mode re-multiplied floats in `.rodata` curves rather than directly restoring the backup buffer.
+* **Fix Implemented:**
+  1. Added `getCamera2NoiseReductionMode()` and `getCamera2EdgeMode()` in `TomteInitHelper`: returns `1` (`FAST`) for Standard mode (matching stock Google Camera continuous requests), preventing Lyric HAL GTNR merge failures and ensuring hardware temporal denoising runs normally.
+  2. Guarded `TomteInitHelper.getEffectiveLookId()` with `if-lez v0`: Look overrides now only apply if a positive Look ID (> 0) is actively selected, preserving pure stock HDR+ when Look 0 ("Original") or uninitialized.
+  3. Updated `propatcher.c`: When Sharpen is 1.0x and Denoise is Standard (mode 2), directly restores `s_backup` via `memcpy`, guaranteeing 100% bit-for-bit parity with stock Google Camera `.rodata` tuning curves.

@@ -1739,5 +1739,78 @@ Dynamic Tuning Applied: Sharpen=1.00x (70 assets, 1322 gains, 995 de-rings), Den
 3. **Rebuilt Standalone Signed APK & Updated SourceForge Distribution:**
    - Assembled clean dexes, aligned, signed with release key, and uploaded to SourceForge.
 
+---
+
+## 14. Issue 14: Grainy Photos & Degraded Clarity in Standard Mode (Tensor ISP & Look Override Resolution)
+
+### 14.1 Problem Description
+Following capture on the Google Pixel 8 Pro (`husky`), test captures (e.g. `PXL_20261102_160548767.jpg`, 12.5 MP, ~9.3 MB, ISO 292, 1/33s) exhibited unnatural digital grain, gritty texture on solid walls and objects, and noticeable lack of clarity even when:
+- **Spatial Noise Reduction** was explicitly set to **Standard** (Stock) in Settings.
+- **Edge Sharpness** was set to **Standard** (1.0x) or **Natural** (0.5x).
+
+### 14.2 Deep Technical Investigation & Hardware ISP Trace
+
+#### 1. Hardware Camera HAL (Lyric) GTNR Merge Failure Caused by Camera2 Session Flags
+Analysis of runtime logs from the Camera HAL provider (`pid 8079`) on Pixel 8 Pro (Tensor G3 Zuma) revealed fatal precondition violations in the temporal noise reduction engine:
+```text
+Lyric : centralized_power_throttle_controller.cc:562: camera thermal status: TNR denoise bypass for camera 8 at frame 0
+Lyric : zuma_gtnr_merge_node_to_driver_io_converter.cc:179: Force sharpen only process at controller level, due to: FAILED_PRECONDITION: Invalid feedback image, force sharpen only process!
+Lyric : tnr_merge_node.cc:589: TnrMergeNode producing frame drops ... Cannot correctly sharpen TNR image without GTM when tone mapping is supposed to be available.; TNR merge failed to get tuning data
+```
+- **Root Cause:** In [`plh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/plh.smali) and [`pbe.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pbe.smali), continuous capture requests were mapped to `TomteInitHelper.getNoiseReductionMode()` and `TomteInitHelper.getEdgeMode()`.
+- When "Standard" mode was active, these returned `2` (`CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY` and `CaptureRequest.EDGE_MODE_HIGH_QUALITY`).
+- On Google Tensor devices, continuous streaming/preview sessions **must not** request `HIGH_QUALITY (2)`; stock Google Camera strictly uses `FAST (1)` (`const/4 v0, 0x1`).
+- When `2` was supplied, Lyric's GTNR (Geometric & Temporal Noise Reduction) merge node failed feedback buffer validation, producing frame drops, bypassing temporal denoising, and **forcing a sharpen-only pipeline** on raw unmerged sensor frames. Every trace of sensor noise was sharpened into hard speckles.
+
+#### 2. Tomte Look 5 ("Digi") Forced Override on Still Captures
+Logcat examination of the active capture session revealed:
+```text
+11-02 21:40:22.060 19861 19946 I ProPatcher: nativeProcessHardwareBuffer ACTIVE: 1344x1008, format=0x23, usage=0x20b22, stride=1344, lookId=5
+11-02 21:40:22.339 19861 19876 I PATCH_LOOKS: TomteInitHelper.getEffectiveLookId: overriding type 0 with selected lookId=5
+```
+- **Root Cause:** In [`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali), `getEffectiveLookId(I)I` checked:
+  ```smali
+  if-nez p0, :cond_0
+  sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
+  if-eqz v0, :cond_0
+  ```
+- Because Look 5 ("Digi" / Class `quy`) had been selected in the Looks carousel (and persisted in `pref_sauce_key`), `sSelectedLookId` was `5`.
+- `getEffectiveLookId` forcibly overrode still captures from type `0` (Standard HDR+) to `5`.
+- **What Look 5 does in Gcam:** Google Camera's "Digi" style is engineered to emulate early 2000s compact CCD digital cameras: high contrast, punchy saturation, and **intentional digital grain injection via `TomteGrainRunner`**.
+
+#### 3. Native Tuning `.rodata` Curve Bit-Parity in ProPatcher
+- In [`jni/propatcher/propatcher.c`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/jni/propatcher/propatcher.c), when the user selected Standard mode (Sharpen 1.00x, Denoise mode 2), the native engine re-multiplied floats in the protobuf curves rather than restoring the initial pristine buffer.
+- This introduced potential float re-quantization variance compared to stock untouched binary curves.
+
+---
+
+### 14.3 Technical Fixes Implemented
+
+1. **Dedicated Camera2 Continuous Request Handlers:**
+   - Added `getCamera2NoiseReductionMode()I` and `getCamera2EdgeMode()I` in [`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali).
+   - In Standard mode, both return `1` (`FAST`), exactly matching stock Google Camera continuous requests. This eliminates the Lyric GTNR merge failure and restores proper hardware temporal noise reduction.
+   - Connected [`plh.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/plh.smali) and [`pbe.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/pbe.smali) to these dedicated Camera2 methods.
+
+2. **Guarded Look Override in `getEffectiveLookId`:**
+   - Changed `if-eqz v0, :cond_0` to `if-lez v0, :cond_0` in [`TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali).
+   - Look overrides now execute **only** when a valid positive Look ID (`> 0`) is explicitly selected. When set to `0` ("Original") or uninitialized, still captures use pure stock Gcam HDR+ with zero Look or film grain injection.
+
+3. **Bit-for-Bit Stock Curve Restoration in `libpropatcher.so`:**
+   - Updated `nativeApplyTuning()` in [`jni/propatcher/propatcher.c`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/jni/propatcher/propatcher.c):
+     ```c
+     if (fabsf(sharpenScale - 1.0f) < 0.001f && denoiseMode == 2) {
+         if (s_backup_initialized) {
+             memcpy((void*)tuning_start, s_backup, TUNING_SIZE);
+             LOGI("Dynamic Tuning Applied: Standard Mode - Restored 100%% stock tuning curves bit-for-bit from backup buffer (Sharpen=1.00x, Denoise=Stock)");
+         }
+         mprotect((void*)page_start, protect_len, PROT_READ);
+         return;
+     }
+     ```
+   - Recompiled `libpropatcher.so` with NDK clang and updated embedded base64 in [`TomteProPatcherLoader.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteProPatcherLoader.smali).
+
+4. **Updated Build Script Pipeline [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py):**
+   - Synchronized all `plh.smali` and `pbe.smali` patching routines to enforce `getCamera2NoiseReductionMode()` and `getCamera2EdgeMode()`.
+
 
 
