@@ -246,45 +246,4 @@ This document tracks bugs, image tuning observations, and feature requests repor
   5. **Toned-Down Contrast & Lifted Pedestals:** Calibrated contrast exponents across all 13 Look profiles (e.g., Shadows reduced from $1.35\times \to 1.18\times$, Editorial from $1.30\times \to 1.16\times$, Velvet from $1.25\times \to 1.12\times$ with lifted pedestals) to preserve rich textural shadow detail without deep-fried artifacts.
   6. **Viewfinder & Capture True WYSIWYG Harmonization:** Upgraded the 128-bit NEON SIMD preview shader (`neon_s_curve_8` in `libpropatcher.so`) to evaluate the exact smooth Sigmoid S-curve with soft toe, shoulder, and black lift (within 0.4% error) at locked 60 FPS (~0.15ms latency). What is framed in the live viewfinder now matches the final captured JPEG identically.
 
-### 16. 3D Color Separation, Dual Split-Toning & Bold Photographic Signatures
-* **Status:** ✅ **Implemented & Calibrated**
-* **Reporter:** User testing ("im still not impressed with looks outcome. what more we can do?")
-* **Root Causes:**
-  1. Profiles were overly timid: After softening contrast curves, tint shifts of only ~1.5% and contrast changes of 1.04x–1.12x produced results nearly indistinguishable from stock HDR+ on OLED screens.
-  2. Single-vector flat tinting: Lacked true split-toning (shadow tint vs highlight tint) and selective color transforms (cyan sky rotation, foliage emerald/olive shifts, skin peach radiance).
-* **Fix Implemented:**
-  1. **3D Color Separation Engine:** Added selective hue rotation in `lut_grade_raster`:
-     - *Cyan Sky Rotation:* Rotates sky blues toward filmic teal/cyan (`cyan_sky_q8` up to +55%).
-     - *Foliage Hue Twisting:* Tames harsh electric green into warm organic olive (`foliage_warmth > 0`) for *Classic/Vanilla*, or deep rich emerald (`foliage_warmth < 0`) for *Velvet*.
-     - *Melanin Peach Radiance:* Infuses delicate warm peach/golden radiance into human skin for warm film stocks without red saturation blowouts.
-  2. **True Dual Split-Toning:** Replaced single tint offsets with independent shadow tint vector $(U_{\text{sh}}, V_{\text{sh}})$ and highlight tint vector $(U_{\text{hl}}, V_{\text{hl}})$ with continuous linear interpolation across luminance and protected ink-black and specular-white pedestals.
-  3. **Bold, Distinct Photographic Signatures:** Recalibrated all 13 Look profiles (e.g., *Classic Portra 400*, *Velvet Velvia 50*, *Editorial Kodachrome 64*, *Vanilla Golden Hour*, *Shadows Film Noir*, *Minimal Scandinavian Pastel*, *Black Tie Leica Monochrom*) with unmistakable artistic character.
-
-### 17. Highlight Bloom (Halation) & Midtone Micro-Contrast
-* **Status:** ✅ **Implemented & Calibrated**
-* **Reporter:** User feature request ("also do Highlight Bloom (Halation) & Micro-Contrast")
-* **Description:** Still captures and live preview needed authentic optical film halation (warm glow bleeding around specular lights, sunny windows, and neon edges) and tactile micro-contrast (acutance / clarity in midtone textures like fabric, hair, stone, and foliage) without introducing digital edge ringing or shadow noise.
-* **Architecture & Mathematical Formulation:**
-  1. **Specular Highlight Bloom (Halation) Engine:**
-     - *Highlight Isolation:* Identifies specular illumination peaks ($Y > 192$, $\text{excess} = Y - 192$).
-     - *Downsampled Multi-Scale Diffusion:* Generates an $8\times$ downsampled highlight map ($504\times 378$ for 12MP, memory footprint $<190\text{ KB}$), running a two-stage separable Gaussian filter ($[1, 4, 6, 4, 1] / 16$ followed by a $[1, 2, 1] / 4$ soft diffusion pass).
-     - *Bilinear Spatial Sampling:* Bilinearly interpolates bloom at full resolution, producing silky, continuous organic halos without blockiness.
-     - *Photographic Spectral Weighting:* Infuses warm red-amber halation ($R \approx 1.0, G \approx 0.32, B \approx 0.08$) for *Classic (Portra 400)* and *Editorial (Kodachrome 64)*, golden-amber for *Vanilla*, copper-bronze for *Buffalo*, and pure silver-white for *Black Tie (Monochrom)*.
-  2. **Midtone Micro-Contrast (Clarity) Engine:**
-     - *3-Line Rolling Buffer:* Allocates a zero-heap-thrashing 12 KB L1-cache-resident 3-row buffer (`prev`, `curr`, `next`) to evaluate a $3\times 3$ separable binomial local neighborhood average $Y_{\text{local}}$ in a single streaming memory pass.
-     - *Texture Detail Extraction:* Computes high-spatial-frequency texture variance $D = Y - Y_{\text{local}}$.
-     - *Parabolic Midtone Protection Window:* Modulates detail with a bell-curve weight $W_M = 255 - (|Y - 128|^2 \times 255) / 16384$, entirely suppressing gain in deep shadows ($Y < 30$, preventing sensor shot noise amplification) and specular whites ($Y > 225$, preventing clipping halos).
-     - *Ratio-Preserving Acutance:* Enhances local midtone texture before passing through the Look S-curve and ratio-preserving color scaler, preserving chromatic fidelity and facial melanin balance.
-
-### 18. Viewfinder Lag & Stutter from Uncached Gralloc Stride-Jumping
-* **Status:** ✅ **Fixed**
-* **Reporter:** User testing ("view finder is laggig alot compre to to previous build")
-* **Root Cause:** In `nativeProcessHardwareBuffer`, micro-contrast spatial 2D filtering was introduced into `neon_grade_y`. Because Android SurfaceControl `AHardwareBuffer` memory is mapped write-combined / uncached RAM, jumping between `prev_row + x`, `curr_row + x`, and `next_row + x` (separated by buffer row strides) generated over 360 million random-stride memory bus transactions per second. This stalled the SoC memory controller, causing frame execution time to spike from 0.15ms to >25ms and forcing Google Camera to drop 50%–75% of preview frames.
-* **Fix Implemented:**
-  1. Restored `neon_grade_y` to pure 128-bit dual-burst linear sequential streaming (32 bytes per iteration), eliminating all cross-stride Gralloc memory jumps.
-  2. Integrated the preview micro-contrast effect directly into the effective contrast exponent (`eff_contrast_p = prof->contrast_p + prof->micro_contrast * 0.12f`), delivering matching midtone tonal depth in the live viewfinder at zero computational and memory overhead (~0.15ms latency).
-  3. Preserved full spatial 2D micro-contrast and highlight halation on the captured still photo (`nativeProcessRasterImage`), which runs in standard CPU cacheable RAM with zero frame-rate constraints.
-
-
-
 
