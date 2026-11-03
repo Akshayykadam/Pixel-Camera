@@ -245,43 +245,48 @@ static inline uint8_t clamp_u8(int v) {
 // ---------------------------------------------------------------------------
 
 typedef struct {
-    float contrast_p;    // Sigmoid exponent (>1.0 = punchy S-curve, <1.0 = soft/log)
-    float black_lift;    // Black pedestal in [0.0, 1.0] (lifted film blacks)
-    float white_comp;    // White shoulder point in [0.0, 1.0] (highlight roll-off)
-    float saturation;    // Chroma saturation factor (0.0 = monochrome, >1.0 = punch)
-    float shift_u;       // Blue/Yellow tint (- = yellow/warm, + = blue/cool)
-    float shift_v;       // Red/Green tint (+ = red/amber/magenta, - = olive/cyan)
-    int is_monochrome;   // 1 for Black Tie (zero chroma)
+    float contrast_p;       // Sigmoid exponent (>1.0 = punchy S-curve, <1.0 = soft/log)
+    float black_lift;       // Black pedestal in [0.0, 1.0] (lifted film blacks)
+    float white_comp;       // White shoulder point in [0.0, 1.0] (highlight roll-off)
+    float saturation;       // Chroma saturation factor (0.0 = monochrome, >1.0 = punch)
+    float shadow_u;         // Shadow Blue/Yellow tint (- = yellow/warm, + = blue/cool)
+    float shadow_v;         // Shadow Red/Green tint (+ = magenta/red, - = olive/cyan)
+    float highlight_u;      // Highlight Blue/Yellow tint (- = yellow/warm, + = blue/cool)
+    float highlight_v;      // Highlight Red/Green tint (+ = amber/red, - = cyan)
+    float cyan_sky;         // Sky blue rotation toward filmic cyan/teal [0.0 to 1.0]
+    float foliage_warmth;   // Green shift toward olive/amber (+ = olive/warm, - = emerald)
+    int is_monochrome;      // 1 for Black Tie (zero chroma)
 } LookProfile;
 
-// Calibrated 1:1 profiles corresponding to Google Camera's 13 Look classes:
-// 0: Original (Default) -> passthrough
-// 1: Natural (Class qvb) -> natural colors & relaxed details
-// 2: Minimal (Class qva) -> organic muted desaturation, lifted shadows
-// 3: Shadows (Class qvf) -> deep dramatic shadows, cool shadow tone (toned down from 1.35x to 1.18x)
-// 4: Vanilla (Class qvc) -> "orange", warm creamy highlights, golden glow
-// 5: Digi (Class quy)    -> "digicam", vivid retro-digital punch (toned down from 1.25x to 1.14x)
-// 6: Black Tie (Class quw)-> pure fine-art monochrome (toned down from 1.45x to 1.26x for Leica-style roll-off)
-// 7: Dijon (Class qvi)   -> "yellow_green_faded", vintage 70s mustard fade
-// 8: Buffalo (Class qvg) -> "unflat", rugged bronze textural contrast (toned down from 1.26x to 1.15x)
-// 9: Flat (Class qvd)    -> "pesto", cinematic log, lifted blacks, muted (refined log curve)
-// 10: Classic (Class qve)-> "portra", Kodak Portra 400 golden film tones
-// 11: Editorial (Class quz)-> "kodachrome", refined magazine contrast (toned down from 1.30x/1.20x to 1.16x/1.10x)
-// 12: Velvet (Class qvh) -> "velvia", Fuji Velvia rich filmic pop (toned down from 1.25x/1.40x to 1.12x/1.18x)
+// Bold, authentic photographic signatures corresponding to Google Camera's 13 Look classes:
+// 0: Original (Default) -> passthrough stock HDR+
+// 1: Natural (Class qvb) -> relaxed natural colors, organic tonal response
+// 2: Minimal (Class qva) -> Scandinavian aesthetic: muted pastels, lifted matte shadows, clean whites
+// 3: Shadows (Class qvf) -> dramatic film noir: deep cool slate-navy shadows, crisp highlights
+// 4: Vanilla (Class qvc) -> Golden Hour: radiant honeyed amber highlights, warm creamy shadows
+// 5: Digi (Class quy)    -> Y2K CCD Digicam: snappy midtone contrast, flash pop, cool shadow base
+// 6: Black Tie (Class quw)-> Leica Monochrom: silky zone-system gradation, luminous whites, inky blacks
+// 7: Dijon (Class qvi)   -> 1970s Vintage Mustard: yellow-green shadow cast, warm fade, retro nostalgia
+// 8: Buffalo (Class qvg) -> Rugged Bronze: earthy copper warmth, textured contrast, rich midtones
+// 9: Flat (Class qvd)    -> Cinematic Log: wide dynamic range latitude, lifted blacks, soft pastels
+// 10: Classic (Class qve)-> Kodak Portra 400: creamy golden-peach highlights, cyan skies, olive foliage, lifted matte blacks
+// 11: Editorial (Class quz)-> Kodachrome 64: high-fashion magazine contrast, deep navy shadows, punchy primaries
+// 12: Velvet (Class qvh) -> Fuji Velvia 50: hyper-vivid landscape slide film, cobalt-cyan skies, lush emerald foliage
 static const LookProfile s_look_profiles[13] = {
-    { 1.00f, 0.0f, 1.0f, 1.00f, 0.0f, 0.0f, 0 },                              // 0: Original
-    { 1.02f, 0.0f, 1.0f, 1.02f, 0.0f, 0.0f, 0 },                              // 1: Natural (qvb)
-    { 0.92f, 12.0f/255.0f, 248.0f/255.0f, 0.72f, 0.0f, 0.0f, 0 },             // 2: Minimal (qva)
-    { 1.18f, 5.0f/255.0f, 252.0f/255.0f, 1.04f, +2.5f, -1.5f, 0 },            // 3: Shadows (qvf)
-    { 0.98f, 4.0f/255.0f, 252.0f/255.0f, 1.05f, -4.0f, +3.0f, 0 },            // 4: Vanilla (qvc)
-    { 1.14f, 2.0f/255.0f, 253.0f/255.0f, 1.14f, +3.0f, -1.5f, 0 },            // 5: Digi (quy)
-    { 1.26f, 0.0f, 1.0f, 0.00f, 0.0f, 0.0f, 1 },                              // 6: Black Tie (quw)
-    { 0.95f, 12.0f/255.0f, 245.0f/255.0f, 1.03f, -4.5f, -2.0f, 0 },           // 7: Dijon (qvi)
-    { 1.15f, 2.0f/255.0f, 252.0f/255.0f, 1.08f, -3.0f, +3.5f, 0 },            // 8: Buffalo (qvg)
-    { 0.86f, 18.0f/255.0f, 238.0f/255.0f, 0.70f, 0.0f, 0.0f, 0 },             // 9: Flat (qvd)
-    { 1.06f, 6.0f/255.0f, 250.0f/255.0f, 1.02f, -2.5f, +2.5f, 0 },            // 10: Classic (qve)
-    { 1.16f, 0.0f, 1.0f, 1.10f, +1.5f, +2.5f, 0 },                            // 11: Editorial (quz)
-    { 1.12f, 2.0f/255.0f, 252.0f/255.0f, 1.18f, 0.0f, +2.0f, 0 }              // 12: Velvet (qvh)
+    // contrast, black_lift,      white_comp,       sat,   sh_u,  sh_v,  hl_u,  hl_v, cyan, fol, mono
+    { 1.00f,     0.0f,            1.0f,             1.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0 }, // 0: Original
+    { 1.05f,     0.0f,            1.0f,             1.02f,  0.0f,  0.0f, -1.5f, +1.5f, 0.15f, 0.10f, 0 }, // 1: Natural
+    { 0.90f,    16.0f/255.0f,    240.0f/255.0f,     0.65f, +1.5f, -1.0f,  0.0f,  0.0f, 0.10f, 0.20f, 0 }, // 2: Minimal
+    { 1.28f,     3.0f/255.0f,    254.0f/255.0f,     1.06f, +8.0f, -4.0f, +1.0f, +2.0f, 0.35f,-0.10f, 0 }, // 3: Shadows
+    { 1.06f,     6.0f/255.0f,    250.0f/255.0f,     1.12f, -5.0f, +3.0f,-12.0f, +8.0f, 0.20f, 0.35f, 0 }, // 4: Vanilla
+    { 1.22f,     3.0f/255.0f,    255.0f/255.0f,     1.18f, +6.0f, -3.0f, +3.0f, -1.0f, 0.50f, 0.00f, 0 }, // 5: Digi
+    { 1.30f,     4.0f/255.0f,    253.0f/255.0f,     0.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 1 }, // 6: Black Tie
+    { 1.04f,    18.0f/255.0f,    242.0f/255.0f,     1.06f, -9.0f, -4.0f, -8.0f, +4.0f, 0.15f, 0.50f, 0 }, // 7: Dijon
+    { 1.20f,     5.0f/255.0f,    252.0f/255.0f,     1.12f, -5.0f, +5.0f, -6.0f, +8.0f, 0.25f, 0.40f, 0 }, // 8: Buffalo
+    { 0.78f,    24.0f/255.0f,    230.0f/255.0f,     0.62f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0 }, // 9: Flat
+    { 1.14f,     8.0f/255.0f,    248.0f/255.0f,     1.08f, -4.0f, +3.0f, -7.0f, +6.0f, 0.45f, 0.35f, 0 }, // 10: Classic (Portra)
+    { 1.25f,     2.0f/255.0f,    254.0f/255.0f,     1.16f, +5.0f, -2.0f, -4.0f, +6.0f, 0.40f, 0.15f, 0 }, // 11: Editorial (Kodachrome)
+    { 1.22f,     3.0f/255.0f,    252.0f/255.0f,     1.28f, +3.0f, +5.0f, -3.0f, +4.0f, 0.55f,-0.25f, 0 }  // 12: Velvet (Velvia)
 };
 
 static uint8_t s_lut_y[13][256];
@@ -326,7 +331,9 @@ static void init_look_luts(void) {
             s_lut_y[id][i] = clamp_u8(val);
         }
 
-        // 2. Build U and V (Chroma) LUTs with parabolic tapering for highlights and deep shadows
+        // 2. Build U and V (Chroma) LUTs with midtone tint
+        float mid_u = (p->shadow_u + p->highlight_u) * 0.5f;
+        float mid_v = (p->shadow_v + p->highlight_v) * 0.5f;
         for (int i = 0; i < 256; i++) {
             if (id == 0) {
                 s_lut_u[id][i] = (uint8_t)i;
@@ -344,8 +351,8 @@ static void init_look_luts(void) {
                 float w = 1.0f - norm_d * norm_d; // 1.0 at neutral, 0.0 at saturated extremes
                 if (w < 0.0f) w = 0.0f;
 
-                int u_val = (int)roundf(128.0f + d_sat + p->shift_u * w);
-                int v_val = (int)roundf(128.0f + d_sat + p->shift_v * w);
+                int u_val = (int)roundf(128.0f + d_sat + mid_u * w);
+                int v_val = (int)roundf(128.0f + d_sat + mid_v * w);
                 s_lut_u[id][i] = clamp_u8(u_val);
                 s_lut_v[id][i] = clamp_u8(v_val);
             }
@@ -366,8 +373,12 @@ static uint8_t s_active_lut_u[256];
 static uint8_t s_active_lut_v[256];
 static uint8_t s_tint_weight[256];
 static float s_active_saturation = 1.0f;
-static float s_active_shift_u = 0.0f;
-static float s_active_shift_v = 0.0f;
+static float s_active_shadow_u = 0.0f;
+static float s_active_shadow_v = 0.0f;
+static float s_active_highlight_u = 0.0f;
+static float s_active_highlight_v = 0.0f;
+static float s_active_cyan_sky = 0.0f;
+static float s_active_foliage_warmth = 0.0f;
 static int s_active_look_id = -999;
 static float s_last_c = -999.0f, s_last_s = -999.0f, s_last_h = -999.0f, s_last_v = -999.0f, s_last_t = -999.0f;
 static int s_active_lut_valid = 0;
@@ -443,13 +454,23 @@ static void update_active_luts(int lookId) {
         if (eff_saturation > 2.50f) eff_saturation = 2.50f;
     }
 
-    // 5. Tint (Temperature / tint shift)
-    float eff_shift_u = base_p->shift_u - (s_ft_tint * 20.0f);
-    float eff_shift_v = base_p->shift_v + (s_ft_tint * 20.0f);
+    // 5. Dual Split-Toning & 3D Selective Color Parameters
+    float eff_sh_u = base_p->shadow_u - (s_ft_tint * 20.0f);
+    float eff_sh_v = base_p->shadow_v + (s_ft_tint * 20.0f);
+    float eff_hl_u = base_p->highlight_u - (s_ft_tint * 20.0f);
+    float eff_hl_v = base_p->highlight_v + (s_ft_tint * 20.0f);
 
     s_active_saturation = eff_saturation;
-    s_active_shift_u = eff_shift_u;
-    s_active_shift_v = eff_shift_v;
+    s_active_shadow_u = eff_sh_u;
+    s_active_shadow_v = eff_sh_v;
+    s_active_highlight_u = eff_hl_u;
+    s_active_highlight_v = eff_hl_v;
+    s_active_cyan_sky = base_p->cyan_sky;
+    s_active_foliage_warmth = base_p->foliage_warmth;
+
+    // Midtone tint for 2D chroma LUTs
+    float mid_u = (eff_sh_u + eff_hl_u) * 0.5f;
+    float mid_v = (eff_sh_v + eff_hl_v) * 0.5f;
 
     // Build U and V (Chroma) LUTs
     for (int i = 0; i < 256; i++) {
@@ -464,8 +485,8 @@ static void update_active_luts(int lookId) {
             float w = 1.0f - norm_d * norm_d;
             if (w < 0.0f) w = 0.0f;
 
-            int u_val = (int)roundf(128.0f + d_sat + eff_shift_u * w);
-            int v_val = (int)roundf(128.0f + d_sat + eff_shift_v * w);
+            int u_val = (int)roundf(128.0f + d_sat + mid_u * w);
+            int v_val = (int)roundf(128.0f + d_sat + mid_v * w);
             s_active_lut_u[i] = clamp_u8(u_val);
             s_active_lut_v[i] = clamp_u8(v_val);
         }
@@ -685,15 +706,25 @@ static inline int is_skin_tone(int r, int g, int b, int luma) {
 
 // Photographic color grading for RGB (3 channels) or RGBA (4 channels) frames with:
 // 1. Ratio-Preserving Luminance Scaling (eliminates blown highlights & color shifts)
-// 2. Filmic Highlight Roll-off (soft desaturation knee prevents harsh channel clipping)
-// 3. Smart Vibrance & Skin Tone Protection (preserves natural facial tones without sunburn)
-// 4. Luminance-Weighted Split-Toning (deep blacks & clean specular whites)
+// 2. 3D Color Separation (Cyan Sky hue rotation, foliage olive/emerald shift, melanin peach glow)
+// 3. True Dual Split-Toning (independent shadow tint vs highlight tint)
+// 4. Filmic Highlight Roll-off (soft desaturation knee prevents harsh channel clipping)
+// 5. Smart Vibrance & Melanin Gamut Protection (preserves natural facial tones without sunburn)
 static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride,
-                                    const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome) {
+                                    const uint8_t lut_y[256], float sat,
+                                    float sh_u, float sh_v, float hl_u, float hl_v,
+                                    float cyan_sky, float fol_warmth, int is_monochrome) {
     int s_q8 = (int)roundf(sat * 256.0f);
-    int s_r = (int)roundf(shift_v * 1.402f);
-    int s_g = (int)roundf(-0.344136f * shift_u - 0.714136f * shift_v);
-    int s_b = (int)roundf(shift_u * 1.772f);
+    int sh_r = (int)roundf(sh_v * 1.402f);
+    int sh_g = (int)roundf(-0.344136f * sh_u - 0.714136f * sh_v);
+    int sh_b = (int)roundf(sh_u * 1.772f);
+
+    int hl_r = (int)roundf(hl_v * 1.402f);
+    int hl_g = (int)roundf(-0.344136f * hl_u - 0.714136f * hl_v);
+    int hl_b = (int)roundf(hl_u * 1.772f);
+
+    int cyan_sky_q8 = (int)roundf(cyan_sky * 256.0f);
+    int fol_warmth_q8 = (int)roundf(fol_warmth * 256.0f);
     int grain_on = s_grain_enabled;
 
     for (uint32_t y = 0; y < height; y++) {
@@ -743,14 +774,35 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                     }
                 }
 
-                // 2. Smart Vibrance & Skin Tone Protection
+                // 2. 3D Color Separation: Cyan Sky & Foliage Hue Twisting
+                if (cyan_sky_q8 > 0 && b > r + 10 && b > g) {
+                    int max_rg = (r > g) ? r : g;
+                    int blue_diff = b - max_rg;
+                    int d_cyan = (blue_diff * cyan_sky_q8) >> 9;
+                    g_tone += d_cyan;
+                    r_tone -= (d_cyan >> 1);
+                }
+                if (g > r + 10 && g > b + 10) {
+                    int max_rb = (r > b) ? r : b;
+                    int green_diff = g - max_rb;
+                    if (fol_warmth_q8 > 0) {
+                        int d_olive = (green_diff * fol_warmth_q8) >> 9;
+                        r_tone += d_olive;
+                        g_tone -= (d_olive >> 2);
+                    } else if (fol_warmth_q8 < 0) {
+                        int d_em = (green_diff * (-fol_warmth_q8)) >> 9;
+                        b_tone += (d_em >> 1);
+                        r_tone -= (d_em >> 2);
+                    }
+                }
+
+                // 3. Smart Vibrance & Melanin Gamut Protection
                 int eff_sq8 = s_q8;
-                if (is_skin_tone(r, g, b, luma)) {
+                int is_skin = is_skin_tone(r, g, b, luma);
+                if (is_skin) {
                     if (s_q8 > 256) {
-                        // Damp saturation boost by ~62% on human skin to prevent reddish/sunburnt faces
                         eff_sq8 = 256 + ((s_q8 - 256) * 3) / 8;
                     } else if (s_q8 < 256) {
-                        // Gentle desaturation on skin to avoid sickly/grey faces
                         eff_sq8 = 256 - ((256 - s_q8) * 5) / 8;
                     }
                 }
@@ -759,13 +811,21 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 int g_sat = graded_luma + (((g_tone - graded_luma) * eff_sq8) >> 8);
                 int b_sat = graded_luma + (((b_tone - graded_luma) * eff_sq8) >> 8);
 
-                // 3. Luminance-Weighted Split-Toning (Deep Blacks & Clean Whites)
-                int tw = s_tint_weight[graded_luma];
-                int tint_r = (s_r * tw) >> 8;
-                int tint_g = (s_g * tw) >> 8;
-                int tint_b = (s_b * tw) >> 8;
+                // Subtle skin peach/golden glow for warm film looks
+                if (is_skin && hl_v > 2.0f) {
+                    r_sat += (int)(hl_v * 0.70f);
+                    g_sat += (int)(hl_v * 0.35f);
+                }
 
-                // 4. Optional Film Grain
+                // 4. True Dual Split-Toning (Shadow Tint vs Highlight Tint with protected bounds)
+                int tw = s_tint_weight[graded_luma];
+                int w_sh = 255 - graded_luma;
+                int w_hl = graded_luma;
+                int tint_r = (((sh_r * w_sh + hl_r * w_hl) >> 8) * tw) >> 8;
+                int tint_g = (((sh_g * w_sh + hl_g * w_hl) >> 8) * tw) >> 8;
+                int tint_b = (((sh_b * w_sh + hl_b * w_hl) >> 8) * tw) >> 8;
+
+                // 5. Optional Film Grain
                 int gr = 0;
                 if (grain_on) {
                     int n = s_noise_table[(y_offset + x) & 0xFF];
@@ -896,10 +956,10 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
     int16_t scale_uv = prof->is_monochrome ? 0 : (int16_t)roundf(eff_saturation * 256.0f);
     if (scale_uv < 0) scale_uv = 0;
 
-    float eff_shift_u = prof->shift_u - (s_ft_tint * 20.0f);
-    float eff_shift_v = prof->shift_v + (s_ft_tint * 20.0f);
-    int16_t shift_u = (int16_t)roundf(eff_shift_u);
-    int16_t shift_v = (int16_t)roundf(eff_shift_v);
+    float eff_mid_u = (prof->shadow_u * 0.45f + prof->highlight_u * 0.55f) - (s_ft_tint * 20.0f);
+    float eff_mid_v = (prof->shadow_v * 0.45f + prof->highlight_v * 0.55f) + (s_ft_tint * 20.0f);
+    int16_t shift_u = (int16_t)roundf(eff_mid_u);
+    int16_t shift_v = (int16_t)roundf(eff_mid_v);
     int is_monochrome = prof->is_monochrome;
 
     AHardwareBuffer* buffer = AHardwareBuffer_fromHardwareBuffer(env, hwBuffer);
@@ -1036,14 +1096,18 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
     int is_monochrome = prof->is_monochrome;
 
     float sat = s_active_saturation;
-    float shift_u = s_active_shift_u;
-    float shift_v = s_active_shift_v;
+    float sh_u = s_active_shadow_u;
+    float sh_v = s_active_shadow_v;
+    float hl_u = s_active_highlight_u;
+    float hl_v = s_active_highlight_v;
+    float cyan_sky = s_active_cyan_sky;
+    float fol_warmth = s_active_foliage_warmth;
 
-    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, U_shift=%.1f, V_shift=%.1f",
-         width, height, channels, stride, lookId, is_monochrome, sat, shift_u, shift_v);
+    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, ShTint=(%.1f,%.1f), HlTint=(%.1f,%.1f), CyanSky=%.2f, FolWarmth=%.2f",
+         width, height, channels, stride, lookId, is_monochrome, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth);
 
     lut_grade_raster((uint8_t*)dataPtr, (uint32_t)width, (uint32_t)height, (uint32_t)channels, (uint32_t)stride,
-                     lut_y, sat, shift_u, shift_v, is_monochrome);
+                     lut_y, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth, is_monochrome);
 }
 
 

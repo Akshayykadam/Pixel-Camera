@@ -246,4 +246,18 @@ This document tracks bugs, image tuning observations, and feature requests repor
   5. **Toned-Down Contrast & Lifted Pedestals:** Calibrated contrast exponents across all 13 Look profiles (e.g., Shadows reduced from $1.35\times \to 1.18\times$, Editorial from $1.30\times \to 1.16\times$, Velvet from $1.25\times \to 1.12\times$ with lifted pedestals) to preserve rich textural shadow detail without deep-fried artifacts.
   6. **Viewfinder & Capture True WYSIWYG Harmonization:** Upgraded the 128-bit NEON SIMD preview shader (`neon_s_curve_8` in `libpropatcher.so`) to evaluate the exact smooth Sigmoid S-curve with soft toe, shoulder, and black lift (within 0.4% error) at locked 60 FPS (~0.15ms latency). What is framed in the live viewfinder now matches the final captured JPEG identically.
 
+### 16. 3D Color Separation, Dual Split-Toning & Bold Photographic Signatures
+* **Status:** ✅ **Implemented & Calibrated**
+* **Reporter:** User testing ("im still not impressed with looks outcome. what more we can do?")
+* **Root Causes:**
+  1. Profiles were overly timid: After softening contrast curves, tint shifts of only ~1.5% and contrast changes of 1.04x–1.12x produced results nearly indistinguishable from stock HDR+ on OLED screens.
+  2. Single-vector flat tinting: Lacked true split-toning (shadow tint vs highlight tint) and selective color transforms (cyan sky rotation, foliage emerald/olive shifts, skin peach radiance).
+* **Fix Implemented:**
+  1. **3D Color Separation Engine:** Added selective hue rotation in `lut_grade_raster`:
+     - *Cyan Sky Rotation:* Rotates sky blues toward filmic teal/cyan (`cyan_sky_q8` up to +55%).
+     - *Foliage Hue Twisting:* Tames harsh electric green into warm organic olive (`foliage_warmth > 0`) for *Classic/Vanilla*, or deep rich emerald (`foliage_warmth < 0`) for *Velvet*.
+     - *Melanin Peach Radiance:* Infuses delicate warm peach/golden radiance into human skin for warm film stocks without red saturation blowouts.
+  2. **True Dual Split-Toning:** Replaced single tint offsets with independent shadow tint vector $(U_{\text{sh}}, V_{\text{sh}})$ and highlight tint vector $(U_{\text{hl}}, V_{\text{hl}})$ with continuous linear interpolation across luminance and protected ink-black and specular-white pedestals.
+  3. **Bold, Distinct Photographic Signatures:** Recalibrated all 13 Look profiles (e.g., *Classic Portra 400*, *Velvet Velvia 50*, *Editorial Kodachrome 64*, *Vanilla Golden Hour*, *Shadows Film Noir*, *Minimal Scandinavian Pastel*, *Black Tie Leica Monochrom*) with unmistakable artistic character.
+
 
