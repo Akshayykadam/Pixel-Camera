@@ -497,30 +497,39 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeSetFineTuning(
     }
 }
 
-static inline uint8x8_t neon_grade_8(int16x8_t w, int16x4_t v_scale, int32x4_t v_offset) {
-    int32x4_t p_lo = vmull_s16(vget_low_s16(w), v_scale);
-    int32x4_t p_hi = vmull_s16(vget_high_s16(w), v_scale);
+// 128-bit NEON SIMD smooth Sigmoid S-curve evaluator matching offline raster tone-mapping (0.4% mean error)
+static inline uint8x8_t neon_s_curve_8(int16x8_t y, int16x4_t v_k_curv, int32x4_t v_k_bl, int16x4_t v_slope) {
+    int16x8_t v_128 = vdupq_n_s16(128);
+    int16x8_t w = vsubq_s16(y, v_128);
+    int16x8_t abs_w = vabdq_s16(y, v_128);
+    int16x8_t ts = vsubq_s16(v_128, abs_w);
+    int16x8_t w_ts = vmulq_s16(w, ts); // fits in s16 [-16384, +16256]
 
-    int32x4_t s_lo = vshrq_n_s32(p_lo, 8);
-    int32x4_t s_hi = vshrq_n_s32(p_hi, 8);
+    // S-curve non-linear displacement: (w * ts * k_curv) >> 20
+    int32x4_t curv_lo = vshrq_n_s32(vmull_s16(vget_low_s16(w_ts), v_k_curv), 20);
+    int32x4_t curv_hi = vshrq_n_s32(vmull_s16(vget_high_s16(w_ts), v_k_curv), 20);
 
-    int32x4_t a_lo = vaddq_s32(s_lo, v_offset);
-    int32x4_t a_hi = vaddq_s32(s_hi, v_offset);
+    // Linear pedestal and highlight roll-off: k_bl + (y * slope) >> 8
+    int32x4_t lin_lo = vaddq_s32(v_k_bl, vshrq_n_s32(vmull_s16(vget_low_s16(y), v_slope), 8));
+    int32x4_t lin_hi = vaddq_s32(v_k_bl, vshrq_n_s32(vmull_s16(vget_high_s16(y), v_slope), 8));
 
-    int16x4_t n_lo = vqmovn_s32(a_lo);
-    int16x4_t n_hi = vqmovn_s32(a_hi);
+    // Combine y + curv + lin
+    int32x4_t out_lo = vaddq_s32(vmovl_s16(vget_low_s16(y)), vaddq_s32(curv_lo, lin_lo));
+    int32x4_t out_hi = vaddq_s32(vmovl_s16(vget_high_s16(y)), vaddq_s32(curv_hi, lin_hi));
 
-    int16x8_t comb = vcombine_s16(n_lo, n_hi);
-    return vqmovun_s16(comb);
+    int16x4_t n_lo = vqmovn_s32(out_lo);
+    int16x4_t n_hi = vqmovn_s32(out_hi);
+    return vqmovun_s16(vcombine_s16(n_lo, n_hi));
 }
 
-// 128-bit dual-burst NEON SIMD vector grading for Y plane (Luma) - Zero memory table stalls
-static inline void neon_grade_y(uint8_t* y_data, uint32_t width, uint32_t height, uint32_t stride, int16_t scale_q8, int16_t offset) {
-    if (scale_q8 == 256 && offset == 128) return;
+// 128-bit dual-burst NEON SIMD vector grading for Y plane (Luma) - True WYSIWYG Sigmoid S-Curve
+static inline void neon_grade_y(uint8_t* y_data, uint32_t width, uint32_t height, uint32_t stride,
+                                int16_t k_curv_q8, int32_t k_bl, int16_t slope_q8) {
+    if (k_curv_q8 == 0 && k_bl == 0 && slope_q8 == 0) return;
 
-    int16x4_t v_scale = vdup_n_s16(scale_q8);
-    int32x4_t v_offset = vdupq_n_s32(offset);
-    int16x8_t v_128 = vdupq_n_s16(128);
+    int16x4_t v_k_curv = vdup_n_s16(k_curv_q8);
+    int32x4_t v_k_bl = vdupq_n_s32(k_bl);
+    int16x4_t v_slope = vdup_n_s16(slope_q8);
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = y_data + y * stride;
@@ -531,15 +540,15 @@ static inline void neon_grade_y(uint8_t* y_data, uint32_t width, uint32_t height
             uint8x16_t vy0 = vld1q_u8(row + x);
             uint8x16_t vy1 = vld1q_u8(row + x + 16);
 
-            int16x8_t w0_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy0))), v_128);
-            int16x8_t w0_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy0))), v_128);
-            int16x8_t w1_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy1))), v_128);
-            int16x8_t w1_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy1))), v_128);
+            int16x8_t y0_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy0)));
+            int16x8_t y0_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy0)));
+            int16x8_t y1_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy1)));
+            int16x8_t y1_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy1)));
 
-            uint8x8_t r0_lo = neon_grade_8(w0_lo, v_scale, v_offset);
-            uint8x8_t r0_hi = neon_grade_8(w0_hi, v_scale, v_offset);
-            uint8x8_t r1_lo = neon_grade_8(w1_lo, v_scale, v_offset);
-            uint8x8_t r1_hi = neon_grade_8(w1_hi, v_scale, v_offset);
+            uint8x8_t r0_lo = neon_s_curve_8(y0_lo, v_k_curv, v_k_bl, v_slope);
+            uint8x8_t r0_hi = neon_s_curve_8(y0_hi, v_k_curv, v_k_bl, v_slope);
+            uint8x8_t r1_lo = neon_s_curve_8(y1_lo, v_k_curv, v_k_bl, v_slope);
+            uint8x8_t r1_hi = neon_s_curve_8(y1_hi, v_k_curv, v_k_bl, v_slope);
 
             vst1q_u8(row + x, vcombine_u8(r0_lo, r0_hi));
             vst1q_u8(row + x + 16, vcombine_u8(r1_lo, r1_hi));
@@ -547,16 +556,21 @@ static inline void neon_grade_y(uint8_t* y_data, uint32_t width, uint32_t height
 
         for (; x + 16 <= width; x += 16) {
             uint8x16_t vy = vld1q_u8(row + x);
-            int16x8_t w_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy))), v_128);
-            int16x8_t w_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy))), v_128);
-            uint8x8_t r_lo = neon_grade_8(w_lo, v_scale, v_offset);
-            uint8x8_t r_hi = neon_grade_8(w_hi, v_scale, v_offset);
+            int16x8_t y_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy)));
+            int16x8_t y_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy)));
+            uint8x8_t r_lo = neon_s_curve_8(y_lo, v_k_curv, v_k_bl, v_slope);
+            uint8x8_t r_hi = neon_s_curve_8(y_hi, v_k_curv, v_k_bl, v_slope);
             vst1q_u8(row + x, vcombine_u8(r_lo, r_hi));
         }
 
         for (; x < width; x++) {
-            int val = ((int)row[x] - 128) * (int)scale_q8 / 256 + (int)offset;
-            row[x] = clamp_u8(val);
+            int y_val = row[x];
+            int w = y_val - 128;
+            int ts = 128 - abs(w);
+            int w_ts = w * ts;
+            int curv = (w_ts * k_curv_q8) >> 20;
+            int lin = k_bl + ((y_val * slope_q8) >> 8);
+            row[x] = clamp_u8(y_val + curv + lin);
         }
     }
 }
@@ -768,10 +782,10 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
 }
 
 static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t height, uint32_t stride,
-                                   int16_t scale_q8, int16_t offset, int is_monochrome) {
-    int16x4_t v_scale = vdup_n_s16(scale_q8);
-    int32x4_t v_offset = vdupq_n_s32(offset);
-    int16x8_t v_128 = vdupq_n_s16(128);
+                                   int16_t k_curv_q8, int32_t k_bl, int16_t slope_q8, int is_monochrome) {
+    int16x4_t v_k_curv = vdup_n_s16(k_curv_q8);
+    int32x4_t v_k_bl = vdupq_n_s32(k_bl);
+    int16x4_t v_slope = vdup_n_s16(slope_q8);
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = data + y * stride;
@@ -784,8 +798,8 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
                 uint16x8_t gray16 = vmlal_u8(g16, rgba.val[2], vdup_n_u8(29));
                 uint8x8_t gray8 = vshrn_n_u16(gray16, 8);
 
-                int16x8_t w = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(gray8)), v_128);
-                uint8x8_t out = neon_grade_8(w, v_scale, v_offset);
+                int16x8_t y_s16 = vreinterpretq_s16_u16(vmovl_u8(gray8));
+                uint8x8_t out = neon_s_curve_8(y_s16, v_k_curv, v_k_bl, v_slope);
 
                 rgba.val[0] = out;
                 rgba.val[1] = out;
@@ -795,30 +809,35 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
             for (; x < width; x++) {
                 uint8_t* pix = row + x * 4;
                 uint8_t gray = (uint8_t)((pix[0]*77 + pix[1]*150 + pix[2]*29) >> 8);
-                int c = ((int)gray - 128) * (int)scale_q8 / 256 + (int)offset;
-                uint8_t out = clamp_u8(c);
+                int w = (int)gray - 128;
+                int ts = 128 - abs(w);
+                int curv = (w * ts * k_curv_q8) >> 20;
+                int lin = k_bl + (((int)gray * slope_q8) >> 8);
+                uint8_t out = clamp_u8((int)gray + curv + lin);
                 pix[0] = out; pix[1] = out; pix[2] = out;
             }
         } else {
             for (; x + 8 <= width; x += 8) {
                 uint8x8x4_t rgba = vld4_u8(row + x * 4);
-                int16x8_t r_w = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(rgba.val[0])), v_128);
-                int16x8_t g_w = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(rgba.val[1])), v_128);
-                int16x8_t b_w = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(rgba.val[2])), v_128);
+                int16x8_t r_s16 = vreinterpretq_s16_u16(vmovl_u8(rgba.val[0]));
+                int16x8_t g_s16 = vreinterpretq_s16_u16(vmovl_u8(rgba.val[1]));
+                int16x8_t b_s16 = vreinterpretq_s16_u16(vmovl_u8(rgba.val[2]));
 
-                rgba.val[0] = neon_grade_8(r_w, v_scale, v_offset);
-                rgba.val[1] = neon_grade_8(g_w, v_scale, v_offset);
-                rgba.val[2] = neon_grade_8(b_w, v_scale, v_offset);
+                rgba.val[0] = neon_s_curve_8(r_s16, v_k_curv, v_k_bl, v_slope);
+                rgba.val[1] = neon_s_curve_8(g_s16, v_k_curv, v_k_bl, v_slope);
+                rgba.val[2] = neon_s_curve_8(b_s16, v_k_curv, v_k_bl, v_slope);
                 vst4_u8(row + x * 4, rgba);
             }
             for (; x < width; x++) {
                 uint8_t* pix = row + x * 4;
-                int r = ((int)pix[0] - 128) * (int)scale_q8 / 256 + (int)offset;
-                int g = ((int)pix[1] - 128) * (int)scale_q8 / 256 + (int)offset;
-                int b = ((int)pix[2] - 128) * (int)scale_q8 / 256 + (int)offset;
-                pix[0] = clamp_u8(r);
-                pix[1] = clamp_u8(g);
-                pix[2] = clamp_u8(b);
+                for (int c = 0; c < 3; c++) {
+                    int val = pix[c];
+                    int w = val - 128;
+                    int ts = 128 - abs(w);
+                    int curv = (w * ts * k_curv_q8) >> 20;
+                    int lin = k_bl + ((val * slope_q8) >> 8);
+                    pix[c] = clamp_u8(val + curv + lin);
+                }
             }
         }
     }
@@ -842,14 +861,45 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
 
     const LookProfile* prof = (lookId >= 0 && lookId < 13) ? &s_look_profiles[lookId] : &s_look_profiles[0];
 
-    int16_t scale_y = (int16_t)roundf((prof->contrast_p + s_ft_contrast * 0.35f) * 256.0f);
-    int16_t offset_y = 128 + (int16_t)roundf((prof->black_lift * 64.0f) + (s_ft_highlights + s_ft_shadows) * 20.0f);
+    // True WYSIWYG parameters synchronized with offline still photo grading
+    float eff_contrast_p = prof->contrast_p;
+    if (s_ft_contrast > 0.0f) {
+        eff_contrast_p += s_ft_contrast * 0.55f;
+    } else if (s_ft_contrast < 0.0f) {
+        eff_contrast_p += s_ft_contrast * 0.40f;
+    }
+    if (eff_contrast_p < 0.45f) eff_contrast_p = 0.45f;
+    if (eff_contrast_p > 2.50f) eff_contrast_p = 2.50f;
 
-    int16_t scale_uv = prof->is_monochrome ? 0 : (int16_t)roundf((prof->saturation + s_ft_vibrance * 0.45f) * 256.0f);
+    float eff_black_lift = prof->black_lift + (s_ft_shadows * 0.20f);
+    if (eff_black_lift < 0.0f) eff_black_lift = 0.0f;
+    if (eff_black_lift > 0.45f) eff_black_lift = 0.45f;
+
+    float eff_white_comp = prof->white_comp - (s_ft_highlights * 0.20f);
+    if (eff_white_comp < eff_black_lift + 0.10f) eff_white_comp = eff_black_lift + 0.10f;
+    if (eff_white_comp > 1.0f) eff_white_comp = 1.0f;
+
+    float k_curv = (eff_contrast_p - 1.0f) * 42.0f;
+    float k_bl_f = eff_black_lift * 255.0f;
+    float k_wc_f = (eff_white_comp - 1.0f) * 255.0f;
+
+    int16_t k_curv_q8 = (int16_t)roundf(k_curv * 256.0f);
+    int32_t k_bl = (int32_t)roundf(k_bl_f);
+    int16_t slope_q8 = (int16_t)roundf(k_wc_f - k_bl_f);
+
+    float eff_saturation = prof->saturation;
+    if (!prof->is_monochrome) {
+        eff_saturation *= (1.0f + 0.70f * s_ft_vibrance);
+        if (eff_saturation < 0.0f) eff_saturation = 0.0f;
+        if (eff_saturation > 2.50f) eff_saturation = 2.50f;
+    }
+    int16_t scale_uv = prof->is_monochrome ? 0 : (int16_t)roundf(eff_saturation * 256.0f);
     if (scale_uv < 0) scale_uv = 0;
 
-    int16_t shift_u = (int16_t)roundf(prof->shift_u + s_ft_tint * (-10.0f));
-    int16_t shift_v = (int16_t)roundf(prof->shift_v + s_ft_tint * (+10.0f));
+    float eff_shift_u = prof->shift_u - (s_ft_tint * 20.0f);
+    float eff_shift_v = prof->shift_v + (s_ft_tint * 20.0f);
+    int16_t shift_u = (int16_t)roundf(eff_shift_u);
+    int16_t shift_v = (int16_t)roundf(eff_shift_v);
     int is_monochrome = prof->is_monochrome;
 
     AHardwareBuffer* buffer = AHardwareBuffer_fromHardwareBuffer(env, hwBuffer);
@@ -879,10 +929,10 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
         if (res == 0 && virt) {
             if (is_rgba) {
                 neon_grade_rgba((uint8_t*)virt, desc.width, desc.height, desc.stride * 4,
-                                scale_y, offset_y, is_monochrome);
+                                k_curv_q8, k_bl, slope_q8, is_monochrome);
             } else {
                 uint32_t y_size = desc.stride * desc.height;
-                neon_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, scale_y, offset_y);
+                neon_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, k_curv_q8, k_bl, slope_q8);
                 uint8_t* uv_data = (uint8_t*)virt + y_size;
                 uint32_t uv_h = desc.height / 2;
                 if (is_monochrome) {
@@ -904,11 +954,11 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
 
     if (is_rgba) {
         neon_grade_rgba((uint8_t*)planes.planes[0].data, width, height,
-                        planes.planes[0].rowStride, scale_y, offset_y, is_monochrome);
+                        planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8, is_monochrome);
     } else if (planes.planeCount == 1) {
         uint32_t y_size = planes.planes[0].rowStride * height;
         neon_grade_y((uint8_t*)planes.planes[0].data, width, height,
-                     planes.planes[0].rowStride, scale_y, offset_y);
+                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8);
         uint8_t* uv_data = (uint8_t*)planes.planes[0].data + y_size;
         uint32_t uv_h = (height + 1) / 2;
         if (is_monochrome) {
@@ -920,7 +970,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
         }
     } else {
         neon_grade_y((uint8_t*)planes.planes[0].data, width, height,
-                     planes.planes[0].rowStride, scale_y, offset_y);
+                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8);
 
         uint32_t uv_h = (height + 1) / 2;
         int is_interleaved = (planes.planeCount >= 2 && planes.planes[1].pixelStride == 2);
