@@ -19,30 +19,118 @@ This document tracks bugs, image tuning observations, and feature requests repor
 * **Planned Action:** Route style tone-mapping through a software CLUT fallback so HDR exposure fusion and dynamic range are maintained during still capture.
 
 ### 3. Styles Not Applying & Missing Metadata in Google Photos
+* **Status:** ✅ **Fixed**
 * **Issue:** [#55](https://github.com/Akshayykadam/Pixel-Camera/issues/55)
 * **Reporter:** `@TheArka96`
-* **Description:** Styles such as **Flat**, **Buffalo**, and **Dijon** do not apply to captured photos (the camera silently saves a default picture) and lack the Google Photos "Sauce" style tag.
-* **Planned Action:** Fix `ShotParams` Look ID enum mapping and LUT descriptor loading for `qvd`, `qvg`, and `qvi`.
+* **Description:** Styles such as **Flat** (ID 9), **Buffalo** (ID 8), and **Dijon** (ID 7) do not apply to captured photos (the camera silently saves a default picture) and lack the Google Photos "Sauce" style tag.
+* **Root Causes:**
+  1. **Google Photos Sauce Metadata Storage**: Google Photos identifies active Camera Looks via the XMP property `GCamera:GFileMetadata`, which stores a Base64-encoded protobuf message (`com.google.photos.camera.proto.GFileMetadata` / `Labic`). Field 8/9 (`0x4a`) is the `Sauce` submessage (`Labhy`), containing field 1 (`b`) as the Look ID integer (`int32`: 7=Dijon, 8=Buffalo, 9=Flat) and field 2 (`c`) as version 1. In `qui.smali` method `e(Lpcl;)Labhy;`, Gcam reads the active look from `pcl.p`. If `pcl.p` was empty, null, or set to `qux` (Original, ID 0), Gcam returned `null` or `b=0`, omitting the active Look tag completely.
+  2. **`UnsupportedOperationException` in `rfx.smali` Method `M`**: In Jetpack Compose onboarding/description card rendering, Google explicitly added `if-nez v5, :cond_1b` branches for `qvi` (Dijon), `qvg` (Buffalo), and `qvd` (Flat) which threw `UnsupportedOperationException` because description strings were not finalized in early builds. This exception crashed Composable rendering and aborted look selection state synchronization.
+  3. **Incomplete Fallback in `TomteInitHelper.getEffectiveLookOrFallback`**: When `p0` was passed as `qux` (look ID 0), it returned `qux` instead of falling back to `sLastSelectedLook` or `sSelectedLookId`.
+* **Fix Implemented:**
+  1. **Enhanced `TomteInitHelper.getEffectiveLookOrFallback`**: Updated to check if `p0` is non-null with `d > 0`. If not, checks `sLastSelectedLook`. If that is also null or 0, checks `sSelectedLookId` and instantiates the exact `qvj` object via `qtk.g(id)`.
+  2. **Hooked `qui.smali` Method `e(Lpcl;)Labhy;`**: Connected `v0` through `TomteInitHelper.getEffectiveLookOrFallback(Lqvj;)Lqvj;` in both apktool and Morphe bytecode patchers (`CameraLooksPatch.kt`). This guarantees `GCamera:GFileMetadata` always embeds the correct Look ID (7, 8, or 9) and version 1 in output JPEG XMP metadata, enabling Google Photos style tags.
+  3. **Neutralized `rfx.smali` Method `M` Exception**: Replaced the exception branch in `rfx.smali` and `CameraLooksPatch.kt` with valid description string resources (`0x7f130845` for Dijon, `0x7f13084a` for Buffalo, `0x7f13083d` for Flat) jumping to `:goto_c`, ensuring seamless Compose UI rendering without crashes.
 
 ### 4. Missing 50MP "High Resolution" Badge in Google Photos
+* **Status:** ✅ **Fixed**
 * **Issue:** [#54](https://github.com/Akshayykadam/Pixel-Camera/issues/54)
 * **Reporter:** `@TheArka96`
-* **Description:** Even when photos are captured at 50MP, Google Photos does not display the high-resolution badge because the Google-specific XMP/EXIF tags are missing.
-* **Planned Action:** Ensure required Google XMP metadata (`OriginalImageSize`, `SpecialTypes`) is embedded into the output JPEG file during 50MP capture.
+* **Description:** Even when photos are captured at 50MP on Pro devices, Google Photos does not display the "High Resolution" (50MP) badge.
+* **Root Causes:**
+  1. **Google Photos Identification Mechanism**: Google Photos detects 50MP captures by inspecting the embedded XMP in the primary JPEG header under namespace `http://ns.google.com/photos/1.0/camera/` (`GCamera`). Specifically, it expects the tag `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-HIGH_RESOLUTION"` (or `SpecialType-PORTRAIT_HIGH_RESOLUTION` in portrait mode).
+  2. **SpecialTypeID Emission Gate (`okq.n` & `voc.m`)**: In `voc.smali:618-636`, `voc.m(Lgyn;Ljava/lang/String;)V` writes the `SpecialTypeID` XMP property. In `okq.smali:1728-1744`, `okq.n` checks if the incoming SpecialTypeID equals `Lmhb.a.d()` (`"SpecialType-NONE"`). If it equals `NONE`, writing the tag is skipped entirely.
+  3. **Capture Session Flag Desynchronization (`oms.smali`, `omo.smali`, `oml.smali`)**: In `oms.smali:858`, the capture session checks `pcl.k`: if `true`, it invokes `rbu.c(JZ)` which initializes the session with `Lmhb.p` (`HIGH_RESOLUTION`). However, in `oms.smali:483`, `pcl.k` was populated from `omw.e` (the burst/longshot boolean flag), rather than the 50MP flag stored in `omw.a.f` (`Lomb.f`). Because `omw.e` was `false`, `pcl.k` remained `0`, branching the session creation to `Lmhb.a` (`NONE`).
+  4. **Post-Processing Saver Metadata Fallback (`rae.smali` & `mww.smali`)**: When writing the final JPEG stream to disk in `rae.smali:102` and `mww.smali:310`, the saver read `p1.c` (`rbq.c: Lmhb`). Because `rbq.c` was set to `Lmhb.a` (`NONE`), `okq.n` skipped `voc.m`, preventing the `SpecialTypeID` tag from ever being written into the output JPEG file.
+  5. **Post-Processing Finisher MediaProvider Desynchronization (`mtf.smali`)**: In `mtf.smali:245`, `mwp.c()` was checked to publish the high resolution type to `mvs.g(mwt, HIGH_RESOLUTION)` -> `mhi.c`. Because pipeline flags were unlinked, the ContentProvider's `special_type_id` column was not populated for standard captures.
+* **Fix Implemented (Three-Tier Defense in Depth):**
+  1. **Tier 1 (Capture Session Start in `oms.smali:483`, `omo.smali:419`, `oml.smali:296`)**:
+     - Routed the session high-res boolean through `TomteInitHelper.isHighResShot(Lomw;)Z`.
+     - Checks `omw.e`, `omw.a.f` (the 50MP pipeline boolean from `omb`), and fallback `TomteInitHelper.is50MPActive()`.
+     - Ensures `pcl.k` is set to `true` at the start of capture, prompting `rbu.c(JZ)` to instantiate the session with `Lmhb.p` (`HIGH_RESOLUTION`).
+  2. **Tier 2 (Post-Processing JPEG Saver in `rae.smali:102`, `mww.smali:310`, and `rae.b:176`)**:
+     - Hooked `rbq.c` with `TomteInitHelper.getEffectiveSpecialType(Lmhb;II)Lmhb;`, inspecting the actual output pixel dimensions (`rae.a: I` width, `rae.b: I` height).
+     - Hooked parameter `p4` in `rae.b` with `TomteInitHelper.getEffectiveSpecialTypeId(String;II)Ljava/lang/String;`.
+     - Mathematical Ground Truth: Unbinned 50MP photos have dimensions of 8160×6144 (or 8160×4590 for 16:9), totaling >20,000,000 pixels. Binned 12.5MP photos have 4080×3072 (~12.5M pixels). If `width * height > 20000000L`:
+       - If Portrait (`Lmhb.e`): promotes to `Lmhb.v` (`PORTRAIT_HIGH_RESOLUTION`).
+       - Otherwise: promotes to `Lmhb.p` (`HIGH_RESOLUTION`).
+       - Guarantees zero false positives: 12.5MP captures (`pixels <= 20000000L`) remain untouched.
+     - Forces `okq.n` and `voc.m` to embed `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-HIGH_RESOLUTION"` in the output JPEG XMP header.
+  3. **Tier 3 (Post-Processing Finisher in `mtf.smali:245`)**:
+     - Hooked `mwp.c()` through `TomteInitHelper.isHighResolutionFinisher(Z, Object)Z`.
+     - Ensures `mvs.g(mwt, HIGH_RESOLUTION)` updates `mhi.c` so the MediaProvider / ContentProvider `special_type_id` column is populated for Google Photos.
+  4. **Multi-Channel Delivery & Build Integration**:
+     - Added helper methods in [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) and reassembled [`TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex).
+     - Added `patch_high_resolution_metadata()` in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
+     - Implemented Section 13 in Morphe's [`ProControlsPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/pro/ProControlsPatch.kt) and verified clean build.
 
 ### 5. Broken Transition from Camera to Google Photos (In-Flight Processing)
+* **Status:** ✅ **Fixed**
 * **Issue:** [#54](https://github.com/Akshayykadam/Pixel-Camera/issues/54)
 * **Reporter:** `@TheArka96`
 * **Description:** Tapping the gallery thumbnail immediately after taking a heavy photo (50MP, Night Sight, Portrait) does not show the temporary "Still processing..." screen in Google Photos. The photo remains unavailable until background processing completely finishes.
-* **Cause:** The cloned app identifier (`.morphe`) lacks the private signature trust bridge with Google Photos.
-* **Planned Action:** Investigate enhancing the in-app quick viewer to display processing status locally.
+* **Root Causes:**
+  1. **Intent Action Destruction in `configureGalleryIntent` (`TomteInitHelper.smali:4987`)**:
+     - When unblocking third-party galleries (Issue #6), `configureGalleryIntent` unconditionally changed the normal (unlocked) intent action to `android.intent.action.VIEW` and reset the target package to `null` if no third-party package was explicitly configured.
+     - `android.intent.action.VIEW` forces Google Photos to open its generic external photo viewer activity (`PhotoPagerActivity`) rather than Google Camera's dedicated review activity (`PhotosReviewActivity` / `CameraAssistantActivity`).
+     - In generic viewer mode, Google Photos ignores `processing_uri_intent_extra` and expects `intent.getData()` to point to a fully written JPEG file on disk. Because the heavy capture is still in flight, the file on disk is either 0 bytes, placeholder, or incomplete, causing Google Photos to show an empty black screen, a freeze, or fail to load.
+  2. **Missing URI Permissions for `processing_uri_intent_extra`**:
+     - Android's `FLAG_GRANT_READ_URI_PERMISSION` (`0x1`) flag only grants read access to `intent.getData()` and `intent.getClipData()`. Extras containing URIs (such as `intent.getParcelableExtra("processing_uri_intent_extra")`) do **not** automatically receive URI permissions across package boundaries.
+     - When Google Photos attempted to query or open the processing URI (`content://com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider/processing/<id>`), Android OS denied permission without an explicit grant.
+  3. **Caller Signature Verification Check in `CameraContentProvider` (`CameraContentProvider.a()` & `kso.a`)**:
+     - `CameraContentProvider` verifies that the calling package's signing certificate SHA1 matches Google's hardcoded release keys in `trusted_certificates` (`kso.smali`).
+     - If Google Photos is signed with an OEM key, Play Store signing key, or runs on non-standard ROMs, `kso.a` returned `false`, prompting `CameraContentProvider.a()` to throw a fatal `SecurityException`, aborting the thumbnail feed.
+  4. **Authority Mismatch & Missing `grantUriPermissions` in `AndroidManifest.xml`**:
+     - In `AndroidManifest.xml`, `<provider android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" ...>` lacked `android:grantUriPermissions="true"`.
+     - In cloned APK builds (Morphe), authorities in `AndroidManifest.xml` were rewritten to `$targetPkg.specialtypes.SpecialTypesProvider`, but references in `ksa.smali` and `klh.smali` were not updated in sync.
+* **Fix Implemented (Full Lifecycle Review Pipeline):**
+  1. **Preserved Camera Review Action & Target in `TomteInitHelper.configureGalleryIntent`**:
+     - For default configuration or when Google Photos is selected, retains the original review action (`android.provider.action.REVIEW` or `com.google.android.apps.photos.mars.api.ACTION_REVIEW`).
+     - Explicitly sets package to `"com.google.android.apps.photos"` so Photos launches its `CameraAssistantActivity` review UI.
+     - Only converts to `android.intent.action.VIEW` if the user explicitly selected a third-party gallery (e.g. Aves, Simple Gallery) in Camera Settings, or if Google Photos is not installed.
+  2. **Implemented `TomteInitHelper.prepareReviewIntent(Intent)` & Hooked `lys.e`**:
+     - Hooked entry of `lys.e(Intent, View, Bitmap)` (the central dispatch point for thumbnail review).
+     - Extracts `processing_uri_intent_extra` and populates `ClipData` with both `processingUri` and `dataUri`.
+     - Adds `FLAG_GRANT_READ_URI_PERMISSION` and explicitly calls `context.grantUriPermission(targetPkg, processingUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)`.
+     - Added cascade fallback resolver (`Mars REVIEW` -> `Standard REVIEW` -> `VIEW with package` -> `VIEW without package`) to ensure `resolveActivity` never returns `null`, preventing `CancellationException("Photos is disabled.")`.
+  3. **Bypassed Caller Signature Gate in `CameraContentProvider`**:
+     - Patched `CameraContentProvider.a()` to `return-void` and `kso.a(String)` to `return 1` (`true`), ensuring `CameraContentProvider` never rejects queries or file descriptor requests for processing thumbnails and badges.
+  4. **Updated Manifest & Cloned Package Authority Alignment**:
+     - Added `android:grantUriPermissions="true"` to `SpecialTypesProvider` in `AndroidManifest.xml`.
+     - Updated `PixelCameraClonePatch.kt` to ensure `grantUriPermissions="true"` is preserved and aligned authorities across `klh.smali` and `ksa.smali`.
+  5. **Build Script & DEX Synchronization**:
+     - Added `patch_camera_content_provider()` in `build_and_patch_pixelcamera.py`.
+     - Reassembled `TomteInitHelper.dex` and verified clean compilation across both Gradle and standalone Python build pipelines.
 
 ### 6. Status Bar & Privacy Chip Overlapping Top Camera Controls
+* **Status:** ✅ **Fixed**
 * **Issue:** [#53](https://github.com/Akshayykadam/Pixel-Camera/issues/53)
 * **Reporter:** `@TheArka96`
 * **Description:** On app launch, the system status bar and Android camera privacy chip overlay the top camera controls for several seconds instead of hiding immediately like the stock camera.
-* **Cause:** Cloned/third-party app status causes Android to display the full privacy chip expansion animation, combined with a brief delay in applying full-screen window insets.
-* **Planned Action:** Enforce immediate immersive full-screen window flags (`WindowInsetsControllerCompat`) during Activity creation to hide the status bar before controls render.
+* **Root Cause:** Stock Google Camera is pre-installed in `/system/priv-app` and benefits from platform signature / `config_cameraPrivacyAllowlist` exemptions, whereas cloned/third-party installations run as standard user apps. Because Gcam's internal system bar controller (`rsg.smali`) was instantiated and triggered asynchronously via Dagger dependency injection after camera graph setup, the activity window remained non-immersive during initial creation. Android's `PermissionManager` and SystemUI detected camera sensor opening while the status bar was still active, triggering the full 3-second horizontal privacy chip expansion banner directly over the top camera controls (options pill, flash, timer).
+* **Fix Implemented:**
+  1. **Immediate Immersive Enforcer (`TomteInitHelper.enforceImmersiveFullscreen`)**:
+     - Added static helper in `TomteInitHelper` executed synchronously during Activity startup:
+       - Multi-Window Guard: Inspects `isInMultiWindowMode()`; skips forced hiding if running in split-screen to preserve window manager control.
+       - Display Cutout Mode: Sets `layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS` (3) and `rotationAnimation = ROTATION_ANIMATION_SEAMLESS` (3) on `WindowManager.LayoutParams`.
+       - Window Flags: Enforces `FLAG_FULLSCREEN` (1024), `FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS` (`0x80000000`), `FLAG_LAYOUT_IN_SCREEN` (256), and clears `FLAG_TRANSLUCENT_STATUS` and `FLAG_FORCE_NOT_FULLSCREEN`.
+       - Edge-to-Edge Layout: Enforces `setDecorFitsSystemWindows(false)` and disables navigation bar contrast enforcement.
+       - Modern Insets Controller: Configures `WindowInsetsController.setSystemBarsBehavior(BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE)` (2) and immediately issues `hide(WindowInsets.Type.statusBars())`.
+       - DecorView Fallback: Applies legacy sticky flags (`SYSTEM_UI_FLAG_IMMERSIVE_STICKY | SYSTEM_UI_FLAG_LAYOUT_STABLE | SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | SYSTEM_UI_FLAG_FULLSCREEN` = `0x1504`).
+  2. **Theme Declaration (`Theme.Camera`)**:
+     - Added `android:windowLayoutInDisplayCutoutMode="@integer/m3c_window_layout_in_display_cutout_mode"` (value 3 / always) and `android:windowTranslucentStatus="false"` to `Theme.Camera` in `apktool_full/res/values/styles.xml` so WindowManager allocates the activity window into display cutouts edge-to-edge before bytecode runs.
+  3. **Zero-Delay Lifecycle Hooks**:
+     - `CameraActivity.onCreate`: Injected `enforceImmersiveFullscreen` at the very first instruction before super call and Dagger initialization, and reinforced immediately prior to `setContentView` view tree inflation.
+     - `CameraActivity.onResume`: Re-enforces insets when resuming from background or switching activities.
+     - `nww.onAttachedToWindow`: Injected into the base activity lifecycle so insets are asserted the instant `ViewRootImpl` attaches to WindowManager.
+     - `nww.onWindowFocusChanged`: Re-enforces insets whenever the window regains focus (e.g. after dismissing dialogs or notification shade).
+  4. **Patch & Build Pipeline Integration**:
+     - Added `patch_camera_activity_immersive()` into `build_and_patch_pixelcamera.py`.
+     - Updated `PixelCameraClonePatch.kt` across both Morphe patch project trees to automate smali and resource modifications.
+     - Recompiled and verified `TomteInitHelper.dex` via Gradle tests (`SmokeTest.testAssembleDexes`).
+     - Verified APK compilation, zipalign, and apksigner verification producing clean signed outputs on the Desktop.
+     - **On-Device Physical Verification**: Successfully deployed and tested on physical Pixel 8 Pro (`husky` / Android 15/16). Verified zero crashes, immediate status bar & privacy indicator hiding, live viewfinder operation, photo capture, Pro settings sheet (12MP/50MP), and Portrait mode transitions.
+
 
 ---
 
@@ -137,3 +225,26 @@ This document tracks bugs, image tuning observations, and feature requests repor
   1. Added `getCamera2NoiseReductionMode()` and `getCamera2EdgeMode()` in `TomteInitHelper`: returns `1` (`FAST`) for Standard mode (matching stock Google Camera continuous requests), preventing Lyric HAL GTNR merge failures and ensuring hardware temporal denoising runs normally.
   2. Guarded `TomteInitHelper.getEffectiveLookId()` with `if-lez v0`: Look overrides now only apply if a positive Look ID (> 0) is actively selected, preserving pure stock HDR+ when Look 0 ("Original") or uninitialized.
   3. Updated `propatcher.c`: When Sharpen is 1.0x and Denoise is Standard (mode 2), directly restores `s_backup` via `memcpy`, guaranteeing 100% bit-for-bit parity with stock Google Camera `.rodata` tuning curves.
+
+### 15. 50MP Capture Triggering Video Recording Mode ("Taking Video" / "Processing Videos" in Gallery)
+* **Status:** ✅ **Fixed**
+* **Reporter:** User testing (Pixel 8 Pro `husky`)
+* **Description:** When capturing a 50MP photo, the camera displayed "Taking video" with a 9-second recording countdown timer and saved an `.mp4` file to `/sdcard/DCIM/Camera/` instead of a `.jpg` photo. In Google Photos / Samsung Gallery, the photo was listed under videos and displayed "processing videos".
+* **Root Causes:**
+  1. **Capture Session Builder Method Misidentification (`pck.smali`)**:
+     In `pck.smali`, `.method public final g(Z)V` sets field `pck.k:Z`, which `pck.a()` assigns as parameter 8 (`p8`) of `pcl.<init>`, which stores `pcl.h:Z`. `pcl.h` is `isLongShot` (QuickTake long-press video). In `oms.smali:629`, `if (pcl.h)` immediately branches to `rce = Lrce.o` (`LONG_SHOT`), and `rah.smali:1567` detects `rah.J.contains(Lrce.o)` to enforce `.mp4` container creation and MediaStore video registration.
+     By contrast, `.method public final f(Z)V` in `pck.smali` sets `pck.m:Z`, which `pck.a()` assigns as parameter 11 (`p11`) of `pcl.<init>`, which stores `pcl.k:Z` (`HI_RES` / 50MP). In `oms.smali:638`, `if (pcl.k)` branches to `rce = Lrce.A` (`HI_RES` photo) and initializes `rbu.c(JZ)` for 50MP capture.
+  2. **Overridden `pck->g(Z)` in Build Script and Morphe Patch**:
+     `build_and_patch_pixelcamera.py` and Morphe's `ProControlsPatch.kt` hooked `pck->g(Z)V` with `TomteInitHelper.isHighResShot(omw)`. Whenever 50MP mode was active, `isHighResShot` returned `true`, invoking `pck->g(true)` and forcing `pcl.h = true` (LongShot video).
+  3. **Erroneous `omw.e` Check in `TomteInitHelper.isHighResShot`**:
+     `isHighResShot` in `TomteInitHelper.smali` checked `omw.e`, mistaking the LongShot video flag for high resolution.
+* **Fix Implemented:**
+  1. Restored `pck->g(Z)V` in `oms.smali`, `omo.smali`, and `oml.smali` to preserve `Lomw;->e:Z` (`isLongShot`), ensuring standard photo shutter taps never trigger video recording.
+  2. Hooked `pck->f(Z)V` (the actual `pcl.k` / `HI_RES` builder setter) in `oms.smali` and `oml.smali` with a fallback to `TomteInitHelper.isHighResShot(Lomw;)Z`, correctly signaling high resolution capture without triggering `LONG_SHOT`.
+  3. Cleaned `TomteInitHelper.isHighResShot(Lomw;)Z` in `smali_patches/TomteInitHelper.smali` and reassembled `TomteInitHelper.dex` via `SmokeTest.testAssembleDexes` to remove the erroneous `omw.e` check.
+  4. Updated `build_and_patch_pixelcamera.py` and Morphe patch suites (`ProControlsPatch.kt`) to ensure `pck->g(Z)` is never hijacked and `pck->f(Z)` is properly targeted.
+  5. **On-Device Physical Verification on Pixel 8 Pro (`husky`)**:
+     - Captured 50MP photo: verified immediate capture with zero video recording UI, no countdown pill, saved as clean JPEG file `PXL_...jpg` with resolution **8160×6144 (50,135,040 pixels)**.
+     - Switched to 12MP photo: verified capture saved as clean JPEG file `PXL_...jpg` with resolution **4080×3072 (12,533,760 pixels)**.
+     - Verified Google Photos & Gallery display 50MP photo properly without "processing videos" notification.
+

@@ -311,5 +311,118 @@ val proControlsPatch = bytecodePatch(
                 }
             }
         }
+
+        // ── 13. 50MP High Resolution Metadata Hooks (Google Photos SpecialTypeID) ──
+        // a) Route capture session high-res shot flag through isHighResShot(omw) into pck->f(Z) in oms and oml
+        listOf("Loms;", "Loml;").forEach { classDesc ->
+            mutableClassDefByOrNull(classDesc)?.let { clazz ->
+                clazz.methods.forEach { method ->
+                    val impl = method.implementation ?: return@forEach
+                    val pckIdx = impl.instructions.indexOfFirst { ins ->
+                        (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lpck;->f(Z)V") == true
+                    }
+                    if (pckIdx != -1) {
+                        val ins = impl.instructions.elementAt(pckIdx) as? com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
+                        if (ins != null) {
+                            val reg = ins.registerA
+                            val smali = """
+                                if-nez v$reg, :cond_skip_hi_res
+                                invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z
+                                move-result v$reg
+                                :cond_skip_hi_res
+                            """.trimIndent()
+                            val newIns = smali.toInstructions(method)
+                            var pos = pckIdx
+                            for (ni in newIns) {
+                                impl.addInstruction(pos++, ni)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // b) rae: getEffectiveSpecialType in a(rbq, ...) and getEffectiveSpecialTypeId in b(yia, ...)
+        mutableClassDefByOrNull("Lrae;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.parameterTypes.size == 3 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val cIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lrbq;->c:Lmhb;") == true
+                }
+                if (cIdx != -1) {
+                    val smali = """
+                        iget v2, p0, Lrae;->a:I
+                        iget v3, p0, Lrae;->b:I
+                        invoke-static {v1, v2, v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;
+                        move-result-object v1
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = cIdx + 1
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+
+            clazz.methods.firstOrNull { it.name == "b" && it.parameterTypes.size == 5 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val smali = """
+                    iget v0, p0, Lrae;->a:I
+                    iget v2, p0, Lrae;->b:I
+                    invoke-static {p4, v0, v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeId(Ljava/lang/String;II)Ljava/lang/String;
+                    move-result-object p4
+                """.trimIndent()
+                val newIns = smali.toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
+                }
+            }
+        }
+
+        // c) mww: getEffectiveSpecialType in method saving JPEG
+        mutableClassDefByOrNull("Lmww;")?.let { clazz ->
+            clazz.methods.forEach { method ->
+                val impl = method.implementation ?: return@forEach
+                val cIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lrbq;->c:Lmhb;") == true
+                }
+                if (cIdx != -1) {
+                    val smali = """
+                        move-object/from16 v1, v16
+                        iget v5, v1, Lrae;->a:I
+                        iget v1, v1, Lrae;->b:I
+                        invoke-static {v3, v5, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;
+                        move-result-object v3
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = cIdx + 1
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
+
+        // d) mtf: isHighResolutionFinisher for MediaProvider special_type_id
+        mutableClassDefByOrNull("Lmtf;")?.let { clazz ->
+            clazz.methods.forEach { method ->
+                val impl = method.implementation ?: return@forEach
+                val mwpIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lmwp;->c()Z") == true
+                }
+                if (mwpIdx != -1 && mwpIdx + 1 < impl.instructions.size) {
+                    val smali = """
+                        invoke-static {v1, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResolutionFinisher(ZLjava/lang/Object;)Z
+                        move-result v1
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = mwpIdx + 2
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
     }
 }

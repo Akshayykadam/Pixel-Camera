@@ -102,7 +102,11 @@ def patch_manifest():
     content = content.replace('android:authorities="com.google.android.GoogleCamera.fileprovider"',
                             'android:authorities="com.google.android.GoogleCameraEng.fileprovider"')
     content = content.replace('android:authorities="com.google.android.apps.camera.specialtypes.SpecialTypesProvider"',
-                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider"')
+                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:grantUriPermissions="true"')
+    content = content.replace('android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:exported="true"',
+                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:exported="true" android:grantUriPermissions="true"')
+    # Normalize if duplicate android:grantUriPermissions="true" occurred
+    content = content.replace('android:grantUriPermissions="true" android:grantUriPermissions="true"', 'android:grantUriPermissions="true"')
     content = content.replace('android:authorities="com.google.android.GoogleCamera"',
                             'android:authorities="com.google.android.GoogleCameraEng.search"')
     content = content.replace('android:authorities="com.google.android.GoogleCamera.mlkitinitprovider"',
@@ -1775,9 +1779,26 @@ def patch_hpq_smali():
         repl_lys = """    :cond_4\n    iget-object v0, p0, Llys;->l:Lqyr;\n\n    if-eqz v0, :cond_skip_resume\n\n    invoke-interface {v0}, Lqyr;->v()V\n\n    :cond_skip_resume\n    iget-object p0, p0, Llys;->g:Lacnh;"""
         if target_lys in lys_content:
             lys_content = lys_content.replace(target_lys, repl_lys)
-            with open(lys_path, "w", encoding="utf-8") as f:
-                f.write(lys_content)
             print("    [+] lys.smali: added qyr.v() preview resume safeguard on gallery launch cancellation.")
+
+        target_lys_e = """.method public final e(Landroid/content/Intent;Landroid/view/View;Landroid/graphics/Bitmap;)Z
+    .locals 5
+
+    iget-object v0, p0, Llys;->o:Landroid/content/Context;"""
+        repl_lys_e = """.method public final e(Landroid/content/Intent;Landroid/view/View;Landroid/graphics/Bitmap;)Z
+    .locals 5
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->prepareReviewIntent(Landroid/content/Intent;)Landroid/content/Intent;
+
+    move-result-object p1
+
+    iget-object v0, p0, Llys;->o:Landroid/content/Context;"""
+        if target_lys_e in lys_content:
+            lys_content = lys_content.replace(target_lys_e, repl_lys_e)
+            print("    [+] lys.smali: hooked lys.e to invoke TomteInitHelper.prepareReviewIntent for in-flight processing.")
+
+        with open(lys_path, "w", encoding="utf-8") as f:
+            f.write(lys_content)
 
 def patch_kic_smali():
     print("[*] Patching kov.smali / kic.smali (Nulling failing TPU PD models)...")
@@ -3008,6 +3029,54 @@ def patch_klh_smali():
             elif "com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" in content:
                 print(f"    [+] {smali_name}: already patched.")
 
+def patch_camera_content_provider():
+    print("[*] Patching CameraContentProvider & kso (Enable in-flight processing for Google Photos)...")
+    for folder in ["smali", "smali_classes2"]:
+        ccp_path = os.path.join(APKTOOL_DIR, folder, "com", "google", "android", "apps", "camera", "contentprovider", "CameraContentProvider.smali")
+        if os.path.exists(ccp_path):
+            with open(ccp_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            target_a = """.method protected final a()V
+    .locals 1
+
+    iget-object v0, p0, Lcom/google/android/apps/camera/contentprovider/CameraContentProvider;->b:Lkso;"""
+            if target_a in c:
+                idx = c.find(target_a)
+                end_idx = c.find(".end method", idx)
+                if end_idx != -1:
+                    c = c[:idx] + """.method protected final a()V
+    .locals 0
+
+    return-void
+.end method""" + c[end_idx + len(".end method"):]
+                    with open(ccp_path, "w", encoding="utf-8") as f:
+                        f.write(c)
+                    print("    [+] CameraContentProvider.smali: bypassed signature check in a().")
+            elif ".method protected final a()V\n    .locals 0\n\n    return-void\n.end method" in c:
+                print("    [+] CameraContentProvider.smali: signature check already bypassed.")
+
+        kso_path = os.path.join(APKTOOL_DIR, folder, "kso.smali")
+        if os.path.exists(kso_path):
+            with open(kso_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            target_kso = ".method public final a(Ljava/lang/String;)Z\n    .locals 7"
+            if target_kso in c:
+                idx = c.find(target_kso)
+                end_idx = c.find(".end method", idx)
+                if end_idx != -1:
+                    c = c[:idx] + """.method public final a(Ljava/lang/String;)Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method""" + c[end_idx + len(".end method"):]
+                    with open(kso_path, "w", encoding="utf-8") as f:
+                        f.write(c)
+                    print("    [+] kso.smali: method a() patched to always trust calling package.")
+            elif ".method public final a(Ljava/lang/String;)Z\n    .locals 1\n\n    const/4 v0, 0x1\n\n    return v0\n.end method" in c:
+                print("    [+] kso.smali: already patched to always trust calling package.")
+
 def patch_num_smali():
     print("[*] Patching num.smali (Guard telephoto portrait sensor against NPE)...")
     num_path = os.path.join(APKTOOL_DIR, "smali", "num.smali")
@@ -3302,6 +3371,74 @@ def inject_tomte_init_helper():
         dst = os.path.join(helper_dst_dir, os.path.basename(smali_file))
         shutil.copyfile(smali_file, dst)
         print(f"    [+] Injected {os.path.basename(smali_file)}")
+
+def patch_camera_activity_immersive():
+    print("[*] Patching CameraActivity & Theme.Camera for immediate immersive fullscreen...")
+    # 1. Update Theme.Camera in res/values/styles.xml
+    styles_path = os.path.join(APKTOOL_DIR, "res", "values", "styles.xml")
+    if os.path.exists(styles_path):
+        with open(styles_path, "r", encoding="utf-8") as f:
+            styles_content = f.read()
+        target_theme = '<style name="Theme.Camera" parent="@style/Theme.GoogleMaterial3.Dark.NoActionBar">'
+        if target_theme in styles_content and "android:windowLayoutInDisplayCutoutMode" not in styles_content:
+            cutout_items = '        <item name="android:windowLayoutInDisplayCutoutMode">@integer/m3c_window_layout_in_display_cutout_mode</item>\n        <item name="android:windowTranslucentStatus">false</item>\n'
+            styles_content = styles_content.replace(target_theme, target_theme + "\n" + cutout_items)
+            with open(styles_path, "w", encoding="utf-8") as f:
+                f.write(styles_content)
+            print("    [+] styles.xml: Added windowLayoutInDisplayCutoutMode to Theme.Camera.")
+
+    # 2. CameraActivity.smali
+    ca_path = os.path.join(APKTOOL_DIR, "smali", "com", "google", "android", "apps", "camera", "activity", "main", "CameraActivity.smali")
+    if os.path.exists(ca_path):
+        with open(ca_path, "r", encoding="utf-8") as f:
+            ca_content = f.read()
+
+        # Hook at onCreate entry
+        target_on_create = ".method protected onCreate(Landroid/os/Bundle;)V\n    .locals 14\n\n    invoke-super {p0}, Lifi;->s()V"
+        repl_on_create = ".method protected onCreate(Landroid/os/Bundle;)V\n    .locals 14\n\n    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V\n\n    invoke-super {p0}, Lifi;->s()V"
+        if target_on_create in ca_content:
+            ca_content = ca_content.replace(target_on_create, repl_on_create)
+            print("    [+] CameraActivity.smali: Hooked enforceImmersiveFullscreen at onCreate entry.")
+
+        # Hook before setContentView
+        target_content = "    check-cast p1, Landroid/app/Activity;\n\n    const v2, 0x7f0d001d\n\n    invoke-virtual {p1, v2}, Landroid/app/Activity;->setContentView(I)V"
+        repl_content = "    check-cast p1, Landroid/app/Activity;\n\n    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V\n\n    const v2, 0x7f0d001d\n\n    invoke-virtual {p1, v2}, Landroid/app/Activity;->setContentView(I)V"
+        if target_content in ca_content:
+            ca_content = ca_content.replace(target_content, repl_content)
+            print("    [+] CameraActivity.smali: Hooked enforceImmersiveFullscreen before setContentView.")
+
+        # Hook at onResume entry
+        target_resume = ".method protected final onResume()V\n    .locals 3\n\n    iget-object v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;->C:Lrpt;"
+        repl_resume = ".method protected final onResume()V\n    .locals 3\n\n    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V\n\n    iget-object v0, p0, Lcom/google/android/apps/camera/activity/main/CameraActivity;->C:Lrpt;"
+        if target_resume in ca_content:
+            ca_content = ca_content.replace(target_resume, repl_resume)
+            print("    [+] CameraActivity.smali: Hooked enforceImmersiveFullscreen at onResume entry.")
+
+        with open(ca_path, "w", encoding="utf-8") as f:
+            f.write(ca_content)
+
+    # 3. nww.smali
+    nww_path = os.path.join(APKTOOL_DIR, "smali", "nww.smali")
+    if os.path.exists(nww_path):
+        with open(nww_path, "r", encoding="utf-8") as f:
+            nww_content = f.read()
+
+        # Hook at onAttachedToWindow entry
+        target_attached = ".method public final onAttachedToWindow()V\n    .locals 1\n\n    iget-object v0, p0, Lnww;->z:Lnwe;"
+        repl_attached = ".method public final onAttachedToWindow()V\n    .locals 1\n\n    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V\n\n    iget-object v0, p0, Lnww;->z:Lnwe;"
+        if target_attached in nww_content:
+            nww_content = nww_content.replace(target_attached, repl_attached)
+            print("    [+] nww.smali: Hooked enforceImmersiveFullscreen at onAttachedToWindow entry.")
+
+        # Hook at onWindowFocusChanged
+        target_focus = ".method public final onWindowFocusChanged(Z)V\n    .locals 1\n\n    iget-object v0, p0, Lnww;->z:Lnwe;"
+        repl_focus = ".method public final onWindowFocusChanged(Z)V\n    .locals 1\n\n    if-eqz p1, :cond_focus\n\n    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V\n\n    :cond_focus\n    iget-object v0, p0, Lnww;->z:Lnwe;"
+        if target_focus in nww_content:
+            nww_content = nww_content.replace(target_focus, repl_focus)
+            print("    [+] nww.smali: Hooked enforceImmersiveFullscreen at onWindowFocusChanged.")
+
+        with open(nww_path, "w", encoding="utf-8") as f:
+            f.write(nww_content)
 
 def patch_mkm_smali():
     print("[*] Patching mkm.smali & mtf.smali (Make Flare Removal a safe no-op to prevent FinishShot crashes on Pixel 10)...")
@@ -3731,7 +3868,137 @@ def patch_rfx_smali():
         content = content.replace(target, replacement, 1)
         print("    [+] rfx.smali: Added TomteInitHelper fallback to Sauce EXIF builder.")
 
+    # Fix UnsupportedOperationException in method M for Dijon (qvi), Buffalo (qvg), and Flat (qvd)
+    target_m = """    :cond_16
+    sget-object v5, Lqvi;->a:Lqvi;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-nez v5, :cond_1b
+
+    sget-object v5, Lqvg;->a:Lqvg;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-nez v5, :cond_1b
+
+    sget-object v5, Lqvd;->a:Lqvd;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-nez v5, :cond_1b
+
+    sget-object v5, Lqve;->a:Lqve;"""
+
+    replacement_m = """    :cond_16
+    sget-object v5, Lqvi;->a:Lqvi;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-eqz v5, :cond_16_dijon
+
+    const v5, 0x7f130845
+
+    goto :goto_c
+
+    :cond_16_dijon
+    sget-object v5, Lqvg;->a:Lqvg;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-eqz v5, :cond_16_buffalo
+
+    const v5, 0x7f13084a
+
+    goto :goto_c
+
+    :cond_16_buffalo
+    sget-object v5, Lqvd;->a:Lqvd;
+
+    invoke-static {v15, v5}, Ladtc;->f(Ljava/lang/Object;Ljava/lang/Object;)Z
+
+    move-result v5
+
+    if-eqz v5, :cond_16_cont
+
+    const v5, 0x7f13083d
+
+    goto :goto_c
+
+    :cond_16_cont
+    sget-object v5, Lqve;->a:Lqve;"""
+
+    if target_m in content:
+        content = content.replace(target_m, replacement_m, 1)
+        print("    [+] rfx.smali: Fixed method M description lookup for Dijon, Buffalo, and Flat.")
+    elif ":cond_16_dijon" in content:
+        print("    [+] rfx.smali: method M already patched for Dijon, Buffalo, and Flat.")
+
+    # Also neutralize :cond_1b throw UnsupportedOperationException
+    target_1b = """    :cond_1b
+    new-instance v0, Ljava/lang/UnsupportedOperationException;
+
+    invoke-direct {v0}, Ljava/lang/UnsupportedOperationException;-><init>()V
+
+    throw v0"""
+
+    replacement_1b = """    :cond_1b
+    const v5, 0x7f130830
+
+    goto :goto_c"""
+
+    if target_1b in content:
+        content = content.replace(target_1b, replacement_1b, 1)
+        print("    [+] rfx.smali: Neutralized cond_1b UnsupportedOperationException.")
+    elif "const v5, 0x7f130830\\n\\n    goto :goto_c" in content or "const v5, 0x7f130830\n\n    goto :goto_c" in content:
+        print("    [+] rfx.smali: cond_1b already neutralized.")
+
     with open(rfx_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_qui_smali():
+    print("[*] Patching qui.smali (Google Photos Sauce metadata look fallback)...")
+    qui_path = os.path.join(APKTOOL_DIR, "smali", "qui.smali")
+    if not os.path.exists(qui_path):
+        return
+    with open(qui_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    target = """    check-cast v0, Lqvj;
+
+    const/4 v1, 0x0
+
+    if-nez v0, :cond_0"""
+
+    replacement = """    check-cast v0, Lqvj;
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookOrFallback(Lqvj;)Lqvj;
+
+    move-result-object v0
+
+    const/4 v1, 0x0
+
+    if-nez v0, :cond_0"""
+
+    if target in content and "TomteInitHelper;->getEffectiveLookOrFallback" not in content:
+        content = content.replace(target, replacement, 1)
+        print("    [+] qui.smali: Hooked qui.e with TomteInitHelper.getEffectiveLookOrFallback.")
+    elif "TomteInitHelper;->getEffectiveLookOrFallback" in content:
+        print("    [+] qui.smali: already hooked.")
+    else:
+        print("    [!] Warning: qui.smali target not found.")
+
+    with open(qui_path, "w", encoding="utf-8") as f:
         f.write(content)
 
 def patch_wlo_smali():
@@ -4823,6 +5090,122 @@ def patch_moo_smali():
         print("    [+] moo.smali: Resolution row restored for Pro devices via isProDevice().")
     else:
         print("    [!] Warning: moo.smali target not found.")
+
+def patch_high_resolution_metadata():
+    print("[*] Patching 50MP High Resolution XMP and MediaProvider metadata...")
+
+    # 1. Clean up / revert any erroneous pck->g(Z) overrides (pck->g controls LONG_SHOT video!)
+    revert_g_targets = [
+        (os.path.join(APKTOOL_DIR, "smali", "oms.smali"),
+         "    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z\\n\\n    move-result v3\\n\\n    invoke-virtual {11, v3}, Lpck;->g(Z)V",
+         "    iget-boolean v3, v0, Lomw;->e:Z\\n\\n    invoke-virtual {11, v3}, Lpck;->g(Z)V"),
+        (os.path.join(APKTOOL_DIR, "smali_classes2", "omo.smali"),
+         "    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z\\n\\n    move-result v2\\n\\n    invoke-virtual {6, v2}, Lpck;->g(Z)V",
+         "    iget-boolean v2, v0, Lomw;->e:Z\\n\\n    invoke-virtual {6, v2}, Lpck;->g(Z)V"),
+        (os.path.join(APKTOOL_DIR, "smali_classes2", "oml.smali"),
+         "    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z\\n\\n    move-result v6\\n\\n    invoke-virtual {4, v6}, Lpck;->g(Z)V",
+         "    iget-boolean v6, v0, Lomw;->e:Z\\n\\n    invoke-virtual {4, v6}, Lpck;->g(Z)V"),
+    ]
+    for smali_path, bad_str, good_str in revert_g_targets:
+        if not os.path.exists(smali_path):
+            continue
+        with open(smali_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        bad = bad_str.replace("\\n", "\n")
+        good = good_str.replace("\\n", "\n")
+        if bad in c:
+            c = c.replace(bad, good, 1)
+            with open(smali_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print(f"    [+] {os.path.basename(smali_path)}: restored pck->g(Z) to omw->e (reverted video trigger).")
+
+    # 1b. Capture session high-res shot flag (pck->f(Z) controls HI_RES / pcl.k) in oms.smali & oml.smali
+    session_f_targets = [
+        (os.path.join(APKTOOL_DIR, "smali", "oms.smali"),
+         "    iget-object v3, v1, Loms;->F:Lurt;\\n\\n    invoke-interface {v3}, Lurt;->d()Ljava/lang/Object;\\n\\n    move-result-object v3\\n\\n    check-cast v3, Ljava/lang/Boolean;\\n\\n    invoke-virtual {v3}, Ljava/lang/Boolean;->booleanValue()Z\\n\\n    move-result v3\\n\\n    invoke-virtual {11, v3}, Lpck;->f(Z)V",
+         "    iget-object v3, v1, Loms;->F:Lurt;\\n\\n    invoke-interface {v3}, Lurt;->d()Ljava/lang/Object;\\n\\n    move-result-object v3\\n\\n    check-cast v3, Ljava/lang/Boolean;\\n\\n    invoke-virtual {v3}, Ljava/lang/Boolean;->booleanValue()Z\\n\\n    move-result v3\\n\\n    if-nez v3, :cond_f_hi_res\\n\\n    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z\\n\\n    move-result v3\\n\\n    :cond_f_hi_res\\n    invoke-virtual {11, v3}, Lpck;->f(Z)V"),
+        (os.path.join(APKTOOL_DIR, "smali_classes2", "oml.smali"),
+         "    invoke-virtual {4, v2}, Lpck;->f(Z)V",
+         "    if-nez v2, :cond_f_hi_res_oml\\n\\n    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z\\n\\n    move-result v2\\n\\n    :cond_f_hi_res_oml\\n    invoke-virtual {4, v2}, Lpck;->f(Z)V"),
+    ]
+
+    for smali_path, target, repl in session_f_targets:
+        if not os.path.exists(smali_path):
+            continue
+        with open(smali_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target_str = target.replace("\\n", "\n")
+        repl_str = repl.replace("\\n", "\n")
+        if repl_str in c:
+            print(f"    [+] {os.path.basename(smali_path)}: already patched pck->f(Z) for isHighResShot.")
+        elif target_str in c:
+            c = c.replace(target_str, repl_str, 1)
+            with open(smali_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print(f"    [+] {os.path.basename(smali_path)}: patched pck->f(Z) for isHighResShot.")
+        else:
+            print(f"    [!] Warning: {os.path.basename(smali_path)} f(Z) target not found.")
+
+    # 2. rae.smali (JPEG saver metadata and XMP tag injection)
+    rae_path = os.path.join(APKTOOL_DIR, "smali_classes2", "rae.smali")
+    if os.path.exists(rae_path):
+        with open(rae_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        target_rae_a = "    iget-object v1, p1, Lrbq;->c:Lmhb;\\n\\n    invoke-virtual {v1}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
+        repl_rae_a = "    iget-object v1, p1, Lrbq;->c:Lmhb;\\n\\n    iget v2, p0, Lrae;->a:I\\n\\n    iget v3, p0, Lrae;->b:I\\n\\n    invoke-static {v1, v2, v3}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;\\n\\n    move-result-object v1\\n\\n    invoke-virtual {v1}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
+
+        target_rae_b = ".method public final b(Lyia;Lyia;ZLjava/lang/String;Ljava/io/OutputStream;)V\\n    .locals 19\\n\\n    move-object/from16 v1, p0\\n\\n    iget-object v0, v1, Lrae;->k:Lcom/google/android/libraries/camera/exif/ExifInterface;".replace("\\n", "\n")
+        repl_rae_b = ".method public final b(Lyia;Lyia;ZLjava/lang/String;Ljava/io/OutputStream;)V\\n    .locals 19\\n\\n    move-object/from16 v1, p0\\n\\n    iget v0, v1, Lrae;->a:I\\n\\n    iget v2, v1, Lrae;->b:I\\n\\n    move-object/from16 v3, p4\\n\\n    invoke-static {v3, v0, v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeId(Ljava/lang/String;II)Ljava/lang/String;\\n\\n    move-result-object p4\\n\\n    iget-object v0, v1, Lrae;->k:Lcom/google/android/libraries/camera/exif/ExifInterface;".replace("\\n", "\n")
+
+        rae_changed = False
+        if repl_rae_a in content:
+            print("    [+] rae.smali: method a already patched for getEffectiveSpecialType.")
+        elif target_rae_a in content:
+            content = content.replace(target_rae_a, repl_rae_a, 1)
+            rae_changed = True
+            print("    [+] rae.smali: method a patched for getEffectiveSpecialType.")
+
+        if repl_rae_b in content:
+            print("    [+] rae.smali: method b already patched for getEffectiveSpecialTypeId.")
+        elif target_rae_b in content:
+            content = content.replace(target_rae_b, repl_rae_b, 1)
+            rae_changed = True
+            print("    [+] rae.smali: method b patched for getEffectiveSpecialTypeId.")
+
+        if rae_changed:
+            with open(rae_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+    # 3. mww.smali (Post-processing saver SpecialType injection)
+    mww_path = os.path.join(APKTOOL_DIR, "smali_classes2", "mww.smali")
+    if os.path.exists(mww_path):
+        with open(mww_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\\n\\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
+        repl_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\\n\\n    move-object/from16 v1, v16\\n\\n    iget v5, v1, Lrae;->a:I\\n\\n    iget v1, v1, Lrae;->b:I\\n\\n    invoke-static {v3, v5, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;\\n\\n    move-result-object v3\\n\\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
+        if repl_mww in content:
+            print("    [+] mww.smali: already patched for getEffectiveSpecialType.")
+        elif target_mww in content:
+            content = content.replace(target_mww, repl_mww, 1)
+            with open(mww_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] mww.smali: patched for getEffectiveSpecialType.")
+
+    # 4. mtf.smali (Post-processing finisher MediaProvider special_type_id update)
+    mtf_path = os.path.join(APKTOOL_DIR, "smali", "mtf.smali")
+    if os.path.exists(mtf_path):
+        with open(mtf_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_mtf = "    invoke-interface {v1}, Lmwp;->c()Z\\n\\n    move-result v1\\n\\n    if-eqz v1, :cond_2".replace("\\n", "\n")
+        repl_mtf = "    invoke-interface {v1}, Lmwp;->c()Z\\n\\n    move-result v1\\n\\n    invoke-static {v1, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResolutionFinisher(ZLjava/lang/Object;)Z\\n\\n    move-result v1\\n\\n    if-eqz v1, :cond_2".replace("\\n", "\n")
+        if repl_mtf in content:
+            print("    [+] mtf.smali: already patched for isHighResolutionFinisher.")
+        elif target_mtf in content:
+            content = content.replace(target_mtf, repl_mtf, 1)
+            with open(mtf_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] mtf.smali: patched for isHighResolutionFinisher.")
 
 def patch_poy_smali():
     print("[*] Patching poy.smali (Inject TomteProSettingsPanel in bottomsheet M(I))...")
@@ -10962,6 +11345,7 @@ def main():
     patch_qko_smali()
     patch_camera_app_smali()
     inject_tomte_init_helper()
+    patch_camera_activity_immersive()
     patch_qur_smali()
     patch_qus_smali()
     patch_qxg_smali()
@@ -10973,6 +11357,7 @@ def main():
     patch_ndf_smali()
     patch_jex_smali()
     patch_rfx_smali()
+    patch_qui_smali()
     patch_wlo_smali()
     patch_surface_control_buffer_flinger()
     patch_tgt_smali()
@@ -10985,6 +11370,7 @@ def main():
     patch_rdb_smali()
     patch_ons_smali()
     patch_moo_smali()
+    patch_high_resolution_metadata()
     patch_poy_smali()
     patch_pji_smali()
     patch_stock_raw_mode()
@@ -11013,6 +11399,7 @@ def main():
     patch_psk_smali()
     patch_psh_smali()
     patch_klh_smali()
+    patch_camera_content_provider()
     patch_kgy_smali()
     patch_kgx_smali()
     patch_kgs_smali()

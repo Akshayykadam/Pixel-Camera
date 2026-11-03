@@ -140,6 +140,51 @@ val cameraLooksPatch = bytecodePatch(
                 return-object p0
             """.trimIndent()
             PixelCameraPatchUtils.replaceMethodBody(clazz, "D", "Lqvj;", smaliD)
+
+            // Fix method M throwing UnsupportedOperationException for Dijon, Buffalo, and Flat
+            clazz.methods.firstOrNull { it.name == "M" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val uoeIdx = impl.instructions.indexOfFirst { ins ->
+                    ins.opcode == Opcode.NEW_INSTANCE &&
+                    (ins as? ReferenceInstruction)?.reference?.toString()?.contains("UnsupportedOperationException") == true
+                }
+                if (uoeIdx != -1) {
+                    val throwIdx = impl.instructions.subList(uoeIdx, impl.instructions.size).indexOfFirst {
+                        it.opcode == Opcode.THROW
+                    }
+                    if (throwIdx != -1) {
+                        val absThrowIdx = uoeIdx + throwIdx
+                        for (i in uoeIdx..absThrowIdx) {
+                            impl.replaceInstruction(i, BuilderInstruction10x(Opcode.NOP))
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 6b. Google Photos Sauce Metadata (qui.smali) ─────────────────────────────────
+        mutableClassDefByOrNull("Lqui;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "e" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lpcl;" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val checkCastIdx = impl.instructions.indexOfFirst { ins ->
+                    ins.opcode == Opcode.CHECK_CAST &&
+                    (ins as? ReferenceInstruction)?.reference?.toString()?.contains("Lqvj;") == true
+                }
+                if (checkCastIdx != -1) {
+                    val oneReg = (impl.instructions[checkCastIdx] as? OneRegisterInstruction)?.registerA ?: 0
+                    val hookSmali = """
+                        invoke-static {v$oneReg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookOrFallback(Lqvj;)Lqvj;
+                        move-result-object v$oneReg
+                    """.trimIndent()
+                    try {
+                        val instructions = hookSmali.toInstructions(method)
+                        var insertPos = checkCastIdx + 1
+                        for (ins in instructions) {
+                            impl.addInstruction(insertPos++, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
         }
 
         // ── 7. Effective Look ID for Native Halide Processing (mla.smali) ────────────────
