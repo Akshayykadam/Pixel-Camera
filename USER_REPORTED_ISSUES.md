@@ -229,4 +229,20 @@ This document tracks bugs, image tuning observations, and feature requests repor
   2. Guarded `TomteInitHelper.getEffectiveLookId()` with `if-lez v0`: Look overrides now only apply if a positive Look ID (> 0) is actively selected, preserving pure stock HDR+ when Look 0 ("Original") or uninitialized.
   3. Updated `propatcher.c`: When Sharpen is 1.0x and Denoise is Standard (mode 2), directly restores `s_backup` via `memcpy`, guaranteeing 100% bit-for-bit parity with stock Google Camera `.rodata` tuning curves.
 
+### 15. Photographic Look Rendering & Tone Curve Harmonization
+* **Status:** ✅ **Fixed / Enhanced**
+* **Reporter:** User testing
+* **Description:** Look styles produced harsh highlight clipping, overly aggressive contrast, washed-out shadows, and oversaturated skin tones on still photo captures.
+* **Root Causes:**
+  1. **Additive Luminance Grading ($dl = Y' - Y$):** Previous implementation added luminance delta directly to $R, G, B$, breaking channel chromatic ratios, causing hue shifts (e.g. warm amber shifting to pale green/yellow) and abrupt digital highlight clipping.
+  2. **Flat DC Tint Shift:** Warmth and tint shifts ($U/V$) were applied uniformly across the entire luminance range, tinting pure blacks into murky darks and discoloring specular highlights.
+  3. **Global Saturation on Skin Tones:** Boosting saturation uniformly across the image caused human faces to become oversaturated, blotchy, and reddish/sunburned.
+  4. **Aggressive Contrast Exponents:** Contrast exponents ($1.30\times$ to $1.35\times$) compounded on top of Gcam's existing HDR+ tone curve, crushing deep shadow detail.
+* **Fix Implemented:**
+  1. **Ratio-Preserving Luminance Scaling:** Scaled $R, G, B$ proportionally by $(Y' / Y)$ to preserve 100% of chromatic ratios and eliminate hue distortion.
+  2. **Filmic Highlight Roll-off (Soft Desaturation Knee):** Integrated soft highlight roll-off that gently desaturates out-of-gamut channels toward luminance white when nearing the 255 ceiling instead of hard clipping.
+  3. **Luminance-Weighted Split-Toning:** Weighted tint offsets by luminance via `s_tint_weight`: pure blacks ($< 24$) and specular whites ($> 205$) remain pure and clean, while midtones ($24 \dots 205$) receive full rich filmic toning.
+  4. **Smart Vibrance & Melanin Gamut Protection:** Added `is_skin_tone` detector to moderate saturation boosts on human skin by ~62% while preserving full saturation punch on background scenery.
+  5. **Toned-Down Contrast & Lifted Pedestals:** Calibrated contrast exponents across all 13 Look profiles (e.g., Shadows reduced from $1.35\times \to 1.18\times$, Editorial from $1.30\times \to 1.16\times$, Velvet from $1.25\times \to 1.12\times$ with lifted pedestals) to preserve rich textural shadow detail without deep-fried artifacts.
+
 

@@ -258,30 +258,30 @@ typedef struct {
 // 0: Original (Default) -> passthrough
 // 1: Natural (Class qvb) -> natural colors & relaxed details
 // 2: Minimal (Class qva) -> organic muted desaturation, lifted shadows
-// 3: Shadows (Class qvf) -> deep dramatic shadows, cool shadow tone
+// 3: Shadows (Class qvf) -> deep dramatic shadows, cool shadow tone (toned down from 1.35x to 1.18x)
 // 4: Vanilla (Class qvc) -> "orange", warm creamy highlights, golden glow
-// 5: Digi (Class quy)    -> "digicam", vivid retro-digital punch
-// 6: Black Tie (Class quw)-> pure fine-art monochrome
+// 5: Digi (Class quy)    -> "digicam", vivid retro-digital punch (toned down from 1.25x to 1.14x)
+// 6: Black Tie (Class quw)-> pure fine-art monochrome (toned down from 1.45x to 1.26x for Leica-style roll-off)
 // 7: Dijon (Class qvi)   -> "yellow_green_faded", vintage 70s mustard fade
-// 8: Buffalo (Class qvg) -> "unflat", rugged bronze textural contrast
-// 9: Flat (Class qvd)    -> "pesto", cinematic log, lifted blacks, muted
+// 8: Buffalo (Class qvg) -> "unflat", rugged bronze textural contrast (toned down from 1.26x to 1.15x)
+// 9: Flat (Class qvd)    -> "pesto", cinematic log, lifted blacks, muted (refined log curve)
 // 10: Classic (Class qve)-> "portra", Kodak Portra 400 golden film tones
-// 11: Editorial (Class quz)-> "kodachrome", high contrast magazine punch
-// 12: Velvet (Class qvh) -> "velvia", Fuji Velvia ultra-rich saturated pop
+// 11: Editorial (Class quz)-> "kodachrome", refined magazine contrast (toned down from 1.30x/1.20x to 1.16x/1.10x)
+// 12: Velvet (Class qvh) -> "velvia", Fuji Velvia rich filmic pop (toned down from 1.25x/1.40x to 1.12x/1.18x)
 static const LookProfile s_look_profiles[13] = {
-    { 1.00f, 0.0f, 1.0f, 1.00f, 0.0f, 0.0f, 0 },                     // 0: Original
-    { 1.02f, 0.0f, 1.0f, 1.02f, 0.0f, 0.0f, 0 },                     // 1: Natural (qvb)
-    { 0.90f, 14.0f/255.0f, 246.0f/255.0f, 0.65f, 0.0f, 0.0f, 0 },          // 2: Minimal (qva)
-    { 1.35f, 0.0f, 1.0f, 1.06f, +3.0f, -2.0f, 0 },                   // 3: Shadows (qvf)
-    { 0.96f, 4.0f/255.0f, 250.0f/255.0f, 1.08f, -5.0f, +4.0f, 0 },          // 4: Vanilla (qvc)
-    { 1.25f, 0.0f, 1.0f, 1.25f, +4.0f, -2.0f, 0 },                   // 5: Digi (quy)
-    { 1.45f, 0.0f, 1.0f, 0.00f, 0.0f, 0.0f, 1 },                     // 6: Black Tie (quw)
-    { 0.92f, 16.0f/255.0f, 240.0f/255.0f, 1.05f, -6.0f, -3.0f, 0 },         // 7: Dijon (qvi)
-    { 1.26f, 0.0f, 1.0f, 1.15f, -4.0f, +5.0f, 0 },                   // 8: Buffalo (qvg)
-    { 0.80f, 26.0f/255.0f, 228.0f/255.0f, 0.62f, 0.0f, 0.0f, 0 },          // 9: Flat (qvd)
-    { 1.08f, 10.0f/255.0f, 248.0f/255.0f, 1.02f, -3.0f, +3.0f, 0 },         // 10: Classic (qve)
-    { 1.30f, 0.0f, 1.0f, 1.20f, +2.0f, +4.0f, 0 },                   // 11: Editorial (quz)
-    { 1.25f, 0.0f, 1.0f, 1.40f, 0.0f, +2.0f, 0 }                    // 12: Velvet (qvh)
+    { 1.00f, 0.0f, 1.0f, 1.00f, 0.0f, 0.0f, 0 },                              // 0: Original
+    { 1.02f, 0.0f, 1.0f, 1.02f, 0.0f, 0.0f, 0 },                              // 1: Natural (qvb)
+    { 0.92f, 12.0f/255.0f, 248.0f/255.0f, 0.72f, 0.0f, 0.0f, 0 },             // 2: Minimal (qva)
+    { 1.18f, 5.0f/255.0f, 252.0f/255.0f, 1.04f, +2.5f, -1.5f, 0 },            // 3: Shadows (qvf)
+    { 0.98f, 4.0f/255.0f, 252.0f/255.0f, 1.05f, -4.0f, +3.0f, 0 },            // 4: Vanilla (qvc)
+    { 1.14f, 2.0f/255.0f, 253.0f/255.0f, 1.14f, +3.0f, -1.5f, 0 },            // 5: Digi (quy)
+    { 1.26f, 0.0f, 1.0f, 0.00f, 0.0f, 0.0f, 1 },                              // 6: Black Tie (quw)
+    { 0.95f, 12.0f/255.0f, 245.0f/255.0f, 1.03f, -4.5f, -2.0f, 0 },           // 7: Dijon (qvi)
+    { 1.15f, 2.0f/255.0f, 252.0f/255.0f, 1.08f, -3.0f, +3.5f, 0 },            // 8: Buffalo (qvg)
+    { 0.86f, 18.0f/255.0f, 238.0f/255.0f, 0.70f, 0.0f, 0.0f, 0 },             // 9: Flat (qvd)
+    { 1.06f, 6.0f/255.0f, 250.0f/255.0f, 1.02f, -2.5f, +2.5f, 0 },            // 10: Classic (qve)
+    { 1.16f, 0.0f, 1.0f, 1.10f, +1.5f, +2.5f, 0 },                            // 11: Editorial (quz)
+    { 1.12f, 2.0f/255.0f, 252.0f/255.0f, 1.18f, 0.0f, +2.0f, 0 }              // 12: Velvet (qvh)
 };
 
 static uint8_t s_lut_y[13][256];
@@ -364,6 +364,7 @@ static float s_ft_tint = 0.0f;
 static uint8_t s_active_lut_y[256];
 static uint8_t s_active_lut_u[256];
 static uint8_t s_active_lut_v[256];
+static uint8_t s_tint_weight[256];
 static float s_active_saturation = 1.0f;
 static float s_active_shift_u = 0.0f;
 static float s_active_shift_v = 0.0f;
@@ -416,6 +417,22 @@ static void update_active_luts(int lookId) {
         }
         float y_out = eff_black_lift + sig * (eff_white_comp - eff_black_lift);
         s_active_lut_y[i] = clamp_u8((int)roundf(y_out * 255.0f));
+    }
+
+    // Build Luminance-Weighted Split-Toning weights:
+    // Pure shadows (< 24): ramp from 0 to 256 (keeps blacks deep and ink-rich)
+    // Midtones (24..205): 256 (full rich photographic tone)
+    // Highlights (> 205): ramp down from 256 to 0 (specular whites stay clean)
+    for (int i = 0; i < 256; i++) {
+        int w = 256;
+        if (i < 24) {
+            w = (i * 256) / 24;
+        } else if (i > 205) {
+            w = ((255 - i) * 256) / 50;
+        }
+        if (w < 0) w = 0;
+        if (w > 256) w = 256;
+        s_tint_weight[i] = (uint8_t)w;
     }
 
     // 4. Vibrance (Saturation)
@@ -637,7 +654,26 @@ static inline void neon_grade_uv_nv12(uint8_t* uv_data, uint32_t width, uint32_t
     }
 }
 
-// Luminance-preserving color grading for RGB (3 channels) or RGBA (4 channels) frames with optional Film Grain
+// Human skin tone detection in sRGB space across Fitzpatrick types I-VI
+static inline int is_skin_tone(int r, int g, int b, int luma) {
+    if (luma < 25 || luma > 230) return 0;
+    if (r > g && g >= b) {
+        int rg = r - g;
+        int gb = g - b;
+        int rb = r - b;
+        // Melanin hue locus: warm red-dominant, bounded green-blue separation
+        if (rg >= 8 && rg <= 95 && gb >= 4 && gb <= 85 && rb >= 14 && rb <= 150) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Photographic color grading for RGB (3 channels) or RGBA (4 channels) frames with:
+// 1. Ratio-Preserving Luminance Scaling (eliminates blown highlights & color shifts)
+// 2. Filmic Highlight Roll-off (soft desaturation knee prevents harsh channel clipping)
+// 3. Smart Vibrance & Skin Tone Protection (preserves natural facial tones without sunburn)
+// 4. Luminance-Weighted Split-Toning (deep blacks & clean specular whites)
 static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride,
                                     const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome) {
     int s_q8 = (int)roundf(sat * 256.0f);
@@ -668,17 +704,64 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 int r = pix[0], g = pix[1], b = pix[2];
                 int luma = (r * 77 + g * 150 + b * 29) >> 8;
                 int graded_luma = lut_y[luma];
-                int dl = graded_luma - luma;
+
+                // 1. Ratio-Preserving Luminance Scaling
+                int r_tone, g_tone, b_tone;
+                if (luma == 0) {
+                    r_tone = graded_luma;
+                    g_tone = graded_luma;
+                    b_tone = graded_luma;
+                } else {
+                    r_tone = (r * graded_luma) / luma;
+                    g_tone = (g * graded_luma) / luma;
+                    b_tone = (b * graded_luma) / luma;
+
+                    // Filmic Highlight Roll-off (Soft desaturation knee if any channel overshoots 255)
+                    int max_c = r_tone;
+                    if (g_tone > max_c) max_c = g_tone;
+                    if (b_tone > max_c) max_c = b_tone;
+                    if (max_c > 255 && max_c > graded_luma) {
+                        int numer = max_c - 255;
+                        int denom = max_c - graded_luma;
+                        r_tone = r_tone - (numer * (r_tone - graded_luma)) / denom;
+                        g_tone = g_tone - (numer * (g_tone - graded_luma)) / denom;
+                        b_tone = b_tone - (numer * (b_tone - graded_luma)) / denom;
+                    }
+                }
+
+                // 2. Smart Vibrance & Skin Tone Protection
+                int eff_sq8 = s_q8;
+                if (is_skin_tone(r, g, b, luma)) {
+                    if (s_q8 > 256) {
+                        // Damp saturation boost by ~62% on human skin to prevent reddish/sunburnt faces
+                        eff_sq8 = 256 + ((s_q8 - 256) * 3) / 8;
+                    } else if (s_q8 < 256) {
+                        // Gentle desaturation on skin to avoid sickly/grey faces
+                        eff_sq8 = 256 - ((256 - s_q8) * 5) / 8;
+                    }
+                }
+
+                int r_sat = graded_luma + (((r_tone - graded_luma) * eff_sq8) >> 8);
+                int g_sat = graded_luma + (((g_tone - graded_luma) * eff_sq8) >> 8);
+                int b_sat = graded_luma + (((b_tone - graded_luma) * eff_sq8) >> 8);
+
+                // 3. Luminance-Weighted Split-Toning (Deep Blacks & Clean Whites)
+                int tw = s_tint_weight[graded_luma];
+                int tint_r = (s_r * tw) >> 8;
+                int tint_g = (s_g * tw) >> 8;
+                int tint_b = (s_b * tw) >> 8;
+
+                // 4. Optional Film Grain
                 int gr = 0;
                 if (grain_on) {
                     int n = s_noise_table[(y_offset + x) & 0xFF];
-                    int mw = 255 - abs(luma * 2 - 255);
+                    int mw = 255 - abs(graded_luma * 2 - 255);
                     gr = (n * mw) >> 10;
                 }
 
-                pix[0] = clamp_u8(r + dl + (((r - luma) * (s_q8 - 256)) >> 8) + s_r + gr);
-                pix[1] = clamp_u8(g + dl + (((g - luma) * (s_q8 - 256)) >> 8) + s_g + gr);
-                pix[2] = clamp_u8(b + dl + (((b - luma) * (s_q8 - 256)) >> 8) + s_b + gr);
+                pix[0] = clamp_u8(r_sat + tint_r + gr);
+                pix[1] = clamp_u8(g_sat + tint_g + gr);
+                pix[2] = clamp_u8(b_sat + tint_b + gr);
             }
         }
     }
