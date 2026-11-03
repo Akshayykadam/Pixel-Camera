@@ -5207,6 +5207,66 @@ def patch_high_resolution_metadata():
                 f.write(content)
             print("    [+] mtf.smali: patched for isHighResolutionFinisher.")
 
+    # 5. ocw.smali (Primary JPEG serialization stream SpecialTypeID XMP injection)
+    ocw_path = os.path.join(APKTOOL_DIR, "smali", "ocw.smali")
+    if os.path.exists(ocw_path):
+        with open(ocw_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_ocw = "    :cond_6\n    :goto_3\n    invoke-virtual {v7}, Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z"
+        repl_ocw = "    :cond_6\n    :goto_3\n    invoke-static {p0, v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectSpecialTypeToXmp([BLgyn;Ljava/util/concurrent/atomic/AtomicBoolean;)V\n\n    invoke-virtual {v7}, Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z"
+        if repl_ocw in content:
+            print("    [+] ocw.smali: already patched for injectSpecialTypeToXmp.")
+        elif target_ocw in content:
+            content = content.replace(target_ocw, repl_ocw, 1)
+            with open(ocw_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] ocw.smali: patched for injectSpecialTypeToXmp.")
+
+    # 6. qui.smali (Ultra HDR Gainmap packaging stream SpecialTypeID XMP injection)
+    qui_path = os.path.join(APKTOOL_DIR, "smali", "qui.smali")
+    if os.path.exists(qui_path):
+        with open(qui_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_qui = "    check-cast p0, [B\n\n    invoke-static {p0, p4, p1, p2}, Lvoc;->p([BLjava/io/OutputStream;Lgyn;Lgyn;)V"
+        repl_qui = "    check-cast p0, [B\n\n    invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectSpecialTypeToXmpDirect([BLgyn;)V\n\n    invoke-static {p0, p4, p1, p2}, Lvoc;->p([BLjava/io/OutputStream;Lgyn;Lgyn;)V"
+        if repl_qui in content:
+            print("    [+] qui.smali: already patched for injectSpecialTypeToXmpDirect.")
+        elif target_qui in content:
+            content = content.replace(target_qui, repl_qui, 1)
+            with open(qui_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] qui.smali: patched for injectSpecialTypeToXmpDirect.")
+
+    # 7. fp.smali (GFileMetadata / SpecialType saver injection)
+    fp_path = os.path.join(APKTOOL_DIR, "smali", "fp.smali")
+    if os.path.exists(fp_path):
+        with open(fp_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_fp = "    iget-object v0, v3, Lrbq;->c:Lmhb;\n\n    invoke-virtual {v0}, Lmhb;->d()Ljava/lang/String;"
+        repl_fp = "    iget-object v0, v3, Lrbq;->c:Lmhb;\n\n    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeForJpegBytes(Lmhb;Ljava/lang/Object;)Lmhb;\n\n    move-result-object v0\n\n    invoke-virtual {v0}, Lmhb;->d()Ljava/lang/String;"
+        if repl_fp in content:
+            print("    [+] fp.smali: already patched for getEffectiveSpecialTypeForJpegBytes.")
+        elif target_fp in content:
+            content = content.replace(target_fp, repl_fp, 1)
+            with open(fp_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] fp.smali: patched for getEffectiveSpecialTypeForJpegBytes.")
+
+    # 8. mgx.smali (CameraContentProvider / SpecialTypesProvider media resolution)
+    mgx_path = os.path.join(APKTOOL_DIR, "smali_classes2", "mgx.smali")
+    if os.path.exists(mgx_path):
+        with open(mgx_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_mgx = "    invoke-virtual {p0, p1, p2}, Lmhi;->a(J)Lyia;\n\n    move-result-object p0"
+        repl_mgx = "    invoke-virtual {p0, p1, p2}, Lmhi;->a(J)Lyia;\n\n    move-result-object p0\n\n    invoke-static {p0, p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->resolveSpecialTypeForMediaId(Lyia;J)Lyia;\n\n    move-result-object p0"
+        if repl_mgx in content:
+            print("    [+] mgx.smali: already patched for resolveSpecialTypeForMediaId.")
+        elif target_mgx in content:
+            content = content.replace(target_mgx, repl_mgx, 1)
+            with open(mgx_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] mgx.smali: patched for resolveSpecialTypeForMediaId.")
+
 def patch_poy_smali():
     print("[*] Patching poy.smali (Inject TomteProSettingsPanel in bottomsheet M(I))...")
     poy_path = os.path.join(APKTOOL_DIR, "smali", "poy.smali")

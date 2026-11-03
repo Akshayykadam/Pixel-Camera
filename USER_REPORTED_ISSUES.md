@@ -42,27 +42,30 @@ This document tracks bugs, image tuning observations, and feature requests repor
   2. **SpecialTypeID Emission Gate (`okq.n` & `voc.m`)**: In `voc.smali:618-636`, `voc.m(Lgyn;Ljava/lang/String;)V` writes the `SpecialTypeID` XMP property. In `okq.smali:1728-1744`, `okq.n` checks if the incoming SpecialTypeID equals `Lmhb.a.d()` (`"SpecialType-NONE"`). If it equals `NONE`, writing the tag is skipped entirely.
   3. **Capture Session Flag Desynchronization (`oms.smali`, `omo.smali`, `oml.smali`)**: In `oms.smali:858`, the capture session checks `pcl.k`: if `true`, it invokes `rbu.c(JZ)` which initializes the session with `Lmhb.p` (`HIGH_RESOLUTION`). However, in `oms.smali:483`, `pcl.k` was populated from `omw.e` (the burst/longshot boolean flag), rather than the 50MP flag stored in `omw.a.f` (`Lomb.f`). Because `omw.e` was `false`, `pcl.k` remained `0`, branching the session creation to `Lmhb.a` (`NONE`).
   4. **Post-Processing Saver Metadata Fallback (`rae.smali` & `mww.smali`)**: When writing the final JPEG stream to disk in `rae.smali:102` and `mww.smali:310`, the saver read `p1.c` (`rbq.c: Lmhb`). Because `rbq.c` was set to `Lmhb.a` (`NONE`), `okq.n` skipped `voc.m`, preventing the `SpecialTypeID` tag from ever being written into the output JPEG file.
-  5. **Post-Processing Finisher MediaProvider Desynchronization (`mtf.smali`)**: In `mtf.smali:245`, `mwp.c()` was checked to publish the high resolution type to `mvs.g(mwt, HIGH_RESOLUTION)` -> `mhi.c`. Because pipeline flags were unlinked, the ContentProvider's `special_type_id` column was not populated for standard captures.
-* **Fix Implemented (Three-Tier Defense in Depth):**
-  1. **Tier 1 (Capture Session Start in `oms.smali:483`, `omo.smali:419`, `oml.smali:296`)**:
-     - Routed the session high-res boolean through `TomteInitHelper.isHighResShot(Lomw;)Z`.
-     - Checks `omw.e`, `omw.a.f` (the 50MP pipeline boolean from `omb`), and fallback `TomteInitHelper.is50MPActive()`.
-     - Ensures `pcl.k` is set to `true` at the start of capture, prompting `rbu.c(JZ)` to instantiate the session with `Lmhb.p` (`HIGH_RESOLUTION`).
-  2. **Tier 2 (Post-Processing JPEG Saver in `rae.smali:102`, `mww.smali:310`, and `rae.b:176`)**:
-     - Hooked `rbq.c` with `TomteInitHelper.getEffectiveSpecialType(Lmhb;II)Lmhb;`, inspecting the actual output pixel dimensions (`rae.a: I` width, `rae.b: I` height).
-     - Hooked parameter `p4` in `rae.b` with `TomteInitHelper.getEffectiveSpecialTypeId(String;II)Ljava/lang/String;`.
-     - Mathematical Ground Truth: Unbinned 50MP photos have dimensions of 8160×6144 (or 8160×4590 for 16:9), totaling >20,000,000 pixels. Binned 12.5MP photos have 4080×3072 (~12.5M pixels). If `width * height > 20000000L`:
-       - If Portrait (`Lmhb.e`): promotes to `Lmhb.v` (`PORTRAIT_HIGH_RESOLUTION`).
-       - Otherwise: promotes to `Lmhb.p` (`HIGH_RESOLUTION`).
-       - Guarantees zero false positives: 12.5MP captures (`pixels <= 20000000L`) remain untouched.
-     - Forces `okq.n` and `voc.m` to embed `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-HIGH_RESOLUTION"` in the output JPEG XMP header.
-  3. **Tier 3 (Post-Processing Finisher in `mtf.smali:245`)**:
-     - Hooked `mwp.c()` through `TomteInitHelper.isHighResolutionFinisher(Z, Object)Z`.
-     - Ensures `mvs.g(mwt, HIGH_RESOLUTION)` updates `mhi.c` so the MediaProvider / ContentProvider `special_type_id` column is populated for Google Photos.
-  4. **Multi-Channel Delivery & Build Integration**:
-     - Added helper methods in [`smali_patches/TomteInitHelper.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/smali_patches/TomteInitHelper.smali) and reassembled [`TomteInitHelper.dex`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/resources/TomteInitHelper.dex).
-     - Added `patch_high_resolution_metadata()` in [`build_and_patch_pixelcamera.py`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/build_and_patch_pixelcamera.py).
-     - Implemented Section 13 in Morphe's [`ProControlsPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/pro/ProControlsPatch.kt) and verified clean build.
+  5. **Primary Serialization Bypass (`ocw.smali:186-215` & `357`)**: In the standard photo pipeline, JPEGs are finalized by `Locw;->a([BJLocv;)Ljava/io/InputStream;`. The builder in `fp.smali:1603` only attached `GFileMetadata` (`Locv.f`) with `Locv.c` (`UUID`) remaining empty, which bypassed lines 196–215 completely. Even if reached, line 200 hardcoded `Lmhb.a` (`NONE`), resulting in `voc.p` serializing the JPEG output stream with `GCamera:GFileMetadata` but completely omitting `GCamera:SpecialTypeID`.
+  6. **`TomteInitHelper.is50MPActive()` SharedPreferences Store Mismatch**: `is50MPActive()` queried `PreferenceManager.getDefaultSharedPreferences(context)` (`<packageName>_preferences.xml`), whereas Google Camera strictly stores capture resolution settings in `<packageName>_preferences_camera.xml`.
+  7. **SpecialTypesProvider / MediaProvider In-Flight Fallback (`mgx.smali:45`)**: When Google Photos queries `SpecialTypesProvider` (`content://.../data/<id>`), `mgx.a` called `mhi.a(mediaStoreId)`. If the file was in-flight, missing the XMP tag, or had scoped storage read constraints, `mhi.a` returned absent, yielding an empty 0-row MatrixCursor with no `special_type_id`.
+* **Fix Implemented (Multi-Tier Defense in Depth):**
+  1. **Direct SOF Byte-Level JPEG Parser (`TomteInitHelper.parseJpegDimensions`)**:
+     - Fast zero-allocation parser scanning JPEG SOF markers (`0xFFC0`, `0xFFC1`, `0xFFC2`) in the first 256KB to extract true frame dimensions.
+     - Detects `width * height > 20000000` (50MP captures = 50,135,040 pixels).
+     - Standard 12.5MP photos (12,533,760 pixels) are never tagged, completely eliminating false positives.
+  2. **Primary JPEG Serialization Injection (`ocw.smali:357`)**:
+     - Injected `TomteInitHelper.injectSpecialTypeToXmp([BLgyn;Ljava/util/concurrent/atomic/AtomicBoolean;)V` immediately prior to `AtomicBoolean.get()` in `ocw.a`.
+     - Validates dimensions via byte-level parser or active 50MP mode, automatically injecting `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-HIGH_RESOLUTION"` (or `PORTRAIT_HIGH_RESOLUTION`) via `voc.m` and asserting `hasXmp = true`.
+  3. **Ultra HDR & Saver Hooks (`qui.smali:2857` & `fp.smali:1788`)**:
+     - `qui.G`: Injected `TomteInitHelper.injectSpecialTypeToXmpDirect` before Ultra HDR / Gainmap packaging stream serialization.
+     - `fp.smali`: Injected `TomteInitHelper.getEffectiveSpecialTypeForJpegBytes` in the fallback metadata pipeline.
+  4. **SpecialTypesProvider MediaStore Fallback Resolver (`mgx.smali:45`)**:
+     - Hooked `mhi.a` result with `TomteInitHelper.resolveSpecialTypeForMediaId(Lyia;J)Lyia;`.
+     - When Google Photos queries `data/<mediaStoreId>`, if the item has >20M pixels in MediaStore, it immediately resolves to `Lyia.i(Lmhb.p)` (`HIGH_RESOLUTION`) or `Lmhb.v` (`PORTRAIT_HIGH_RESOLUTION`), ensuring `MatrixCursor` always returns a valid `special_type_id` row to Google Photos even before file scanning completes.
+  5. **Preference Store Alignment**:
+     - Updated `TomteInitHelper.is50MPActive()` to inspect `getPrefEntry("pref_capture_resolution")` and `getSharedPrefs(context)` (`<packageName>_preferences_camera.xml`) for both integer `1` and string values (`"1"`, `"HI_RES"`, `"full"`).
+  6. **Build & Automated Patch Synchronization**:
+     - Synchronized `build_and_patch_pixelcamera.py` under `patch_high_resolution_metadata()`.
+     - Synchronized `ProControlsPatch.kt` across Morphe patch project trees.
+     - Recompiled and verified `TomteInitHelper.dex`.
+     - **Verification**: Verified on physical Google Pixel 8 Pro (`husky`). Google Photos now successfully displays the "High Res" (50MP) tag/badge. Standard 12.5MP photos remain unaffected.
 
 ### 5. Broken Transition from Camera to Google Photos (In-Flight Processing)
 * **Status:** ✅ **Fixed**
@@ -226,25 +229,4 @@ This document tracks bugs, image tuning observations, and feature requests repor
   2. Guarded `TomteInitHelper.getEffectiveLookId()` with `if-lez v0`: Look overrides now only apply if a positive Look ID (> 0) is actively selected, preserving pure stock HDR+ when Look 0 ("Original") or uninitialized.
   3. Updated `propatcher.c`: When Sharpen is 1.0x and Denoise is Standard (mode 2), directly restores `s_backup` via `memcpy`, guaranteeing 100% bit-for-bit parity with stock Google Camera `.rodata` tuning curves.
 
-### 15. 50MP Capture Triggering Video Recording Mode ("Taking Video" / "Processing Videos" in Gallery)
-* **Status:** ✅ **Fixed**
-* **Reporter:** User testing (Pixel 8 Pro `husky`)
-* **Description:** When capturing a 50MP photo, the camera displayed "Taking video" with a 9-second recording countdown timer and saved an `.mp4` file to `/sdcard/DCIM/Camera/` instead of a `.jpg` photo. In Google Photos / Samsung Gallery, the photo was listed under videos and displayed "processing videos".
-* **Root Causes:**
-  1. **Capture Session Builder Method Misidentification (`pck.smali`)**:
-     In `pck.smali`, `.method public final g(Z)V` sets field `pck.k:Z`, which `pck.a()` assigns as parameter 8 (`p8`) of `pcl.<init>`, which stores `pcl.h:Z`. `pcl.h` is `isLongShot` (QuickTake long-press video). In `oms.smali:629`, `if (pcl.h)` immediately branches to `rce = Lrce.o` (`LONG_SHOT`), and `rah.smali:1567` detects `rah.J.contains(Lrce.o)` to enforce `.mp4` container creation and MediaStore video registration.
-     By contrast, `.method public final f(Z)V` in `pck.smali` sets `pck.m:Z`, which `pck.a()` assigns as parameter 11 (`p11`) of `pcl.<init>`, which stores `pcl.k:Z` (`HI_RES` / 50MP). In `oms.smali:638`, `if (pcl.k)` branches to `rce = Lrce.A` (`HI_RES` photo) and initializes `rbu.c(JZ)` for 50MP capture.
-  2. **Overridden `pck->g(Z)` in Build Script and Morphe Patch**:
-     `build_and_patch_pixelcamera.py` and Morphe's `ProControlsPatch.kt` hooked `pck->g(Z)V` with `TomteInitHelper.isHighResShot(omw)`. Whenever 50MP mode was active, `isHighResShot` returned `true`, invoking `pck->g(true)` and forcing `pcl.h = true` (LongShot video).
-  3. **Erroneous `omw.e` Check in `TomteInitHelper.isHighResShot`**:
-     `isHighResShot` in `TomteInitHelper.smali` checked `omw.e`, mistaking the LongShot video flag for high resolution.
-* **Fix Implemented:**
-  1. Restored `pck->g(Z)V` in `oms.smali`, `omo.smali`, and `oml.smali` to preserve `Lomw;->e:Z` (`isLongShot`), ensuring standard photo shutter taps never trigger video recording.
-  2. Hooked `pck->f(Z)V` (the actual `pcl.k` / `HI_RES` builder setter) in `oms.smali` and `oml.smali` with a fallback to `TomteInitHelper.isHighResShot(Lomw;)Z`, correctly signaling high resolution capture without triggering `LONG_SHOT`.
-  3. Cleaned `TomteInitHelper.isHighResShot(Lomw;)Z` in `smali_patches/TomteInitHelper.smali` and reassembled `TomteInitHelper.dex` via `SmokeTest.testAssembleDexes` to remove the erroneous `omw.e` check.
-  4. Updated `build_and_patch_pixelcamera.py` and Morphe patch suites (`ProControlsPatch.kt`) to ensure `pck->g(Z)` is never hijacked and `pck->f(Z)` is properly targeted.
-  5. **On-Device Physical Verification on Pixel 8 Pro (`husky`)**:
-     - Captured 50MP photo: verified immediate capture with zero video recording UI, no countdown pill, saved as clean JPEG file `PXL_...jpg` with resolution **8160×6144 (50,135,040 pixels)**.
-     - Switched to 12MP photo: verified capture saved as clean JPEG file `PXL_...jpg` with resolution **4080×3072 (12,533,760 pixels)**.
-     - Verified Google Photos & Gallery display 50MP photo properly without "processing videos" notification.
 

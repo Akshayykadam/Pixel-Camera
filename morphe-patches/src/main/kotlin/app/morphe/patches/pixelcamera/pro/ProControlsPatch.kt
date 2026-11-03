@@ -424,5 +424,87 @@ val proControlsPatch = bytecodePatch(
                 }
             }
         }
+
+        // e) ocw: injectSpecialTypeToXmp in a([BJLocv;)Ljava/io/InputStream;
+        mutableClassDefByOrNull("Locw;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.parameterTypes.size == 3 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val getIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z") == true
+                }
+                if (getIdx != -1) {
+                    val smali = """
+                        invoke-static {p0, v6, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectSpecialTypeToXmp([BLgyn;Ljava/util/concurrent/atomic/AtomicBoolean;)V
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = getIdx
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
+
+        // f) qui: injectSpecialTypeToXmpDirect in G(Ltmy;Lgyn;Lgyn;Lwep;Ljava/io/OutputStream;)V
+        mutableClassDefByOrNull("Lqui;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "G" && it.parameterTypes.size == 5 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val pIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lvoc;->p([BLjava/io/OutputStream;Lgyn;Lgyn;)V") == true
+                }
+                if (pIdx != -1) {
+                    val smali = """
+                        invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectSpecialTypeToXmpDirect([BLgyn;)V
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = pIdx
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
+
+        // g) fp: getEffectiveSpecialTypeForJpegBytes
+        mutableClassDefByOrNull("Lfp;")?.let { clazz ->
+            clazz.methods.forEach { method ->
+                val impl = method.implementation ?: return@forEach
+                val cIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lrbq;->c:Lmhb;") == true
+                }
+                if (cIdx != -1) {
+                    val smali = """
+                        invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeForJpegBytes(Lmhb;Ljava/lang/Object;)Lmhb;
+                        move-result-object v0
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = cIdx + 1
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
+
+        // h) mgx: resolveSpecialTypeForMediaId in a(Landroid/net/Uri;[Ljava/lang/String;)Landroid/database/Cursor;
+        mutableClassDefByOrNull("Lmgx;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.parameterTypes.size == 2 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val aIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lmhi;->a(J)Lyia;") == true
+                }
+                if (aIdx != -1) {
+                    val smali = """
+                        invoke-static {p0, p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->resolveSpecialTypeForMediaId(Lyia;J)Lyia;
+                        move-result-object p0
+                    """.trimIndent()
+                    val newIns = smali.toInstructions(method)
+                    var pos = aIdx + 2
+                    for (ni in newIns) {
+                        impl.addInstruction(pos++, ni)
+                    }
+                }
+            }
+        }
     }
 }
