@@ -171,7 +171,23 @@ class PatcherExecutionTest {
         assertTrue(foundPoyHook, "poy.M must be hooked with TomteProSettingsPanel")
         assertTrue(foundAutobahnHook, "AutobahnViewPager.onMeasure must be hooked with Math.max")
         assertTrue(foundRflHook, "rfl.ar must be hooked with pro preferences direct removal")
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook")
+
+        // Verify rfx.M GOTO_16 jump to prevent ART VerifyError
+        var foundRfxMGoto = false
+        for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            val rfx = dex.classes.firstOrNull { it.type == "Lrfx;" } ?: continue
+            val m = rfx.methods.firstOrNull { it.name == "M" } ?: continue
+            val insList = m.implementation?.instructions?.toList() ?: emptyList()
+            for (i in insList.indices) {
+                if (insList[i].opcode == com.android.tools.smali.dexlib2.Opcode.GOTO_16 && i > 350) {
+                    foundRfxMGoto = true
+                }
+            }
+        }
+        assertTrue(foundRfxMGoto, "rfx.M must have GOTO_16 jump to prevent Android ART VerifyError")
+
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto")
     }
 }
 

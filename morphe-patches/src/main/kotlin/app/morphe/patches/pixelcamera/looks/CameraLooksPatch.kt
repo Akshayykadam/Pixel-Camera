@@ -5,6 +5,8 @@ import app.morphe.patcher.util.smali.toInstructions
 import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction20t
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
@@ -142,6 +144,9 @@ val cameraLooksPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "D", "Lqvj;", smaliD)
 
             // Fix method M throwing UnsupportedOperationException for Dijon, Buffalo, and Flat
+            // CRITICAL: We MUST jump to goto_c (ddn.d description resolution) rather than NOPping out throw.
+            // NOPping causes fallthrough into :cond_1c where move-object v5, v3 fails Android ART dex verification
+            // with VerifyError: copy-reference v5<-v3 type=Conflict (because v3 is an int along this path).
             clazz.methods.firstOrNull { it.name == "M" }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val uoeIdx = impl.instructions.indexOfFirst { ins ->
@@ -154,8 +159,17 @@ val cameraLooksPatch = bytecodePatch(
                     }
                     if (throwIdx != -1) {
                         val absThrowIdx = uoeIdx + throwIdx
-                        for (i in uoeIdx..absThrowIdx) {
-                            impl.replaceInstruction(i, BuilderInstruction10x(Opcode.NOP))
+                        val gotoTargetIdx = impl.instructions.indexOfLast { ins ->
+                            ins.opcode == Opcode.INVOKE_STATIC &&
+                            (ins as? ReferenceInstruction)?.reference?.toString()?.contains("Lddn;->d(ILbya;)Ljava/lang/String;") == true
+                        }
+                        if (gotoTargetIdx != -1) {
+                            val targetLabel = impl.newLabelForIndex(gotoTargetIdx)
+                            impl.replaceInstruction(uoeIdx, BuilderInstruction31i(Opcode.CONST, 5, 0x7f130830))
+                            impl.replaceInstruction(uoeIdx + 1, BuilderInstruction20t(Opcode.GOTO_16, targetLabel))
+                            for (i in (uoeIdx + 2)..absThrowIdx) {
+                                impl.replaceInstruction(i, BuilderInstruction10x(Opcode.NOP))
+                            }
                         }
                     }
                 }

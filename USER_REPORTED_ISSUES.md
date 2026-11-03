@@ -246,4 +246,19 @@ This document tracks bugs, image tuning observations, and feature requests repor
   5. **Toned-Down Contrast & Lifted Pedestals:** Calibrated contrast exponents across all 13 Look profiles (e.g., Shadows reduced from $1.35\times \to 1.18\times$, Editorial from $1.30\times \to 1.16\times$, Velvet from $1.25\times \to 1.12\times$ with lifted pedestals) to preserve rich textural shadow detail without deep-fried artifacts.
   6. **Viewfinder & Capture True WYSIWYG Harmonization:** Upgraded the 128-bit NEON SIMD preview shader (`neon_s_curve_8` in `libpropatcher.so`) to evaluate the exact smooth Sigmoid S-curve with soft toe, shoulder, and black lift (within 0.4% error) at locked 60 FPS (~0.15ms latency). What is framed in the live viewfinder now matches the final captured JPEG identically.
 
+### 18. Morphe Patched APK Crash: VerifyError in rfx.M (copy-reference v5<-v3 type=Conflict)
+* **Status:** ✅ **Resolved & Verified**
+* **Reporter:** User testing ("patched apk is crashing after patching 1.1.2 please check logs")
+* **Root Cause:**
+  When Morphe patches stock Google Camera using `CameraLooksPatch.kt`, it neutralized the `UnsupportedOperationException` thrown in `rfx.M` (for newly introduced looks Dijon, Buffalo, and Flat) by replacing the 3 instructions (`new-instance`, `invoke-direct <init>`, `throw`) with `NOP`s.
+  In Dalvik bytecode, replacing a terminating `throw` instruction with `NOP`s caused execution to fall through into `:cond_1c` (`move-object v5, v3`). However, earlier in `rfx.M` along the fallthrough path, `v3` was clobbered by a primitive integer constant (`const v3, 0x7092922c`), whereas the normal jump into `:cond_1c` (from line 2200 `if-eqz v8, :cond_1c`) carried an object reference (`Ladrs;`).
+  At the basic block merge point `:cond_1c`, Android ART's dex verifier detected conflicting register types (Primitive Int vs Object Reference) for `v3`, causing class loading to fail with:
+  `java.lang.VerifyError: Verifier rejected class rfx: void rfx.M(qvj, adsd, adrs, boolean, cjn, bya, int): [0x2DA] copy-reference v5<-v3 type=Conflict` on `OneCamera` creation.
+* **Fix Implemented:**
+  1. Updated `CameraLooksPatch.kt` to replace the `throw` block with a fallback description string constant (`const v5, 0x7f130830`) and an unconditional jump (`goto/16`) targeting the description resolution instruction (`Lddn;->d(ILbya;)Ljava/lang/String;`).
+  2. Because the branch is unconditional, control never falls through to `:cond_1c`, ensuring `:cond_1c` has only one incoming predecessor path with an unambiguous object reference type for `v3`.
+  3. Added an automated assertion in `PatcherExecutionTest.kt` (`rfx.M must have GOTO_16 jump to prevent Android ART VerifyError`) to permanently guard against regression.
+  4. Rebuilt `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
+
+
 
