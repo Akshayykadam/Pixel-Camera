@@ -1,12 +1,12 @@
-# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.1.1)
+# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.1.2)
 
 ---
 
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.1 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.1.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.1 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.1.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.1.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.2 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.2.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.2 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.2.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.2.mpp)
 * **Morphe Patches Source**: [morphe-patches/README.md](morphe-patches/README.md)
 * **Smali Reference & Helper Classes**: [smali_patches/README.md](smali_patches/README.md)
 * **Unified Smali Diffs**: [patches/README.md](patches/README.md)
