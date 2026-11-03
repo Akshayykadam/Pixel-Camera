@@ -255,6 +255,11 @@ typedef struct {
     float highlight_v;      // Highlight Red/Green tint (+ = amber/red, - = cyan)
     float cyan_sky;         // Sky blue rotation toward filmic cyan/teal [0.0 to 1.0]
     float foliage_warmth;   // Green shift toward olive/amber (+ = olive/warm, - = emerald)
+    float bloom_strength;   // Highlight halation/bloom strength [0.0 to 1.0]
+    float bloom_r;          // Halation Red weight [0.0 to 1.0]
+    float bloom_g;          // Halation Green weight [0.0 to 1.0]
+    float bloom_b;          // Halation Blue weight [0.0 to 1.0]
+    float micro_contrast;   // Midtone local contrast enhancement [-0.5 to +0.5]
     int is_monochrome;      // 1 for Black Tie (zero chroma)
 } LookProfile;
 
@@ -269,29 +274,30 @@ typedef struct {
 // 7: Dijon (Class qvi)   -> 1970s Vintage Mustard: yellow-green shadow cast, warm fade, retro nostalgia
 // 8: Buffalo (Class qvg) -> Rugged Bronze: earthy copper warmth, textured contrast, rich midtones
 // 9: Flat (Class qvd)    -> Cinematic Log: wide dynamic range latitude, lifted blacks, soft pastels
-// 10: Classic (Class qve)-> Kodak Portra 400: creamy golden-peach highlights, cyan skies, olive foliage, lifted matte blacks
-// 11: Editorial (Class quz)-> Kodachrome 64: high-fashion magazine contrast, deep navy shadows, punchy primaries
+// 10: Classic (Class qve)-> Kodak Portra 400: creamy golden-peach highlights, cyan skies, olive foliage, signature film halation
+// 11: Editorial (Class quz)-> Kodachrome 64: high-fashion magazine contrast, deep navy shadows, punchy tactile clarity
 // 12: Velvet (Class qvh) -> Fuji Velvia 50: hyper-vivid landscape slide film, cobalt-cyan skies, lush emerald foliage
 static const LookProfile s_look_profiles[13] = {
-    // contrast, black_lift,      white_comp,       sat,   sh_u,  sh_v,  hl_u,  hl_v, cyan, fol, mono
-    { 1.00f,     0.0f,            1.0f,             1.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0 }, // 0: Original
-    { 1.05f,     0.0f,            1.0f,             1.02f,  0.0f,  0.0f, -1.5f, +1.5f, 0.15f, 0.10f, 0 }, // 1: Natural
-    { 0.90f,    16.0f/255.0f,    240.0f/255.0f,     0.65f, +1.5f, -1.0f,  0.0f,  0.0f, 0.10f, 0.20f, 0 }, // 2: Minimal
-    { 1.28f,     3.0f/255.0f,    254.0f/255.0f,     1.06f, +8.0f, -4.0f, +1.0f, +2.0f, 0.35f,-0.10f, 0 }, // 3: Shadows
-    { 1.06f,     6.0f/255.0f,    250.0f/255.0f,     1.12f, -5.0f, +3.0f,-12.0f, +8.0f, 0.20f, 0.35f, 0 }, // 4: Vanilla
-    { 1.22f,     3.0f/255.0f,    255.0f/255.0f,     1.18f, +6.0f, -3.0f, +3.0f, -1.0f, 0.50f, 0.00f, 0 }, // 5: Digi
-    { 1.30f,     4.0f/255.0f,    253.0f/255.0f,     0.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 1 }, // 6: Black Tie
-    { 1.04f,    18.0f/255.0f,    242.0f/255.0f,     1.06f, -9.0f, -4.0f, -8.0f, +4.0f, 0.15f, 0.50f, 0 }, // 7: Dijon
-    { 1.20f,     5.0f/255.0f,    252.0f/255.0f,     1.12f, -5.0f, +5.0f, -6.0f, +8.0f, 0.25f, 0.40f, 0 }, // 8: Buffalo
-    { 0.78f,    24.0f/255.0f,    230.0f/255.0f,     0.62f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0 }, // 9: Flat
-    { 1.14f,     8.0f/255.0f,    248.0f/255.0f,     1.08f, -4.0f, +3.0f, -7.0f, +6.0f, 0.45f, 0.35f, 0 }, // 10: Classic (Portra)
-    { 1.25f,     2.0f/255.0f,    254.0f/255.0f,     1.16f, +5.0f, -2.0f, -4.0f, +6.0f, 0.40f, 0.15f, 0 }, // 11: Editorial (Kodachrome)
-    { 1.22f,     3.0f/255.0f,    252.0f/255.0f,     1.28f, +3.0f, +5.0f, -3.0f, +4.0f, 0.55f,-0.25f, 0 }  // 12: Velvet (Velvia)
+    // contrast, black_lift,   white_comp,    sat,   sh_u,  sh_v,  hl_u,  hl_v, cyan, fol,  bloom_s, bl_r, bl_g, bl_b,   mc, mono
+    { 1.00f,     0.0f,         1.0f,          1.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0.00f, 0.0f,  0.0f,  0.0f,  0.00f, 0 }, // 0: Original
+    { 1.05f,     0.0f,         1.0f,          1.02f,  0.0f,  0.0f, -1.5f, +1.5f, 0.15f, 0.10f, 0.10f, 1.0f,  0.60f, 0.30f,+0.08f, 0 }, // 1: Natural
+    { 0.90f,    16.0f/255.0f, 240.0f/255.0f,  0.65f, +1.5f, -1.0f,  0.0f,  0.0f, 0.10f, 0.20f, 0.00f, 0.0f,  0.0f,  0.0f, -0.08f, 0 }, // 2: Minimal
+    { 1.28f,     3.0f/255.0f, 254.0f/255.0f,  1.06f, +8.0f, -4.0f, +1.0f, +2.0f, 0.35f,-0.10f, 0.16f, 0.70f, 0.75f, 0.95f,+0.28f, 0 }, // 3: Shadows
+    { 1.06f,     6.0f/255.0f, 250.0f/255.0f,  1.12f, -5.0f, +3.0f,-12.0f, +8.0f, 0.20f, 0.35f, 0.35f, 1.0f,  0.58f, 0.15f,+0.10f, 0 }, // 4: Vanilla
+    { 1.22f,     3.0f/255.0f, 255.0f/255.0f,  1.18f, +6.0f, -3.0f, +3.0f, -1.0f, 0.50f, 0.00f, 0.18f, 0.85f, 0.90f, 1.00f,+0.22f, 0 }, // 5: Digi
+    { 1.30f,     4.0f/255.0f, 253.0f/255.0f,  0.00f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0.25f, 1.0f,  1.0f,  1.0f, +0.25f, 1 }, // 6: Black Tie
+    { 1.04f,    18.0f/255.0f, 242.0f/255.0f,  1.06f, -9.0f, -4.0f, -8.0f, +4.0f, 0.15f, 0.50f, 0.30f, 1.0f,  0.65f, 0.20f,+0.12f, 0 }, // 7: Dijon
+    { 1.20f,     5.0f/255.0f, 252.0f/255.0f,  1.12f, -5.0f, +5.0f, -6.0f, +8.0f, 0.25f, 0.40f, 0.25f, 1.0f,  0.40f, 0.10f,+0.32f, 0 }, // 8: Buffalo
+    { 0.78f,    24.0f/255.0f, 230.0f/255.0f,  0.62f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f, 0.0f, 0.00f, 0.0f,  0.0f,  0.0f,  0.00f, 0 }, // 9: Flat
+    { 1.14f,     8.0f/255.0f, 248.0f/255.0f,  1.08f, -4.0f, +3.0f, -7.0f, +6.0f, 0.45f, 0.35f, 0.35f, 1.0f,  0.32f, 0.08f,+0.14f, 0 }, // 10: Classic (Portra)
+    { 1.25f,     2.0f/255.0f, 254.0f/255.0f,  1.16f, +5.0f, -2.0f, -4.0f, +6.0f, 0.40f, 0.15f, 0.38f, 1.0f,  0.28f, 0.06f,+0.30f, 0 }, // 11: Editorial (Kodachrome)
+    { 1.22f,     3.0f/255.0f, 252.0f/255.0f,  1.28f, +3.0f, +5.0f, -3.0f, +4.0f, 0.55f,-0.25f, 0.22f, 1.0f,  0.48f, 0.12f,+0.28f, 0 }  // 12: Velvet (Velvia)
 };
 
 static uint8_t s_lut_y[13][256];
 static uint8_t s_lut_u[13][256];
 static uint8_t s_lut_v[13][256];
+static uint8_t s_midtone_weight[256];
 static int s_luts_initialized = 0;
 
 static int8_t s_noise_table[512];
@@ -304,6 +310,16 @@ static void init_look_luts(void) {
     for (int i = 0; i < 512; i++) {
         s ^= s << 13; s ^= s >> 17; s ^= s << 5;
         s_noise_table[i] = (int8_t)((s & 0x1F) - 16); // [-16, 15]
+    }
+
+    // Initialize midtone bell-curve weights for micro-contrast (255 at midtone 128, 0 at deep black / specular white)
+    for (int i = 0; i < 256; i++) {
+        int dist = abs(i - 128);
+        int dist_sq = dist * dist;
+        int w = 255 - ((dist_sq * 255) >> 14);
+        if (w < 0) w = 0;
+        if (w > 255) w = 255;
+        s_midtone_weight[i] = (uint8_t)w;
     }
 
     for (int id = 0; id < 13; id++) {
@@ -379,6 +395,11 @@ static float s_active_highlight_u = 0.0f;
 static float s_active_highlight_v = 0.0f;
 static float s_active_cyan_sky = 0.0f;
 static float s_active_foliage_warmth = 0.0f;
+static float s_active_bloom_strength = 0.0f;
+static float s_active_bloom_r = 1.0f;
+static float s_active_bloom_g = 0.5f;
+static float s_active_bloom_b = 0.2f;
+static float s_active_micro_contrast = 0.0f;
 static int s_active_look_id = -999;
 static float s_last_c = -999.0f, s_last_s = -999.0f, s_last_h = -999.0f, s_last_v = -999.0f, s_last_t = -999.0f;
 static int s_active_lut_valid = 0;
@@ -468,6 +489,31 @@ static void update_active_luts(int lookId) {
     s_active_cyan_sky = base_p->cyan_sky;
     s_active_foliage_warmth = base_p->foliage_warmth;
 
+    // 6. Highlight Bloom & Micro-Contrast with Fine-Tuning Integration
+    float eff_bloom = base_p->bloom_strength;
+    if (s_ft_highlights > 0.0f) {
+        eff_bloom *= (1.0f + 0.35f * s_ft_highlights);
+    } else if (s_ft_highlights < 0.0f) {
+        eff_bloom *= (1.0f + 0.50f * s_ft_highlights);
+    }
+    if (eff_bloom < 0.0f) eff_bloom = 0.0f;
+    if (eff_bloom > 1.0f) eff_bloom = 1.0f;
+
+    float eff_mc = base_p->micro_contrast;
+    if (s_ft_contrast > 0.0f) {
+        eff_mc += s_ft_contrast * 0.15f;
+    } else if (s_ft_contrast < 0.0f) {
+        eff_mc += s_ft_contrast * 0.10f;
+    }
+    if (eff_mc < -0.40f) eff_mc = -0.40f;
+    if (eff_mc > 0.50f) eff_mc = 0.50f;
+
+    s_active_bloom_strength = eff_bloom;
+    s_active_bloom_r = base_p->bloom_r;
+    s_active_bloom_g = base_p->bloom_g;
+    s_active_bloom_b = base_p->bloom_b;
+    s_active_micro_contrast = eff_mc;
+
     // Midtone tint for 2D chroma LUTs
     float mid_u = (eff_sh_u + eff_hl_u) * 0.5f;
     float mid_v = (eff_sh_v + eff_hl_v) * 0.5f;
@@ -543,49 +589,114 @@ static inline uint8x8_t neon_s_curve_8(int16x8_t y, int16x4_t v_k_curv, int32x4_
     return vqmovun_s16(vcombine_s16(n_lo, n_hi));
 }
 
-// 128-bit dual-burst NEON SIMD vector grading for Y plane (Luma) - True WYSIWYG Sigmoid S-Curve
+// 128-bit dual-burst NEON SIMD vector grading for Y plane (Luma) - True WYSIWYG Sigmoid S-Curve & Micro-Contrast
 static inline void neon_grade_y(uint8_t* y_data, uint32_t width, uint32_t height, uint32_t stride,
-                                int16_t k_curv_q8, int32_t k_bl, int16_t slope_q8) {
-    if (k_curv_q8 == 0 && k_bl == 0 && slope_q8 == 0) return;
+                                int16_t k_curv_q8, int32_t k_bl, int16_t slope_q8, int16_t mc_gain_q8) {
+    if (k_curv_q8 == 0 && k_bl == 0 && slope_q8 == 0 && mc_gain_q8 == 0) return;
 
     int16x4_t v_k_curv = vdup_n_s16(k_curv_q8);
     int32x4_t v_k_bl = vdupq_n_s32(k_bl);
     int16x4_t v_slope = vdup_n_s16(slope_q8);
+    int16x8_t v_mc_gain = vdupq_n_s16(mc_gain_q8);
+    int16x8_t v_128 = vdupq_n_s16(128);
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = y_data + y * stride;
+        const uint8_t* prev_row = (y > 0) ? (y_data + (y - 1) * stride) : row;
+        const uint8_t* next_row = (y + 1 < height) ? (y_data + (y + 1) * stride) : row;
         uint32_t x = 0;
 
-        // 32 bytes per iteration (Dual 128-bit vector burst)
-        for (; x + 32 <= width; x += 32) {
-            uint8x16_t vy0 = vld1q_u8(row + x);
-            uint8x16_t vy1 = vld1q_u8(row + x + 16);
+        if (mc_gain_q8 != 0) {
+            for (; x + 16 <= width; x += 16) {
+                uint8x16_t vy = vld1q_u8(row + x);
+                uint8x16_t vp = vld1q_u8(prev_row + x);
+                uint8x16_t vn = vld1q_u8(next_row + x);
 
-            int16x8_t y0_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy0)));
-            int16x8_t y0_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy0)));
-            int16x8_t y1_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy1)));
-            int16x8_t y1_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy1)));
+                // Vertical binomial average: (prev + 2*curr + next) / 4
+                uint8x16_t v_avg = vrhaddq_u8(vy, vrhaddq_u8(vp, vn));
 
-            uint8x8_t r0_lo = neon_s_curve_8(y0_lo, v_k_curv, v_k_bl, v_slope);
-            uint8x8_t r0_hi = neon_s_curve_8(y0_hi, v_k_curv, v_k_bl, v_slope);
-            uint8x8_t r1_lo = neon_s_curve_8(y1_lo, v_k_curv, v_k_bl, v_slope);
-            uint8x8_t r1_hi = neon_s_curve_8(y1_hi, v_k_curv, v_k_bl, v_slope);
+                int16x8_t y_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy)));
+                int16x8_t y_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy)));
+                int16x8_t avg_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(v_avg)));
+                int16x8_t avg_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(v_avg)));
 
-            vst1q_u8(row + x, vcombine_u8(r0_lo, r0_hi));
-            vst1q_u8(row + x + 16, vcombine_u8(r1_lo, r1_hi));
-        }
+                int16x8_t det_lo = vsubq_s16(y_lo, avg_lo);
+                int16x8_t det_hi = vsubq_s16(y_hi, avg_hi);
 
-        for (; x + 16 <= width; x += 16) {
-            uint8x16_t vy = vld1q_u8(row + x);
-            int16x8_t y_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy)));
-            int16x8_t y_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy)));
-            uint8x8_t r_lo = neon_s_curve_8(y_lo, v_k_curv, v_k_bl, v_slope);
-            uint8x8_t r_hi = neon_s_curve_8(y_hi, v_k_curv, v_k_bl, v_slope);
-            vst1q_u8(row + x, vcombine_u8(r_lo, r_hi));
+                int16x8_t mw_lo = vsubq_s16(v_128, vabdq_s16(y_lo, v_128));
+                int16x8_t mw_hi = vsubq_s16(v_128, vabdq_s16(y_hi, v_128));
+
+                // delta = (detail * mc_gain * mw) >> 15
+                int32x4_t p_lo0 = vmull_s16(vget_low_s16(det_lo), vget_low_s16(v_mc_gain));
+                int32x4_t p_lo1 = vmull_s16(vget_high_s16(det_lo), vget_high_s16(v_mc_gain));
+                int16x4_t d_scaled_lo0 = vshrn_n_s32(p_lo0, 8);
+                int16x4_t d_scaled_lo1 = vshrn_n_s32(p_lo1, 8);
+                int16x8_t d_scaled_lo = vcombine_s16(d_scaled_lo0, d_scaled_lo1);
+
+                int32x4_t p_hi0 = vmull_s16(vget_low_s16(det_hi), vget_low_s16(v_mc_gain));
+                int32x4_t p_hi1 = vmull_s16(vget_high_s16(det_hi), vget_high_s16(v_mc_gain));
+                int16x4_t d_scaled_hi0 = vshrn_n_s32(p_hi0, 8);
+                int16x4_t d_scaled_hi1 = vshrn_n_s32(p_hi1, 8);
+                int16x8_t d_scaled_hi = vcombine_s16(d_scaled_hi0, d_scaled_hi1);
+
+                int32x4_t dm_lo0 = vmull_s16(vget_low_s16(d_scaled_lo), vget_low_s16(mw_lo));
+                int32x4_t dm_lo1 = vmull_s16(vget_high_s16(d_scaled_lo), vget_high_s16(mw_lo));
+                int16x4_t del_lo0 = vshrn_n_s32(dm_lo0, 7);
+                int16x4_t del_lo1 = vshrn_n_s32(dm_lo1, 7);
+                int16x8_t del_lo = vcombine_s16(del_lo0, del_lo1);
+
+                int32x4_t dm_hi0 = vmull_s16(vget_low_s16(d_scaled_hi), vget_low_s16(mw_hi));
+                int32x4_t dm_hi1 = vmull_s16(vget_high_s16(d_scaled_hi), vget_high_s16(mw_hi));
+                int16x4_t del_hi0 = vshrn_n_s32(dm_hi0, 7);
+                int16x4_t del_hi1 = vshrn_n_s32(dm_hi1, 7);
+                int16x8_t del_hi = vcombine_s16(del_hi0, del_hi1);
+
+                int16x8_t y_mod_lo = vaddq_s16(y_lo, del_lo);
+                int16x8_t y_mod_hi = vaddq_s16(y_hi, del_hi);
+
+                uint8x8_t r_lo = neon_s_curve_8(y_mod_lo, v_k_curv, v_k_bl, v_slope);
+                uint8x8_t r_hi = neon_s_curve_8(y_mod_hi, v_k_curv, v_k_bl, v_slope);
+                vst1q_u8(row + x, vcombine_u8(r_lo, r_hi));
+            }
+        } else {
+            // 32 bytes per iteration (Dual 128-bit vector burst)
+            for (; x + 32 <= width; x += 32) {
+                uint8x16_t vy0 = vld1q_u8(row + x);
+                uint8x16_t vy1 = vld1q_u8(row + x + 16);
+
+                int16x8_t y0_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy0)));
+                int16x8_t y0_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy0)));
+                int16x8_t y1_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy1)));
+                int16x8_t y1_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy1)));
+
+                uint8x8_t r0_lo = neon_s_curve_8(y0_lo, v_k_curv, v_k_bl, v_slope);
+                uint8x8_t r0_hi = neon_s_curve_8(y0_hi, v_k_curv, v_k_bl, v_slope);
+                uint8x8_t r1_lo = neon_s_curve_8(y1_lo, v_k_curv, v_k_bl, v_slope);
+                uint8x8_t r1_hi = neon_s_curve_8(y1_hi, v_k_curv, v_k_bl, v_slope);
+
+                vst1q_u8(row + x, vcombine_u8(r0_lo, r0_hi));
+                vst1q_u8(row + x + 16, vcombine_u8(r1_lo, r1_hi));
+            }
+
+            for (; x + 16 <= width; x += 16) {
+                uint8x16_t vy = vld1q_u8(row + x);
+                int16x8_t y_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(vy)));
+                int16x8_t y_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(vy)));
+                uint8x8_t r_lo = neon_s_curve_8(y_lo, v_k_curv, v_k_bl, v_slope);
+                uint8x8_t r_hi = neon_s_curve_8(y_hi, v_k_curv, v_k_bl, v_slope);
+                vst1q_u8(row + x, vcombine_u8(r_lo, r_hi));
+            }
         }
 
         for (; x < width; x++) {
             int y_val = row[x];
+            if (mc_gain_q8 != 0) {
+                int y_loc = ((int)prev_row[x] + ((int)row[x] << 1) + (int)next_row[x]) >> 2;
+                int det = y_val - y_loc;
+                int mw = 128 - abs(y_val - 128);
+                int del = (det * (int)mc_gain_q8 * mw) >> 15;
+                y_val = clamp_u8(y_val + del);
+            }
             int w = y_val - 128;
             int ts = 128 - abs(w);
             int w_ts = w * ts;
@@ -704,16 +815,132 @@ static inline int is_skin_tone(int r, int g, int b, int luma) {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Highlight Bloom (Halation) & Micro-Contrast Helpers
+// ---------------------------------------------------------------------------
+
+static inline int sample_bloom_bilinear(const uint8_t* buf, uint32_t bw, uint32_t bh, uint32_t x, uint32_t y) {
+    uint32_t bx = x >> 3;
+    uint32_t by = y >> 3;
+    if (bx >= bw) bx = bw - 1;
+    if (by >= bh) by = bh - 1;
+    uint32_t bx1 = (bx + 1 < bw) ? (bx + 1) : bx;
+    uint32_t by1 = (by + 1 < bh) ? (by + 1) : by;
+
+    int fx = (x & 7) * 32; // [0, 224] in Q8
+    int fy = (y & 7) * 32; // [0, 224] in Q8
+
+    int p00 = buf[by * bw + bx];
+    int p10 = buf[by * bw + bx1];
+    int p01 = buf[by1 * bw + bx];
+    int p11 = buf[by1 * bw + bx1];
+
+    int top = p00 + (((p10 - p00) * fx) >> 8);
+    int bot = p01 + (((p11 - p01) * fx) >> 8);
+    return top + (((bot - top) * fy) >> 8);
+}
+
+static void generate_bloom_map(const uint8_t* data, uint32_t width, uint32_t height,
+                               uint32_t channels, uint32_t stride,
+                               uint8_t* bloom_map, uint8_t* bloom_temp,
+                               uint32_t bw, uint32_t bh) {
+    // 1. Extract peak specular highlight excess in each 8x8 block (sampled across 16 points)
+    for (uint32_t by = 0; by < bh; by++) {
+        uint32_t y0 = by << 3;
+        uint32_t y1 = y0 + 8;
+        if (y1 > height) y1 = height;
+
+        for (uint32_t bx = 0; bx < bw; bx++) {
+            uint32_t x0 = bx << 3;
+            uint32_t x1 = x0 + 8;
+            if (x1 > width) x1 = width;
+
+            int max_exc = 0;
+            for (uint32_t py = y0; py < y1; py += 2) {
+                const uint8_t* row = data + py * stride;
+                for (uint32_t px = x0; px < x1; px += 2) {
+                    const uint8_t* pix = row + px * channels;
+                    int luma = (pix[0] * 77 + pix[1] * 150 + pix[2] * 29) >> 8;
+                    if (luma > 192) {
+                        int exc = luma - 192;
+                        if (exc > max_exc) max_exc = exc;
+                    }
+                }
+            }
+            bloom_map[by * bw + bx] = (uint8_t)(max_exc << 2);
+        }
+    }
+
+    // 2. Horizontal Gaussian pass: [1, 4, 6, 4, 1] / 16 (radius = 2 blocks = 16 pixels)
+    for (uint32_t by = 0; by < bh; by++) {
+        const uint8_t* in_row = bloom_map + by * bw;
+        uint8_t* out_row = bloom_temp + by * bw;
+        for (uint32_t bx = 0; bx < bw; bx++) {
+            int xm2 = (bx >= 2) ? (bx - 2) : 0;
+            int xm1 = (bx >= 1) ? (bx - 1) : 0;
+            int xp1 = (bx + 1 < bw) ? (bx + 1) : (bw - 1);
+            int xp2 = (bx + 2 < bw) ? (bx + 2) : (bw - 1);
+            int sum = in_row[xm2] + (in_row[xm1] << 2) + in_row[bx] * 6 + (in_row[xp1] << 2) + in_row[xp2];
+            out_row[bx] = (uint8_t)(sum >> 4);
+        }
+    }
+
+    // 3. Vertical Gaussian pass: [1, 4, 6, 4, 1] / 16
+    for (uint32_t bx = 0; bx < bw; bx++) {
+        for (uint32_t by = 0; by < bh; by++) {
+            int ym2 = (by >= 2) ? (by - 2) : 0;
+            int ym1 = (by >= 1) ? (by - 1) : 0;
+            int yp1 = (by + 1 < bh) ? (by + 1) : (bh - 1);
+            int yp2 = (by + 2 < bh) ? (by + 2) : (bh - 1);
+            int sum = bloom_temp[ym2 * bw + bx] + (bloom_temp[ym1 * bw + bx] << 2) +
+                      bloom_temp[by * bw + bx] * 6 + (bloom_temp[yp1 * bw + bx] << 2) +
+                      bloom_temp[yp2 * bw + bx];
+            bloom_map[by * bw + bx] = (uint8_t)(sum >> 4);
+        }
+    }
+
+    // 4. Second soft diffusion pass [1, 2, 1] / 4 expands filmic glow falloff to ~24-32 full-res pixels
+    for (uint32_t by = 0; by < bh; by++) {
+        const uint8_t* in_row = bloom_map + by * bw;
+        uint8_t* out_row = bloom_temp + by * bw;
+        for (uint32_t bx = 0; bx < bw; bx++) {
+            int xm1 = (bx >= 1) ? (bx - 1) : 0;
+            int xp1 = (bx + 1 < bw) ? (bx + 1) : (bw - 1);
+            out_row[bx] = (uint8_t)((in_row[xm1] + (in_row[bx] << 1) + in_row[xp1]) >> 2);
+        }
+    }
+    for (uint32_t bx = 0; bx < bw; bx++) {
+        for (uint32_t by = 0; by < bh; by++) {
+            int ym1 = (by >= 1) ? (by - 1) : 0;
+            int yp1 = (by + 1 < bh) ? (by + 1) : (bh - 1);
+            bloom_map[by * bw + bx] = (uint8_t)((bloom_temp[ym1 * bw + bx] +
+                                                (bloom_temp[by * bw + bx] << 1) +
+                                                 bloom_temp[yp1 * bw + bx]) >> 2);
+        }
+    }
+}
+
+static inline void extract_row_luma(const uint8_t* row, uint32_t width, uint32_t channels, uint8_t* out_luma) {
+    for (uint32_t x = 0; x < width; x++) {
+        const uint8_t* pix = row + x * channels;
+        out_luma[x] = (uint8_t)((pix[0] * 77 + pix[1] * 150 + pix[2] * 29) >> 8);
+    }
+}
+
 // Photographic color grading for RGB (3 channels) or RGBA (4 channels) frames with:
 // 1. Ratio-Preserving Luminance Scaling (eliminates blown highlights & color shifts)
 // 2. 3D Color Separation (Cyan Sky hue rotation, foliage olive/emerald shift, melanin peach glow)
 // 3. True Dual Split-Toning (independent shadow tint vs highlight tint)
 // 4. Filmic Highlight Roll-off (soft desaturation knee prevents harsh channel clipping)
 // 5. Smart Vibrance & Melanin Gamut Protection (preserves natural facial tones without sunburn)
+// 6. Highlight Bloom / Halation (warm optical glow on specular lights & bright edges)
+// 7. Micro-Contrast / Clarity (midtone local contrast enhancement without shadow noise)
 static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride,
                                     const uint8_t lut_y[256], float sat,
                                     float sh_u, float sh_v, float hl_u, float hl_v,
-                                    float cyan_sky, float fol_warmth, int is_monochrome) {
+                                    float cyan_sky, float fol_warmth,
+                                    float bloom_strength, float bloom_r, float bloom_g, float bloom_b,
+                                    float micro_contrast, int is_monochrome) {
     int s_q8 = (int)roundf(sat * 256.0f);
     int sh_r = (int)roundf(sh_v * 1.402f);
     int sh_g = (int)roundf(-0.344136f * sh_u - 0.714136f * sh_v);
@@ -725,7 +952,64 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
 
     int cyan_sky_q8 = (int)roundf(cyan_sky * 256.0f);
     int fol_warmth_q8 = (int)roundf(fol_warmth * 256.0f);
+    int bloom_strength_q8 = (int)roundf(bloom_strength * 256.0f);
+    int bloom_r_q8 = (int)roundf(bloom_r * 256.0f);
+    int bloom_g_q8 = (int)roundf(bloom_g * 256.0f);
+    int bloom_b_q8 = (int)roundf(bloom_b * 256.0f);
+    int mc_gain_q8 = (int)roundf(micro_contrast * 256.0f);
     int grain_on = s_grain_enabled;
+
+    // Allocate & generate downsampled bloom map if halation is enabled
+    uint8_t* bloom_map = NULL;
+    uint8_t* bloom_temp = NULL;
+    uint32_t bw = 0, bh = 0;
+    if (bloom_strength_q8 > 0) {
+        bw = (width + 7) >> 3;
+        bh = (height + 7) >> 3;
+        if (bw > 0 && bh > 0) {
+            bloom_map = (uint8_t*)malloc(bw * bh);
+            bloom_temp = (uint8_t*)malloc(bw * bh);
+            if (bloom_map && bloom_temp) {
+                generate_bloom_map(data, width, height, channels, stride,
+                                   bloom_map, bloom_temp, bw, bh);
+            } else {
+                if (bloom_map) { free(bloom_map); bloom_map = NULL; }
+                if (bloom_temp) { free(bloom_temp); bloom_temp = NULL; }
+            }
+        }
+    }
+
+    // Allocate 3-line rolling luma buffers for micro-contrast if enabled
+    uint8_t* luma_buf0 = NULL;
+    uint8_t* luma_buf1 = NULL;
+    uint8_t* luma_buf2 = NULL;
+    int has_mc = 0;
+    uint8_t* r_prev = NULL;
+    uint8_t* r_curr = NULL;
+    uint8_t* r_next = NULL;
+
+    if (mc_gain_q8 != 0) {
+        luma_buf0 = (uint8_t*)malloc(width);
+        luma_buf1 = (uint8_t*)malloc(width);
+        luma_buf2 = (uint8_t*)malloc(width);
+        if (luma_buf0 && luma_buf1 && luma_buf2) {
+            has_mc = 1;
+            r_prev = luma_buf0;
+            r_curr = luma_buf1;
+            r_next = luma_buf2;
+            extract_row_luma(data, width, channels, r_curr);
+            memcpy(r_prev, r_curr, width);
+            if (height > 1) {
+                extract_row_luma(data + stride, width, channels, r_next);
+            } else {
+                memcpy(r_next, r_curr, width);
+            }
+        } else {
+            if (luma_buf0) { free(luma_buf0); luma_buf0 = NULL; }
+            if (luma_buf1) { free(luma_buf1); luma_buf1 = NULL; }
+            if (luma_buf2) { free(luma_buf2); luma_buf2 = NULL; }
+        }
+    }
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = data + y * stride;
@@ -734,12 +1018,32 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
         if (is_monochrome) {
             for (uint32_t x = 0; x < width; x++) {
                 uint8_t* pix = row + x * channels;
-                uint8_t gray = (uint8_t)((pix[0]*77 + pix[1]*150 + pix[2]*29) >> 8);
-                uint8_t out = lut_y[gray];
+                int luma = has_mc ? r_curr[x] : ((pix[0]*77 + pix[1]*150 + pix[2]*29) >> 8);
+                int eff_luma = luma;
+                if (has_mc) {
+                    uint32_t xm1 = (x > 0) ? (x - 1) : 0;
+                    uint32_t xp1 = (x + 1 < width) ? (x + 1) : (width - 1);
+                    int sum_p = r_prev[xm1] + (r_prev[x] << 1) + r_prev[xp1];
+                    int sum_c = r_curr[xm1] + (r_curr[x] << 1) + r_curr[xp1];
+                    int sum_n = r_next[xm1] + (r_next[x] << 1) + r_next[xp1];
+                    int y_local = (sum_p + (sum_c << 1) + sum_n) >> 4;
+                    int detail = luma - y_local;
+                    int mw = s_midtone_weight[luma];
+                    int delta_mc = (detail * mc_gain_q8 * mw) >> 16;
+                    eff_luma = clamp_u8(luma + delta_mc);
+                }
+                uint8_t out = lut_y[eff_luma];
                 if (grain_on) {
                     int n = s_noise_table[(y_offset + x) & 0xFF];
-                    int mw = 255 - abs((int)gray * 2 - 255);
+                    int mw = 255 - abs((int)eff_luma * 2 - 255);
                     out = clamp_u8((int)out + ((n * mw) >> 10));
+                }
+                if (bloom_map) {
+                    int bl = sample_bloom_bilinear(bloom_map, bw, bh, x, y);
+                    if (bl > 0) {
+                        int d_mono = (bl * bloom_strength_q8) >> 8;
+                        out = clamp_u8((int)out + d_mono);
+                    }
                 }
                 pix[0] = out; pix[1] = out; pix[2] = out;
             }
@@ -747,8 +1051,24 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
             for (uint32_t x = 0; x < width; x++) {
                 uint8_t* pix = row + x * channels;
                 int r = pix[0], g = pix[1], b = pix[2];
-                int luma = (r * 77 + g * 150 + b * 29) >> 8;
-                int graded_luma = lut_y[luma];
+                int luma = has_mc ? r_curr[x] : ((r * 77 + g * 150 + b * 29) >> 8);
+                int eff_luma = luma;
+
+                // Micro-contrast midtone texture enhancement
+                if (has_mc) {
+                    uint32_t xm1 = (x > 0) ? (x - 1) : 0;
+                    uint32_t xp1 = (x + 1 < width) ? (x + 1) : (width - 1);
+                    int sum_p = r_prev[xm1] + (r_prev[x] << 1) + r_prev[xp1];
+                    int sum_c = r_curr[xm1] + (r_curr[x] << 1) + r_curr[xp1];
+                    int sum_n = r_next[xm1] + (r_next[x] << 1) + r_next[xp1];
+                    int y_local = (sum_p + (sum_c << 1) + sum_n) >> 4;
+                    int detail = luma - y_local;
+                    int mw = s_midtone_weight[luma];
+                    int delta_mc = (detail * mc_gain_q8 * mw) >> 16;
+                    eff_luma = clamp_u8(luma + delta_mc);
+                }
+
+                int graded_luma = lut_y[eff_luma];
 
                 // 1. Ratio-Preserving Luminance Scaling
                 int r_tone, g_tone, b_tone;
@@ -833,12 +1153,43 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                     gr = (n * mw) >> 10;
                 }
 
-                pix[0] = clamp_u8(r_sat + tint_r + gr);
-                pix[1] = clamp_u8(g_sat + tint_g + gr);
-                pix[2] = clamp_u8(b_sat + tint_b + gr);
+                // 6. Highlight Bloom / Halation Glow
+                int d_r = 0, d_g = 0, d_b = 0;
+                if (bloom_map) {
+                    int bl = sample_bloom_bilinear(bloom_map, bw, bh, x, y);
+                    if (bl > 0) {
+                        int b_scaled = (bl * bloom_strength_q8) >> 8;
+                        d_r = (b_scaled * bloom_r_q8) >> 8;
+                        d_g = (b_scaled * bloom_g_q8) >> 8;
+                        d_b = (b_scaled * bloom_b_q8) >> 8;
+                    }
+                }
+
+                pix[0] = clamp_u8(r_sat + tint_r + gr + d_r);
+                pix[1] = clamp_u8(g_sat + tint_g + gr + d_g);
+                pix[2] = clamp_u8(b_sat + tint_b + gr + d_b);
+            }
+        }
+
+        // Advance 3-line rolling luma buffer
+        if (has_mc) {
+            uint8_t* tmp = r_prev;
+            r_prev = r_curr;
+            r_curr = r_next;
+            if (y + 2 < height) {
+                extract_row_luma(data + (y + 2) * stride, width, channels, tmp);
+                r_next = tmp;
+            } else {
+                r_next = r_curr;
             }
         }
     }
+
+    if (bloom_map) free(bloom_map);
+    if (bloom_temp) free(bloom_temp);
+    if (luma_buf0) free(luma_buf0);
+    if (luma_buf1) free(luma_buf1);
+    if (luma_buf2) free(luma_buf2);
 }
 
 static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t height, uint32_t stride,
@@ -947,6 +1298,14 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
     int32_t k_bl = (int32_t)roundf(k_bl_f);
     int16_t slope_q8 = (int16_t)roundf(k_wc_f - k_bl_f);
 
+    float eff_mc = prof->micro_contrast;
+    if (s_ft_contrast > 0.0f) {
+        eff_mc += s_ft_contrast * 0.15f;
+    } else if (s_ft_contrast < 0.0f) {
+        eff_mc += s_ft_contrast * 0.10f;
+    }
+    int16_t mc_gain_q8 = (int16_t)roundf(eff_mc * 256.0f);
+
     float eff_saturation = prof->saturation;
     if (!prof->is_monochrome) {
         eff_saturation *= (1.0f + 0.70f * s_ft_vibrance);
@@ -992,7 +1351,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
                                 k_curv_q8, k_bl, slope_q8, is_monochrome);
             } else {
                 uint32_t y_size = desc.stride * desc.height;
-                neon_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, k_curv_q8, k_bl, slope_q8);
+                neon_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, k_curv_q8, k_bl, slope_q8, mc_gain_q8);
                 uint8_t* uv_data = (uint8_t*)virt + y_size;
                 uint32_t uv_h = desc.height / 2;
                 if (is_monochrome) {
@@ -1018,7 +1377,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
     } else if (planes.planeCount == 1) {
         uint32_t y_size = planes.planes[0].rowStride * height;
         neon_grade_y((uint8_t*)planes.planes[0].data, width, height,
-                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8);
+                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8, mc_gain_q8);
         uint8_t* uv_data = (uint8_t*)planes.planes[0].data + y_size;
         uint32_t uv_h = (height + 1) / 2;
         if (is_monochrome) {
@@ -1030,7 +1389,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
         }
     } else {
         neon_grade_y((uint8_t*)planes.planes[0].data, width, height,
-                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8);
+                     planes.planes[0].rowStride, k_curv_q8, k_bl, slope_q8, mc_gain_q8);
 
         uint32_t uv_h = (height + 1) / 2;
         int is_interleaved = (planes.planeCount >= 2 && planes.planes[1].pixelStride == 2);
@@ -1102,12 +1461,18 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
     float hl_v = s_active_highlight_v;
     float cyan_sky = s_active_cyan_sky;
     float fol_warmth = s_active_foliage_warmth;
+    float bloom_s = s_active_bloom_strength;
+    float bloom_r = s_active_bloom_r;
+    float bloom_g = s_active_bloom_g;
+    float bloom_b = s_active_bloom_b;
+    float micro_c = s_active_micro_contrast;
 
-    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, ShTint=(%.1f,%.1f), HlTint=(%.1f,%.1f), CyanSky=%.2f, FolWarmth=%.2f",
-         width, height, channels, stride, lookId, is_monochrome, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth);
+    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, ShTint=(%.1f,%.1f), HlTint=(%.1f,%.1f), CyanSky=%.2f, FolWarmth=%.2f, Bloom=%.2f (R=%.2f,G=%.2f,B=%.2f), MicroContrast=%.2f",
+         width, height, channels, stride, lookId, is_monochrome, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth, bloom_s, bloom_r, bloom_g, bloom_b, micro_c);
 
     lut_grade_raster((uint8_t*)dataPtr, (uint32_t)width, (uint32_t)height, (uint32_t)channels, (uint32_t)stride,
-                     lut_y, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth, is_monochrome);
+                     lut_y, sat, sh_u, sh_v, hl_u, hl_v, cyan_sky, fol_warmth,
+                     bloom_s, bloom_r, bloom_g, bloom_b, micro_c, is_monochrome);
 }
 
 
