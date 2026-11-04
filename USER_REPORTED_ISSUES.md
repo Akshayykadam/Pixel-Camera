@@ -260,17 +260,23 @@ This document tracks bugs, image tuning observations, and feature requests repor
   3. Added an automated assertion in `PatcherExecutionTest.kt` (`rfx.M must have GOTO_16 jump to prevent Android ART VerifyError`) to permanently guard against regression.
   4. Rebuilt `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
 
-### 19. Morphe Patched APK Crash: VerifyError in mtf (copyRes1 v1<- result0 type=Undefined)
+### 20. Missing 50MP "High Res" Badge in Google Photos on Morphe-Patched Build
 * **Status:** ✅ **Resolved & Verified**
-* **Reporter:** User testing ("still app is crashing")
-* **Root Cause:**
-  In `ProControlsPatch.kt`, the hook for `TomteInitHelper.isHighResolutionFinisher` was iterating over all methods using `clazz.methods.forEach { method ->` and matching any method containing `Lmwp;->c()Z`.
-  This matched method `b` (`mtf.b(mwp, yia, myv, boolean, java.lang.String)`), which has 35 registers (where `p1` is register 30). Because register 30 does not fit into a standard 4-bit `invoke-static {v1, p1}` instruction, smali assembly failed to generate the `invoke-static` instruction and only emitted the trailing `move-result v1`. This inserted a naked `move-result` immediately after the existing `move-result v3`, causing Android ART's dex verifier to reject class `mtf` with:
-  `java.lang.VerifyError: Verifier rejected class mtf: yia mtf.b(mwp, yia, myv, boolean, java.lang.String) failed to verify: [0x433] copyRes1 v1<- result0 type=Undefined`.
+* **Reporter:** User testing ("high res badge is missing in google photos" / "i see that in 50mp photo in signed build")
+* **Root Causes:**
+  1. **Instruction Format Mismatch on `pck->f(Z)` in `ProControlsPatch.kt`**:
+     In `ProControlsPatch.kt`, the hook targeting `pck->f(Z)V` in `oms` and `oml` cast the instruction to `TwoRegisterInstruction` (`as? TwoRegisterInstruction`). However, in `dexlib2`, `invoke-virtual` instructions implement `FiveRegisterInstruction` (format `35c`) or `RegisterRangeInstruction` (format `3rc`), NOT `TwoRegisterInstruction`. This cast always evaluated to `null`, completely bypassing the hook. Consequently, `pcl.k` remained `false` on capture, preventing `rbu.c(JZ)` from creating the session with `Lmhb.p` (`HIGH_RESOLUTION`).
+  2. **File-Based Smali Patching Failure in Morphe Resource Patch**:
+     The signature verification bypasses (`CameraContentProvider.a() -> return-void` and `kso.a() -> true`) and authority alignment (`ksa.<clinit>`) were originally placed in `PixelCameraClonePatch.kt` as file-based string replacements targeting `smali/.../*.smali`. Because Morphe's `resourcePatch` does not decompile DEX to smali files, these calls threw `FileNotFoundException` (which were silently caught). As a result, `CameraContentProvider` retained its original signature verification, throwing `java.lang.SecurityException` whenever Google Photos or `content query` attempted to query `SpecialTypesProvider`.
+  3. **Thumbnail Dimension Preemption in `TomteInitHelper.smali`**:
+     `parseJpegDimensions([B)[I` exited on the first SOF marker encountered (which was the embedded 384×510 EXIF thumbnail in APP1). Because 384×510 < 20,000,000 pixels, `injectSpecialTypeToXmp` and `getEffectiveSpecialTypeForJpegBytes` branched past `is50MPActive()` and skipped injecting the `HIGH_RESOLUTION` special type into output XMP.
 * **Fix Implemented:**
-  1. Updated `ProControlsPatch.kt` to target method `g(Lmwt;)V` specifically (`clazz.methods.firstOrNull { it.name == "g" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lmwt;" }`), leaving method `b` completely untouched.
-  2. Added an automated regression test in `PatcherExecutionTest.kt` ensuring `mtf.b` never contains consecutive `move-result` opcodes.
-  3. Rebuilt `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
+  1. Updated `ProControlsPatch.kt` to extract the parameter register from `FiveRegisterInstruction` (`registerD`) or `RegisterRangeInstruction` (`startRegister + 1`), successfully hooking `pck->f(Z)` in both `oms` and `oml` with `TomteInitHelper.isHighResShot(omw)`.
+  2. Moved `CameraContentProvider.a()` (`PixelCameraPatchUtils.forceReturnVoid`), `kso.a()` (`PixelCameraPatchUtils.forceReturnTrue`), `ksa.<clinit>` (cloned authority alignment), `lys.e` (`TomteInitHelper.prepareReviewIntent`), and `CameraActivity` (`enforceImmersiveFullscreen`) into genuine DEX bytecode hooks within `ProControlsPatch.kt`.
+  3. Updated `injectSpecialTypeToXmp` and `getEffectiveSpecialTypeForJpegBytes` in `TomteInitHelper.smali` to fall back to `is50MPActive()`, guaranteeing XMP serialization even on JPEGs with APP1 thumbnails.
+  4. Added automated regression assertions in `PatcherExecutionTest.kt` verifying `oms.hi_res`, `oml.hi_res`, `ccp.bypass`, `kso.bypass`, and `ksa.auth`.
+  5. Reassembled `TomteInitHelper.dex`, recompiled Android patch suite `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
+
 
 
 

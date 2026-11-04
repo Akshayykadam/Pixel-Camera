@@ -200,7 +200,61 @@ class PatcherExecutionTest {
             }
         }
 
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto")
+        // Verify 50MP High Resolution session flag and SpecialTypesProvider hooks
+        var foundOmsHiRes = false
+        var foundOmlHiRes = false
+        var foundCcpBypass = false
+        var foundKsoBypass = false
+        var foundKsaClonedAuth = false
+        for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Loms;") {
+                    for (m in c.methods) {
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("isHighResShot") == true }) {
+                            foundOmsHiRes = true
+                        }
+                    }
+                }
+                if (c.type == "Loml;") {
+                    for (m in c.methods) {
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("isHighResShot") == true }) {
+                            foundOmlHiRes = true
+                        }
+                    }
+                }
+                if (c.type == "Lcom/google/android/apps/camera/contentprovider/CameraContentProvider;") {
+                    val aMethod = c.methods.firstOrNull { it.name == "a" }
+                    val insList = aMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.size == 1 && insList[0].opcode == com.android.tools.smali.dexlib2.Opcode.RETURN_VOID) {
+                        foundCcpBypass = true
+                    }
+                }
+                if (c.type == "Lkso;") {
+                    val aMethod = c.methods.firstOrNull { it.name == "a" }
+                    val insList = aMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_4 } && insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN }) {
+                        foundKsoBypass = true
+                    }
+                }
+                if (c.type == "Lksa;") {
+                    val clinit = c.methods.firstOrNull { it.name == "<clinit>" }
+                    val insList = clinit?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c)?.reference?.toString()?.contains("com.google.android.GoogleCamera.morphe.specialtypes.SpecialTypesProvider") == true }) {
+                        foundKsaClonedAuth = true
+                    }
+                }
+            }
+        }
+        assertTrue(foundOmsHiRes, "oms must be hooked with isHighResShot(omw)")
+        assertTrue(foundOmlHiRes, "oml must be hooked with isHighResShot(omw)")
+        assertTrue(foundCcpBypass, "CameraContentProvider.a must return void to unblock Google Photos queries")
+        assertTrue(foundKsoBypass, "kso.a must return true to bypass caller signature verification")
+        assertTrue(foundKsaClonedAuth, "ksa.<clinit> must align SpecialTypesProvider authority to cloned package")
+
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, ccp.bypass=$foundCcpBypass, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
     }
 }
 

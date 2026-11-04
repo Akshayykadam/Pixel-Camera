@@ -243,17 +243,20 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 7b. Align SpecialTypesProvider Authority in ksa.smali for Cloned Package ──
-        mutableClassDefByOrNull("Lksa;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "<clinit>" }?.let { method ->
-                val impl = method.implementation ?: return@let
-                for (i in 0 until impl.instructions.size) {
-                    val ins = impl.instructions[i]
-                    if (ins.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_STRING) {
-                        val refStr = (ins as? com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c)?.reference?.toString()
-                        if (refStr == "com.google.android.apps.camera.specialtypes.SpecialTypesProvider") {
-                            val newIns = "const-string v5, \"com.google.android.GoogleCamera.morphe.specialtypes.SpecialTypesProvider\"".toInstructions(method).first()
-                            impl.replaceInstruction(i, newIns)
+        // ── 7b. Align SpecialTypesProvider Authority in ksa.smali / klh.smali for Cloned Package ──
+        listOf("Lksa;", "Lklh;").forEach { classDesc ->
+            mutableClassDefByOrNull(classDesc)?.let { clazz ->
+                clazz.methods.firstOrNull { it.name == "<clinit>" }?.let { method ->
+                    val impl = method.implementation ?: return@let
+                    for (i in 0 until impl.instructions.size) {
+                        val ins = impl.instructions[i]
+                        if (ins.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_STRING) {
+                            val refStr = (ins as? com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c)?.reference?.toString()
+                            if (refStr?.contains("SpecialTypesProvider") == true) {
+                                val reg = (ins as com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c).registerA
+                                val newIns = "const-string v$reg, \"com.google.android.GoogleCamera.morphe.specialtypes.SpecialTypesProvider\"".toInstructions(method).first()
+                                impl.replaceInstruction(i, newIns)
+                            }
                         }
                     }
                 }

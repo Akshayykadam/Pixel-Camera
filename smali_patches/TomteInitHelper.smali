@@ -6211,9 +6211,9 @@
 
     const/4 v2, 0x0
 
-    if-lez v0, :cond_2
+    if-lez v0, :cond_check_active
 
-    if-lez p0, :cond_2
+    if-lez p0, :cond_check_active
 
     int-to-long v3, v0
 
@@ -6225,18 +6225,17 @@
 
     cmp-long v3, v3, v5
 
-    if-lez v3, :cond_3
+    if-lez v3, :cond_check_active
 
     const/4 v2, 0x1
 
     goto :goto_is_50
 
-    :cond_2
+    :cond_check_active
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is50MPActive()Z
 
     move-result v2
 
-    :cond_3
     :goto_is_50
     if-eqz v2, :cond_6
 
@@ -6359,9 +6358,9 @@
 
     aget p1, p1, v1
 
-    if-lez v0, :cond_4
+    if-lez v0, :cond_check_active_bytes
 
-    if-lez p1, :cond_4
+    if-lez p1, :cond_check_active_bytes
 
     int-to-long v0, v0
 
@@ -6373,8 +6372,18 @@
 
     cmp-long p1, v0, v2
 
-    if-lez p1, :cond_3
+    if-lez p1, :cond_check_active_bytes
 
+    goto :goto_is_50_bytes
+
+    :cond_check_active_bytes
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is50MPActive()Z
+
+    move-result p1
+
+    if-eqz p1, :cond_3
+
+    :goto_is_50_bytes
     sget-object p1, Lmhb;->e:Lmhb;
 
     if-eq p0, p1, :cond_2

@@ -322,9 +322,10 @@ val proControlsPatch = bytecodePatch(
                         (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lpck;->f(Z)V") == true
                     }
                     if (pckIdx != -1) {
-                        val ins = impl.instructions.elementAt(pckIdx) as? com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
-                        if (ins != null) {
-                            val reg = ins.registerA
+                        val ins = impl.instructions.elementAt(pckIdx)
+                        val reg = (ins as? com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction)?.registerD
+                            ?: (ins as? com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction)?.let { it.startRegister + 1 }
+                        if (reg != null) {
                             val smali = """
                                 if-nez v$reg, :cond_skip_hi_res
                                 invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z
@@ -503,6 +504,72 @@ val proControlsPatch = bytecodePatch(
                     for (ni in newIns) {
                         impl.addInstruction(pos++, ni)
                     }
+                }
+            }
+        }
+
+        // i) CameraContentProvider: bypass signature verification in a()V
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/contentprovider/CameraContentProvider;")?.let { clazz ->
+            app.morphe.patches.pixelcamera.PixelCameraPatchUtils.forceReturnVoid(clazz, "a")
+        }
+
+        // j) kso: bypass signature verification in a(Ljava/lang/String;)Z
+        mutableClassDefByOrNull("Lkso;")?.let { clazz ->
+            app.morphe.patches.pixelcamera.PixelCameraPatchUtils.forceReturnTrue(clazz, "a")
+        }
+
+        // k) ksa / klh: align SpecialTypesProvider authority
+        listOf("Lksa;", "Lklh;").forEach { classDesc ->
+            mutableClassDefByOrNull(classDesc)?.let { clazz ->
+                clazz.methods.firstOrNull { it.name == "<clinit>" }?.let { method ->
+                    val impl = method.implementation ?: return@let
+                    for (i in 0 until impl.instructions.size) {
+                        val ins = impl.instructions[i]
+                        if (ins.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_STRING) {
+                            val refStr = (ins as? com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c)?.reference?.toString()
+                            if (refStr?.contains("SpecialTypesProvider") == true) {
+                                val reg = (ins as com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c).registerA
+                                val newIns = "const-string v$reg, \"com.google.android.GoogleCamera.morphe.specialtypes.SpecialTypesProvider\"".toInstructions(method).first()
+                                impl.replaceInstruction(i, newIns)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // l) lys: prepareReviewIntent in e(Landroid/content/Intent;Landroid/view/View;Landroid/graphics/Bitmap;)Z
+        mutableClassDefByOrNull("Llys;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "e" && it.parameterTypes.size == 3 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val smali = """
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->prepareReviewIntent(Landroid/content/Intent;)Landroid/content/Intent;
+                    move-result-object p1
+                """.trimIndent()
+                val newIns = smali.toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
+                }
+            }
+        }
+
+        // m) CameraActivity: enforceImmersiveFullscreen in onCreate and onResume
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/activity/main/CameraActivity;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "onCreate" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val newIns = "invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V".toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
+                }
+            }
+            clazz.methods.firstOrNull { it.name == "onResume" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val newIns = "invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->enforceImmersiveFullscreen(Landroid/app/Activity;)V".toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
                 }
             }
         }
