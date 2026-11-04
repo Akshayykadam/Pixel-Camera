@@ -6610,14 +6610,18 @@ def patch_zoom_controllers():
         with open(kmo_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # 5. guh.smali (1x Main Camera Focal Length Cycling: 1.0x (24mm) -> 1.2x (28mm) -> 1.5x (35mm) -> 1.0x)
+    # 5. guh.smali (1x Main Camera Focal Length Cycling & Manual Lens Mode Zoom Resolver)
     guh_path = os.path.join(APKTOOL_DIR, "smali", "guh.smali")
-    if os.path.exists(guh_path):
+    smali_patch = os.path.join(ROOT_DIR, "smali_patches", "guh.smali")
+    if os.path.exists(smali_patch) and os.path.exists(os.path.dirname(guh_path)):
+        shutil.copyfile(smali_patch, guh_path)
+        print("    [+] guh.smali: Synchronized from smali_patches/guh.smali.")
+    elif os.path.exists(guh_path):
         with open(guh_path, "r", encoding="utf-8") as f:
             guh_content = f.read()
 
-        if ":cond_apply_focal_zoom_guh" in guh_content or ":cond_std_zoom_guh" in guh_content:
-            print("    [+] guh.smali: already patched with 1x focal length cycling.")
+        if "isManualLensActive" in guh_content and ":cond_apply_focal_zoom_guh" in guh_content:
+            print("    [+] guh.smali: already patched with manual lens target zoom and focal length cycling.")
         else:
             guh_target = """    check-cast p0, Ljava/lang/Number;
 
@@ -7563,7 +7567,7 @@ def patch_brightness_shadows_controllers():
         elif orig_qwh_l in c:
             c = c.replace(orig_qwh_l, repl_qwh_l_new, 1)
 
-        # 10b. Ensure qwh.i (Look Intensity) is not hooked to updateColorFineTuning
+        # 10b. Hook qwh.i (Color: Vibrance=0, Tint=1, Warmth=2)
         orig_qwh_i = """.method public final i(IFZ)V
     .locals 5
 
@@ -7574,10 +7578,10 @@ def patch_brightness_shadows_controllers():
     invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
 
     iget-object v0, p0, Lqwh;->e:Lurt;"""
-        if repl_qwh_i in c:
-            c = c.replace(repl_qwh_i, orig_qwh_i, 1)
+        if orig_qwh_i in c:
+            c = c.replace(orig_qwh_i, repl_qwh_i, 1)
 
-        # 10c. Hook qwh.j (Color: Vibrance=0, Tint=1)
+        # 10c. Ensure qwh.j (Detail: Sharpness=0, Grain=1) does not clobber Color fine tuning
         orig_qwh_j = """.method public final j(IFZ)V
     .locals 5
 
@@ -7588,8 +7592,8 @@ def patch_brightness_shadows_controllers():
     invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
 
     iget-object v0, p0, Lqwh;->e:Lurt;"""
-        if orig_qwh_j in c:
-            c = c.replace(orig_qwh_j, repl_qwh_j, 1)
+        if repl_qwh_j in c:
+            c = c.replace(repl_qwh_j, orig_qwh_j, 1)
 
         with open(qwh_path, "w", encoding="utf-8") as f:
             f.write(c)
@@ -7611,6 +7615,17 @@ def patch_brightness_shadows_controllers():
             with open(izt_path, "w", encoding="utf-8") as f:
                 f.write(c)
             print("    [+] izt.smali: Hooked Reset All to TomteInitHelper.resetFineTuning().")
+
+    # 10e. Relabel Look 3 (sauce_shadows_label) to "Deep Shadows" to eliminate collision with Tone Shadows slider
+    strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
+    if os.path.exists(strings_path):
+        with open(strings_path, "r", encoding="utf-8") as f:
+            c_str = f.read()
+        if '<string name="sauce_shadows_label">Shadows</string>' in c_str:
+            c_str = c_str.replace('<string name="sauce_shadows_label">Shadows</string>', '<string name="sauce_shadows_label">Deep Shadows</string>')
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(c_str)
+            print("    [+] strings.xml: Relabeled sauce_shadows_label to 'Deep Shadows'.")
 
     # 11. Ensure pzq.smali preserves standard pzq.c initialization (twilight mode disabled by default)
     pzq_path = os.path.join(APKTOOL_DIR, "smali", "pzq.smali")
@@ -10538,6 +10553,32 @@ def patch_image_quality_preferences():
         else:
             print("    [+] strings.xml: RAW compression strings already present.")
 
+        if "pref_category_advanced_settings_title" not in content:
+            cat_string = """    <string name="pref_category_advanced_settings_title">Advanced settings</string>"""
+            content = content.replace("<resources>", f"<resources>\n{cat_string}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: Advanced settings category title added.")
+
+        if "pref_category_about_title" not in content:
+            about_strings = """    <string name="pref_category_about_title">About</string>
+    <string name="pref_about_title">Pixel Camera</string>
+    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.2)</string>"""
+            content = content.replace("<resources>", f"<resources>\n{about_strings}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: About category and version strings added.")
+
+        if "pref_camera_focal_length_cycling_title" not in content:
+            focal_strings = """    <string name="pref_camera_focal_length_cycling_title">1x Focal Length Cycling</string>
+    <string name="pref_camera_focal_length_cycling_summary">Tap the 1× button to switch between 24 mm, 28 mm, and 35 mm focal lengths.\\nWhen off, 1× remain locked at native optical 1×.</string>"""
+            content = content.replace("<resources>", f"<resources>\n{focal_strings}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: Focal length cycling strings added.")
+        else:
+            print("    [+] strings.xml: Focal length cycling strings already present.")
+
     # 2. Inject arrays into arrays.xml
     arrays_path = os.path.join(APKTOOL_DIR, "res", "values", "arrays.xml")
     if os.path.exists(arrays_path):
@@ -10583,30 +10624,60 @@ def patch_image_quality_preferences():
     if os.path.exists(gm3_path):
         with open(gm3_path, "r", encoding="utf-8") as f:
             content = f.read()
-        if "pref_camera_raw_compression_key" not in content:
-            extra_gm3 = """        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="12" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
-        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="13" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />"""
-            content = content.replace('android:key="pref_camera_noise_reduction_key"', f'{extra_gm3}\n        android:key="pref_camera_noise_reduction_key"')
+        if "pref_category_advanced_settings" not in content:
+            extra_gm3 = """    <androidx.preference.PreferenceCategory android:title="@string/pref_category_advanced_settings_title" android:key="pref_category_advanced_settings">
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_photo_camera_vd_theme_24" android:title="@string/pref_camera_focal_length_cycling_title" android:key="pref_camera_focal_length_cycling_key" android:summary="@string/pref_camera_focal_length_cycling_summary" android:order="1" android:defaultValue="false" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="2" android:defaultValue="95" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+    </androidx.preference.PreferenceCategory>"""
+            content = content.replace('<androidx.preference.PreferenceCategory android:title="@string/mode_video"', f'{extra_gm3}\n    <androidx.preference.PreferenceCategory android:title="@string/mode_video"')
             with open(gm3_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] camera_gm3_preferences.xml: RAW compression and Sharpness menus injected.")
+            print("    [+] camera_gm3_preferences.xml: Advanced settings category injected.")
         else:
-            print("    [+] camera_gm3_preferences.xml: RAW compression preference already present.")
+            print("    [+] camera_gm3_preferences.xml: Advanced settings category already present.")
+
+        if "pref_category_help_and_feedback" in content:
+            about_gm3 = """    <androidx.preference.PreferenceCategory android:title="@string/pref_category_about_title" android:key="pref_category_about">
+        <androidx.preference.Preference android:icon="@drawable/settingslib_ic_info_outline_24" android:title="@string/pref_about_title" android:key="pref_about_key" android:summary="@string/pref_about_version_summary" />
+        <androidx.preference.Preference android:icon="@drawable/gs_developer_mode_vd_theme_24" android:key="pref_category_developer" app:title="@string/pref_developer_settings" />
+    </androidx.preference.PreferenceCategory>"""
+            content = re.sub(r'<androidx\.preference\.PreferenceCategory[^>]*key="pref_category_help_and_feedback"[^>]*>[\s\S]*?</androidx\.preference\.PreferenceCategory>', about_gm3, content)
+            with open(gm3_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_gm3_preferences.xml: Help and feedback replaced with About category.")
 
     # 4. Inject into camera_preferences.xml
     cam_pref_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_preferences.xml")
     if os.path.exists(cam_pref_path):
         with open(cam_pref_path, "r", encoding="utf-8") as f:
             content = f.read()
-        if "pref_camera_raw_compression_key" not in content:
-            extra_cam = """            <ListPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="12" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
-            <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="13" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />"""
-            content = content.replace('android:key="pref_camera_noise_reduction_key"', f'{extra_cam}\n            android:key="pref_camera_noise_reduction_key"')
+        if "pref_category_advanced_settings" not in content:
+            extra_cam = """    <PreferenceCategory android:title="@string/pref_category_advanced_settings_title" android:key="pref_category_advanced_settings">
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_photo_camera_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_focal_length_cycling_title" android:key="pref_camera_focal_length_cycling_key" android:summary="@string/pref_camera_focal_length_cycling_summary" android:order="1" android:defaultValue="false" />
+        <ListPreference android:icon="@drawable/gs_high_res_vd_theme_24" android:entries="@array/pref_camera_jpeg_quality_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_jpeg_quality_title" android:key="pref_camera_jpeg_quality_key" android:summary="%s" android:order="2" android:defaultValue="95" android:entryValues="@array/pref_camera_jpeg_quality_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+    </PreferenceCategory>"""
+            content = content.replace('<PreferenceCategory android:title="@string/mode_video"', f'{extra_cam}\n    <PreferenceCategory android:title="@string/mode_video"')
             with open(cam_pref_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] camera_preferences.xml: RAW compression and Sharpness menus injected.")
+            print("    [+] camera_preferences.xml: Advanced settings category injected.")
         else:
-            print("    [+] camera_preferences.xml: RAW compression preference already present.")
+            print("    [+] camera_preferences.xml: Advanced settings category already present.")
+
+        if "pref_category_help_and_feedback" in content:
+            about_cam = """    <PreferenceCategory android:title="@string/pref_category_about_title" android:key="pref_category_about">
+        <Preference android:icon="@drawable/settingslib_ic_info_outline_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_about_title" android:key="pref_about_key" android:summary="@string/pref_about_version_summary" />
+        <PreferenceScreen android:icon="@drawable/quantum_gm_ic_developer_mode_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_developer_settings" android:key="pref_category_developer" />
+    </PreferenceCategory>"""
+            content = re.sub(r'<PreferenceCategory[^>]*key="pref_category_help_and_feedback"[^>]*>[\s\S]*?</PreferenceCategory>', about_cam, content)
+            with open(cam_pref_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_preferences.xml: Help and feedback replaced with About category.")
 
     # 5. Patch pbe.smali (Camera2 CaptureRequest providers)
     pbe_path = os.path.join(APKTOOL_DIR, "smali", "pbe.smali")

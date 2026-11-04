@@ -360,6 +360,7 @@ static float s_ft_shadows = 0.0f;
 static float s_ft_highlights = 0.0f;
 static float s_ft_vibrance = 0.0f;
 static float s_ft_tint = 0.0f;
+static float s_ft_warmth = 0.0f;
 
 static uint8_t s_active_lut_y[256];
 static uint8_t s_active_lut_u[256];
@@ -369,14 +370,14 @@ static float s_active_saturation = 1.0f;
 static float s_active_shift_u = 0.0f;
 static float s_active_shift_v = 0.0f;
 static int s_active_look_id = -999;
-static float s_last_c = -999.0f, s_last_s = -999.0f, s_last_h = -999.0f, s_last_v = -999.0f, s_last_t = -999.0f;
+static float s_last_c = -999.0f, s_last_s = -999.0f, s_last_h = -999.0f, s_last_v = -999.0f, s_last_t = -999.0f, s_last_w = -999.0f;
 static int s_active_lut_valid = 0;
 
 static void update_active_luts(int lookId) {
     if (s_active_lut_valid && s_active_look_id == lookId &&
         s_last_c == s_ft_contrast && s_last_s == s_ft_shadows &&
         s_last_h == s_ft_highlights && s_last_v == s_ft_vibrance &&
-        s_last_t == s_ft_tint) {
+        s_last_t == s_ft_tint && s_last_w == s_ft_warmth) {
         return;
     }
 
@@ -443,9 +444,11 @@ static void update_active_luts(int lookId) {
         if (eff_saturation > 2.50f) eff_saturation = 2.50f;
     }
 
-    // 5. Tint (Temperature / tint shift)
-    float eff_shift_u = base_p->shift_u - (s_ft_tint * 20.0f);
-    float eff_shift_v = base_p->shift_v + (s_ft_tint * 20.0f);
+    // 5. Warmth & Tint (Temperature / tint shift)
+    // Warmth shifts along Yellow-Amber / Blue axis: +Warmth decreases U (-24), increases V (+12)
+    // Tint shifts along Magenta / Green axis: +Tint decreases U (-15) and increases V (+20)
+    float eff_shift_u = base_p->shift_u - (s_ft_warmth * 24.0f) - (s_ft_tint * 15.0f);
+    float eff_shift_v = base_p->shift_v + (s_ft_warmth * 12.0f) + (s_ft_tint * 20.0f);
 
     s_active_saturation = eff_saturation;
     s_active_shift_u = eff_shift_u;
@@ -477,23 +480,25 @@ static void update_active_luts(int lookId) {
     s_last_h = s_ft_highlights;
     s_last_v = s_ft_vibrance;
     s_last_t = s_ft_tint;
+    s_last_w = s_ft_warmth;
     s_active_lut_valid = 1;
 }
 
 JNIEXPORT void JNICALL
 Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeSetFineTuning(
-    JNIEnv *env, jclass clazz, jfloat contrast, jfloat shadows, jfloat highlights, jfloat vibrance, jfloat tint) {
+    JNIEnv *env, jclass clazz, jfloat contrast, jfloat shadows, jfloat highlights, jfloat vibrance, jfloat tint, jfloat warmth) {
     (void)env; (void)clazz;
     if (s_ft_contrast != contrast || s_ft_shadows != shadows || s_ft_highlights != highlights ||
-        s_ft_vibrance != vibrance || s_ft_tint != tint) {
+        s_ft_vibrance != vibrance || s_ft_tint != tint || s_ft_warmth != warmth) {
         s_ft_contrast = contrast;
         s_ft_shadows = shadows;
         s_ft_highlights = highlights;
         s_ft_vibrance = vibrance;
         s_ft_tint = tint;
+        s_ft_warmth = warmth;
         s_active_lut_valid = 0;
-        LOGI("ProPatcher: nativeSetFineTuning: C=%.2f, S=%.2f, H=%.2f, V=%.2f, T=%.2f",
-             contrast, shadows, highlights, vibrance, tint);
+        LOGI("ProPatcher: nativeSetFineTuning: C=%.2f, S=%.2f, H=%.2f, V=%.2f, T=%.2f, W=%.2f",
+             contrast, shadows, highlights, vibrance, tint, warmth);
     }
 }
 
@@ -853,7 +858,8 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
                            fabsf(s_ft_shadows) > 0.01f ||
                            fabsf(s_ft_highlights) > 0.01f ||
                            fabsf(s_ft_vibrance) > 0.01f ||
-                           fabsf(s_ft_tint) > 0.01f);
+                           fabsf(s_ft_tint) > 0.01f ||
+                           fabsf(s_ft_warmth) > 0.01f);
 
     if (lookId == 0 && !has_fine_tuning) {
         return;
@@ -896,8 +902,8 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
     int16_t scale_uv = prof->is_monochrome ? 0 : (int16_t)roundf(eff_saturation * 256.0f);
     if (scale_uv < 0) scale_uv = 0;
 
-    float eff_shift_u = prof->shift_u - (s_ft_tint * 20.0f);
-    float eff_shift_v = prof->shift_v + (s_ft_tint * 20.0f);
+    float eff_shift_u = prof->shift_u - (s_ft_warmth * 24.0f) - (s_ft_tint * 15.0f);
+    float eff_shift_v = prof->shift_v + (s_ft_warmth * 12.0f) + (s_ft_tint * 20.0f);
     int16_t shift_u = (int16_t)roundf(eff_shift_u);
     int16_t shift_v = (int16_t)roundf(eff_shift_v);
     int is_monochrome = prof->is_monochrome;
@@ -1019,7 +1025,8 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
                            fabsf(s_ft_shadows) > 0.01f ||
                            fabsf(s_ft_highlights) > 0.01f ||
                            fabsf(s_ft_vibrance) > 0.01f ||
-                           fabsf(s_ft_tint) > 0.01f);
+                           fabsf(s_ft_tint) > 0.01f ||
+                           fabsf(s_ft_warmth) > 0.01f);
 
     if (lookId == 0 && !has_fine_tuning) {
         return;

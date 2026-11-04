@@ -773,8 +773,8 @@ val cameraLooksPatch = bytecodePatch(
                 } catch (_: Throwable) {}
             }
 
-            // 29b. Hook qwh.j(IFZ)V for Color fine tuning (Vibrance, Tint)
-            for (mName in listOf("j")) {
+            // 29b. Hook qwh.i(IFZ)V for Color fine tuning (Vibrance, Tint, Warmth)
+            for (mName in listOf("i")) {
                 clazz.methods.firstOrNull { it.name == mName && it.parameterTypes == listOf("I", "F", "Z") }?.let { method ->
                     val impl = method.implementation ?: return@let
                     val hookSmali = """
