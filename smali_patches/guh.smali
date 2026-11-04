@@ -282,11 +282,63 @@
 
     move-result v1
 
-    if-eqz v1, :cond_check_std_guh
+    if-nez v1, :cond_manual_lens_apply_guh
 
-    invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getManualLensTargetZoom(Ljava/util/List;I)F
+    if-eqz p0, :cond_check_std_guh
 
-    move-result v2
+    invoke-interface {p0}, Ljava/util/List;->size()I
+
+    move-result v1
+
+    const/4 v2, 0x3
+
+    if-ne v1, v2, :cond_check_std_guh
+
+    const/4 v1, 0x0
+
+    invoke-interface {p0, v1}, Ljava/util/List;->get(I)Ljava/lang/Object;
+
+    move-result-object v1
+
+    instance-of v2, v1, Ljava/lang/Number;
+
+    if-eqz v2, :cond_check_std_guh
+
+    check-cast v1, Ljava/lang/Number;
+
+    invoke-virtual {v1}, Ljava/lang/Number;->floatValue()F
+
+    move-result v1
+
+    const/high16 v2, 0x3f800000    # 1.0f
+
+    cmpl-float v1, v1, v2
+
+    if-nez v1, :cond_check_std_guh
+
+    :cond_manual_lens_apply_guh
+    const/4 v1, 0x1
+
+    if-ne p1, v1, :cond_manual_lens_fixed_1_0x
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFocalLengthCyclingEnabled()Z
+
+    move-result v1
+
+    if-eqz v1, :cond_manual_lens_fixed_1_0x
+
+    iget-object p0, v0, Lkmo;->h:Lusf;
+
+    invoke-interface {p0}, Lusf;->d()Ljava/lang/Object;
+
+    move-result-object p0
+
+    check-cast p0, Ljava/lang/Float;
+
+    goto :cond_focal_enabled_guh
+
+    :cond_manual_lens_fixed_1_0x
+    const/high16 v2, 0x3f800000    # 1.0f
 
     iget-object p0, v0, Lkmo;->h:Lusf;
 

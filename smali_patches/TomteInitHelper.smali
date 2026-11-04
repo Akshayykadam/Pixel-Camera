@@ -5979,148 +5979,33 @@
 .end method
 
 .method public static getManualLensTargetZoom(Ljava/util/List;I)F
-    .locals 4
+    .locals 3
 
-    :try_start_mltz
-    # UW button (index 0)
-    if-nez p1, :cond_check_w
+    # In manual lens mode, every camera sensor (UW index 0, W index 1, T index 2)
+    # operates relative to its native sensor frame, so native target zoom is 1.0f.
+    # Returning 5.0f for telephoto causes 5x digital crop = 23x zoom.
+    const-string v0, "PixelCameraZoom"
 
-    if-eqz p0, :cond_ret_uw_default
+    new-instance v1, Ljava/lang/StringBuilder;
 
-    invoke-interface {p0}, Ljava/util/List;->isEmpty()Z
+    invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
 
-    move-result v0
+    const-string v2, "Manual lens target zoom for index "
 
-    if-nez v0, :cond_ret_uw_default
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    const/4 v0, 0x0
+    invoke-virtual {v1, p1}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
 
-    invoke-interface {p0, v0}, Ljava/util/List;->get(I)Ljava/lang/Object;
+    const-string v2, " -> native 1.0f"
 
-    move-result-object v0
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    instance-of v1, v0, Ljava/lang/Number;
-
-    if-eqz v1, :cond_ret_uw_default
-
-    check-cast v0, Ljava/lang/Number;
-
-    invoke-virtual {v0}, Ljava/lang/Number;->floatValue()F
-
-    move-result v0
-
-    return v0
-
-    :cond_ret_uw_default
-    const/high16 v0, 0x3f000000    # 0.5f
-
-    return v0
-
-    :cond_check_w
-    # W button (index 1) -> strictly 1.0f
-    const/4 v0, 0x1
-
-    if-ne p1, v0, :cond_check_t
-
-    const/high16 v0, 0x3f800000    # 1.0f
-
-    return v0
-
-    :cond_check_t
-    # T button (index 2) -> first stop >= 3.5f (optical telephoto)
-    const/4 v0, 0x2
-
-    if-ne p1, v0, :cond_check_other
-
-    if-eqz p0, :cond_ret_t_default
-
-    invoke-interface {p0}, Ljava/util/List;->iterator()Ljava/util/Iterator;
-
-    move-result-object v0
-
-    :cond_t_loop
-    invoke-interface {v0}, Ljava/util/Iterator;->hasNext()Z
-
-    move-result v1
-
-    if-eqz v1, :cond_ret_t_default
-
-    invoke-interface {v0}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+    invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
 
     move-result-object v1
 
-    instance-of v2, v1, Ljava/lang/Number;
+    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
 
-    if-eqz v2, :cond_t_loop
-
-    check-cast v1, Ljava/lang/Number;
-
-    invoke-virtual {v1}, Ljava/lang/Number;->floatValue()F
-
-    move-result v1
-
-    const v2, 0x40600000    # 3.5f
-
-    cmpl-float v2, v1, v2
-
-    if-ltz v2, :cond_t_loop
-
-    const-string v0, "PixelCameraZoom"
-
-    new-instance v2, Ljava/lang/StringBuilder;
-
-    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
-
-    const-string v3, "Manual lens telephoto target zoom: "
-
-    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v2, v1}, Ljava/lang/StringBuilder;->append(F)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-    move-result-object v2
-
-    invoke-static {v0, v2}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
-
-    return v1
-
-    :cond_ret_t_default
-    const/high16 v0, 0x40a00000    # 5.0f
-
-    return v0
-
-    :cond_check_other
-    if-eqz p0, :cond_ret_default
-
-    if-ltz p1, :cond_ret_default
-
-    invoke-interface {p0}, Ljava/util/List;->size()I
-
-    move-result v0
-
-    if-ge p1, v0, :cond_ret_default
-
-    invoke-interface {p0, p1}, Ljava/util/List;->get(I)Ljava/lang/Object;
-
-    move-result-object v0
-
-    instance-of v1, v0, Ljava/lang/Number;
-
-    if-eqz v1, :cond_ret_default
-
-    check-cast v0, Ljava/lang/Number;
-
-    invoke-virtual {v0}, Ljava/lang/Number;->floatValue()F
-
-    move-result v0
-    :try_end_mltz
-    .catchall {:try_start_mltz .. :try_end_mltz} :catchall_mltz
-
-    return v0
-
-    :catchall_mltz
-    :cond_ret_default
     const/high16 v0, 0x3f800000    # 1.0f
 
     return v0
@@ -6210,6 +6095,25 @@
     return p0
 
     :cond_fce_active
+    # Guard: only restore focal length if base zoom p0 is around 1.0x (main camera)
+    const v0, 0x3f733333    # 0.95f
+
+    cmpg-float v0, p0, v0
+
+    if-gez v0, :cond_check_upper_base
+
+    return p0
+
+    :cond_check_upper_base
+    const v0, 0x3f933333    # 1.15f
+
+    cmpl-float v0, p0, v0
+
+    if-lez v0, :cond_fce_proceed
+
+    return p0
+
+    :cond_fce_proceed
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
 
     move-result-object v0
