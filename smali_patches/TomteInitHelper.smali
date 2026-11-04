@@ -6679,9 +6679,16 @@
     return p0
 .end method
 
-.method public static isHighResShot(Lomw;)Z
+.method public static isHighResShot(ZLomw;)Z
     .locals 2
 
+    if-eqz p0, :cond_check
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_check
     :try_start_0
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isProDevice()Z
 
@@ -6694,9 +6701,9 @@
     return v0
 
     :cond_0
-    if-eqz p0, :cond_1
+    if-eqz p1, :cond_1
 
-    iget-object v0, p0, Lomw;->a:Lomb;
+    iget-object v0, p1, Lomw;->a:Lomb;
 
     if-eqz v0, :cond_1
 
@@ -6719,6 +6726,18 @@
 
     :catch_all
     const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static isHighResShot(Lomw;)Z
+    .locals 1
+
+    const/4 v0, 0x0
+
+    invoke-static {v0, p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(ZLomw;)Z
+
+    move-result v0
 
     return v0
 .end method

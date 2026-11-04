@@ -327,10 +327,8 @@ val proControlsPatch = bytecodePatch(
                             ?: (ins as? com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction)?.let { it.startRegister + 1 }
                         if (reg != null) {
                             val smali = """
-                                if-nez v$reg, :cond_skip_hi_res
-                                invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(Lomw;)Z
+                                invoke-static {v$reg, v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isHighResShot(ZLomw;)Z
                                 move-result v$reg
-                                :cond_skip_hi_res
                             """.trimIndent()
                             val newIns = smali.toInstructions(method)
                             var pos = pckIdx
