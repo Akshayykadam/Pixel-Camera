@@ -187,6 +187,19 @@ class PatcherExecutionTest {
         }
         assertTrue(foundRfxMGoto, "rfx.M must have GOTO_16 jump to prevent Android ART VerifyError")
 
+        // Verify mtf.b does not contain duplicate MOVE_RESULT (prevent ART VerifyError)
+        for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            val mtf = dex.classes.firstOrNull { it.type == "Lmtf;" } ?: continue
+            val b = mtf.methods.firstOrNull { it.name == "b" } ?: continue
+            val insList = b.implementation?.instructions?.toList() ?: emptyList()
+            for (i in 0 until insList.size - 1) {
+                if (insList[i].opcode.name.contains("MOVE_RESULT") && insList[i + 1].opcode.name.contains("MOVE_RESULT")) {
+                    error("mtf.b contains consecutive MOVE_RESULT at $i and ${i + 1}")
+                }
+            }
+        }
+
         println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto")
     }
 }

@@ -404,10 +404,10 @@ val proControlsPatch = bytecodePatch(
             }
         }
 
-        // d) mtf: isHighResolutionFinisher for MediaProvider special_type_id
+        // d) mtf: isHighResolutionFinisher for MediaProvider special_type_id (in method g(Lmwt;)V only)
         mutableClassDefByOrNull("Lmtf;")?.let { clazz ->
-            clazz.methods.forEach { method ->
-                val impl = method.implementation ?: return@forEach
+            clazz.methods.firstOrNull { it.name == "g" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lmwt;" }?.let { method ->
+                val impl = method.implementation ?: return@let
                 val mwpIdx = impl.instructions.indexOfFirst { ins ->
                     (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lmwp;->c()Z") == true
                 }

@@ -260,5 +260,18 @@ This document tracks bugs, image tuning observations, and feature requests repor
   3. Added an automated assertion in `PatcherExecutionTest.kt` (`rfx.M must have GOTO_16 jump to prevent Android ART VerifyError`) to permanently guard against regression.
   4. Rebuilt `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
 
+### 19. Morphe Patched APK Crash: VerifyError in mtf (copyRes1 v1<- result0 type=Undefined)
+* **Status:** ✅ **Resolved & Verified**
+* **Reporter:** User testing ("still app is crashing")
+* **Root Cause:**
+  In `ProControlsPatch.kt`, the hook for `TomteInitHelper.isHighResolutionFinisher` was iterating over all methods using `clazz.methods.forEach { method ->` and matching any method containing `Lmwp;->c()Z`.
+  This matched method `b` (`mtf.b(mwp, yia, myv, boolean, java.lang.String)`), which has 35 registers (where `p1` is register 30). Because register 30 does not fit into a standard 4-bit `invoke-static {v1, p1}` instruction, smali assembly failed to generate the `invoke-static` instruction and only emitted the trailing `move-result v1`. This inserted a naked `move-result` immediately after the existing `move-result v3`, causing Android ART's dex verifier to reject class `mtf` with:
+  `java.lang.VerifyError: Verifier rejected class mtf: yia mtf.b(mwp, yia, myv, boolean, java.lang.String) failed to verify: [0x433] copyRes1 v1<- result0 type=Undefined`.
+* **Fix Implemented:**
+  1. Updated `ProControlsPatch.kt` to target method `g(Lmwt;)V` specifically (`clazz.methods.firstOrNull { it.name == "g" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lmwt;" }`), leaving method `b` completely untouched.
+  2. Added an automated regression test in `PatcherExecutionTest.kt` ensuring `mtf.b` never contains consecutive `move-result` opcodes.
+  3. Rebuilt `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
+
+
 
 
