@@ -11320,6 +11320,172 @@ def patch_capture_stalling_fixes():
         elif "cond_metering_failed" in content:
             print("    [+] pxe.smali: Metering failure guard already present.")
 
+    # 4. vfa.smali and wst.smali: Clock-domain synchronization and 8.33ms minimum tolerance
+    patch_vfa_and_wst_smali()
+
+def patch_vfa_and_wst_smali():
+    print("[*] Patching vfa.smali and wst.smali (Pixel 10 Tensor G5 frame timestamp correlation & non-zero tolerance)...")
+    vfa_path = os.path.join(APKTOOL_DIR, "smali", "vfa.smali")
+    if os.path.exists(vfa_path):
+        vfa_smali_content = """\
+.class public final Lvfa;
+.super Ljava/lang/Object;
+.source "PG"
+
+
+# instance fields
+.field public final a:J
+
+.field public volatile b:J
+
+
+# direct methods
+.method public constructor <init>(JJ)V
+    .locals 4
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-wide p1, p0, Lvfa;->b:J
+
+    const-wide/16 v0, 0x0
+
+    cmp-long v2, p3, v0
+
+    if-gtz v2, :cond_0
+
+    const-wide/32 p3, 0x7f2815
+
+    :cond_0
+    iput-wide p3, p0, Lvfa;->a:J
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final a(JJ)Z
+    .locals 6
+
+    sub-long/2addr p1, p3
+
+    iget-wide p3, p0, Lvfa;->b:J
+
+    add-long/2addr p1, p3
+
+    const-wide/16 v0, 0x0
+
+    cmp-long v2, p1, v0
+
+    const/4 v3, 0x1
+
+    if-nez v2, :cond_0
+
+    return v3
+
+    :cond_0
+    iget-wide v4, p0, Lvfa;->a:J
+
+    cmp-long v0, v4, v0
+
+    if-eqz v0, :cond_1
+
+    cmp-long v0, p1, v4
+
+    if-gez v0, :cond_1
+
+    neg-long v0, v4
+
+    cmp-long v0, p1, v0
+
+    if-lez v0, :cond_1
+
+    goto :cond_sync
+
+    :cond_1
+    const-wide/32 v0, 0xbebc200
+
+    cmp-long v2, p1, v0
+
+    if-gtz v2, :cond_sync
+
+    neg-long v0, v0
+
+    cmp-long v2, p1, v0
+
+    if-ltz v2, :cond_sync
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_sync
+    sub-long/2addr p3, p1
+
+    iput-wide p3, p0, Lvfa;->b:J
+
+    return v3
+.end method
+
+.method public final b(JJ)Z
+    .locals 4
+
+    sub-long/2addr p3, p1
+
+    iget-wide p1, p0, Lvfa;->b:J
+
+    sub-long/2addr p3, p1
+
+    const-wide/32 v0, 0xbebc200
+
+    cmp-long v2, p3, v0
+
+    if-gtz v2, :ret_false
+
+    neg-long v0, v0
+
+    cmp-long v2, p3, v0
+
+    if-ltz v2, :ret_false
+
+    iget-wide p0, p0, Lvfa;->a:J
+
+    add-long/2addr p3, p0
+
+    const-wide/16 p0, 0x0
+
+    cmp-long p0, p3, p0
+
+    if-gez p0, :cond_0
+
+    const/4 p0, 0x1
+
+    return p0
+
+    :cond_0
+    :ret_false
+    const/4 p0, 0x0
+
+    return p0
+.end method
+"""
+        with open(vfa_path, "w", encoding="utf-8") as f:
+            f.write(vfa_smali_content)
+        print("    [+] vfa.smali: Patched with dynamic clock-domain sync (>200ms) and minimum 8.33ms tolerance.")
+
+    wst_path = os.path.join(APKTOOL_DIR, "smali", "wst.smali")
+    if os.path.exists(wst_path):
+        with open(wst_path, "r", encoding="utf-8") as f:
+            wst_content = f.read()
+        target_wst = "invoke-direct {v9, v10, v11, v10, v11}, Lvfa;-><init>(JJ)V"
+        repl_wst = "invoke-direct {v9, v10, v11, v14, v15}, Lvfa;-><init>(JJ)V"
+        if target_wst in wst_content:
+            wst_content = wst_content.replace(target_wst, repl_wst)
+            with open(wst_path, "w", encoding="utf-8") as f:
+                f.write(wst_content)
+            print("    [+] wst.smali: Replaced Lvfa 0-tolerance with 8.33ms (v14,v15) tolerance.")
+        elif repl_wst in wst_content:
+            print("    [+] wst.smali: 8.33ms tolerance already present.")
+
 def patch_gei_smali():
     print("[*] Patching gei.smali and fue.smali (Pixel 10 / P25 / Buenos missing model & asset sanitization)...")
     gei_path = os.path.join(APKTOOL_DIR, "smali", "gei.smali")

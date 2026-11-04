@@ -21,5 +21,15 @@ val photoSavingFixPatch = bytecodePatch(
             PixelCameraPatchUtils.hookKlmFlags(clazz)
             PixelCameraPatchUtils.hookKlmFlagA(clazz)
         }
+
+        // Patch Lvfa to synchronize CLOCK_BOOTTIME vs CLOCK_MONOTONIC and enforce >= 8.33ms tolerance
+        mutableClassDefByOrNull("Lvfa;")?.let { clazz ->
+            PixelCameraPatchUtils.patchVfaTimestampSync(clazz)
+        }
+
+        // Patch Lwst to pass 8.33ms tolerance (v14, v15) instead of 0 to Lvfa
+        mutableClassDefByOrNull("Lwst;")?.let { clazz ->
+            PixelCameraPatchUtils.patchWstTolerance(clazz)
+        }
     }
 }

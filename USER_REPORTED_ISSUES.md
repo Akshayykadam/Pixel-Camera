@@ -277,6 +277,76 @@ This document tracks bugs, image tuning observations, and feature requests repor
   4. Added automated regression assertions in `PatcherExecutionTest.kt` verifying `oms.hi_res`, `oml.hi_res`, `ccp.bypass`, `kso.bypass`, and `ksa.auth`.
   5. Reassembled `TomteInitHelper.dex`, recompiled Android patch suite `morphe-patches-pixelcamera-1.1.2.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
 
+### 21. Video Image Quality Controls (Edge Sharpening & Noise Reduction for Video)
+* **Status:** ⏳ **Planned / In Progress (REA Complete)**
+* **Issue:** [#65](https://github.com/Akshayykadam/Pixel-Camera/issues/65)
+* **Reporter:** `@vslvrsh`
+* **Description:** In 4K 30/60fps video recording, Google Camera's stock ISP tuning applies aggressive spatial edge enhancement (creating prominent white halo rings around high-contrast edges) and heavy spatial/temporal noise reduction that smears fine textures into a waxy, overly processed digital appearance. Feature request to extend in-app quality controls under **Settings > Video** to intercept and configure sharpening (`CaptureRequest.EDGE_MODE`) and noise reduction (`CaptureRequest.NOISE_REDUCTION_MODE`) during active video recording (`TEMPLATE_RECORD`).
+* **Reverse Engineering Analysis (REA Findings):**
+  1. **Still vs. Video Pipeline Decoupling:** Still photography is processed via Gcam's offline multi-frame HDR+ synthesis pipeline (`ShotParams` and `.rodata` Halide tuning curves inside `libgcastartup.so` dynamically patched by `libpropatcher.so`). In contrast, video recording streams continuous Bayer sensor frames through the hardware ISP (Tensor / Lyric HAL) directly to `MediaCodec` via Camera2 streaming requests (`TEMPLATE_RECORD` = 3). Gcam's `.rodata` curves have zero effect on video.
+  2. **Camcorder Session Construction (`jai.smali`):** In `apktool_full/smali_classes2/jai.smali` (lines 612–635), Gcam configures both the preview stream and the repeating recording stream using `Lvba` with template ID `3` (`TEMPLATE_RECORD`). At lines 668–1240, `jai.smali` builds a `HashSet<Lvaz>` (`v5`) holding video session keys (`CONTROL_VIDEO_STABILIZATION_MODE`, `LENS_OPTICAL_STABILIZATION_MODE`, `STATISTICS_FACE_DETECT_MODE`, `CONTROL_SCENE_MODE`). At line 1240, `invoke-virtual {v4, v5}, Lvag;->c(Ljava/util/Set;)V` binds this set into `Lvah` (FrameServer session configuration).
+  3. **Dynamic Video NR Listener (`jhh.smali`):** In `apktool_full/smali_classes2/jhh.smali` (lines 1030–1065, `:pswitch_f`), Google Camera dynamically updates `NOISE_REDUCTION_MODE` on active video streams via `jhq.e(CaptureRequest.Key, Object, Lvae)`. It hardcodes state switching between `1` (`FAST`) and `2` (`HIGH_QUALITY`), with no provision for `0` (`OFF`) or `3` (`MINIMAL`).
+  4. **CameraPipe Request Flow (`vyd.smali` -> `vmm.smali` -> `th.smali`):**
+     - `vyd.smali:729` (method `u`): Merges `Lvah.h` session parameters and stream overrides into `Lvel` (with `vel.a = 3`).
+     - `vmm.smali:1115` (method `e`): Unpacks `vel.b` (`Set<Lvaz>`) into `LinkedHashMap<CaptureRequest.Key, Object> v5` and wraps it into `Lro` with `Lrs(3)` (CameraPipe Request).
+     - `th.smali:1185` (`CXCP#createCaptureRequest`): Invokes `CameraDevice.createCaptureRequest(3)` to obtain `CaptureRequest.Builder v8`. At lines 1580–1668, `wn.z(Builder, Map)` unpacks the parameters map and sets them on the builder. At line 1677, `v8.build()` constructs the final Camera2 `CaptureRequest`.
+  5. **Photo-Only Status of Existing Hooks (`plh.smali` / `pbe.smali`):** Existing hooks in `plh.smali` (lines 936–960) and `pbe.smali` (`:pswitch_7`) belong exclusively to OneCamera / PCK photo and preview graphs and are completely bypassed during camcorder video recording.
+* **Planned Implementation (Dual-Layer Defense-in-Depth):**
+  1. **Layer 1: Video Session Setup Hook (`jai.smali:1240`):**
+     - Inject `TomteInitHelper.injectVideoIspParameters(Ljava/util/Set;)V` immediately prior to `invoke-virtual {v4, v5}, Lvag;->c(Ljava/util/Set;)V`.
+     - Adds `Lvaz(EDGE_MODE, getVideoEdgeMode())` and `Lvaz(NOISE_REDUCTION_MODE, getVideoNoiseReductionMode())` to `v5`.
+  2. **Layer 2: Dynamic NR Guard (`jhh.smali:1055`):**
+     - Guard `jhq.e` in `jhh.smali` to honor `TomteInitHelper.getVideoNoiseReductionMode()`.
+  3. **Layer 3: CameraPipe Hardware Boundary Enforcer (`th.smali:1675`):**
+     - Inject `TomteInitHelper.applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;I)V` right before `v8.build()`. When `v6 == 3` (`TEMPLATE_RECORD`), unconditionally asserts the user-selected `EDGE_MODE` and `NOISE_REDUCTION_MODE` directly on the `CaptureRequest.Builder`.
+  4. **Settings UI & Preference Storage:**
+     - Add `pref_video_sharpness_key` (Stock [2] / Reduced [1] / Off [0]) and `pref_video_noise_reduction_key` (Stock [2] / Minimal [1] / Off [0]) under the Video category in `camera_preferences.xml` and `camera_gm3_preferences.xml`.
+     - Add getter methods in `TomteInitHelper.smali`.
+  5. **Device Testing:** Build test APK and MPP patch for validation on Google Pixel 7 Pro (`cheetah`).
+
+### 22. Pixel 10 Photo Capture Timeout & Abort (CLOCK_BOOTTIME vs CLOCK_MONOTONIC Mismatch in OutputDistributor)
+* **Status:** ✅ **Resolved & Verified**
+* **Target Version:** `v1.1.2`
+* **Logcat Source:** `/Users/akshaykadam/Downloads/logcat_recording_2026-11-02_16-43-30.txt`
+* **Reporter:** User testing on Google Pixel 10 (Tensor G5 / Buenos / Frankel / Lyric HAL)
+* **Symptom:** Taking photos on Pixel 10 fails completely. Shutter button spins or hangs for 2000ms, Perfetto trace is triggered (`Triggering Perfetto for com.google.android.GoogleCamera-camera-shutter_blocked`), logcat logs `Timed out waiting for metering frame completion`, `Failed to acquire metering frame`, `Can't execute command, not enough images`, and `AbortShot: Shot aborted by AbortShot() during capture (shot_id = 2)`. No photo is ever saved to the gallery.
+* **Root Cause Analysis:**
+  1. **Failure Sequence in Logcat:**
+     - Frame capture initiated: `[17576 W/CAM_ofx] ShotId-3: starting.`
+     - Exactly 2000ms later: `[18854 W/CAM_pxd] Timed out waiting for metering frame completion.`
+     - `[18854 E/CAM_pxd] Failed to acquire metering frame.`
+     - `[18854 E/CAM_pxe] Can't execute command, not enough images.`
+     - `[18854 W/CAM_pxe] Aborting HDR+ shot.`
+     - `[libgcam] [pipeline_manager.cc:1385]: AbortShot: Shot aborted by AbortShot() during capture (shot_id = 2).`
+  2. **Frame Distribution Failure:**
+     - Throughout the session, every single frame from frame 1 to 92 produced the warning:
+       `Distributing null to Stream-23 for frame X at 407776... because it is older than vhi{refCount=2, Image-PRIVATEw1440h1080-218309...}`
+     - Stream-23 is the `ImageFormat.PRIVATE` 1440x1080 ZSL/metering stream (`usage 2850` / `0xb22`).
+     - Camera2 metadata timestamp (`CaptureResult.SENSOR_TIMESTAMP`) was reported in `CLOCK_BOOTTIME` (`~407,776 s`).
+     - ImageReader buffer timestamp (`Image.getTimestamp()`) from Lyric HAL was delivered in `CLOCK_MONOTONIC` (`~218,309 s`).
+     - Accumulated deep-sleep discrepancy was `189,467,052,653,530 ns` (~52.6 hours).
+  3. **The Gcam Bug in `wst.smali` & `vfa.smali`:**
+     - In `wst.smali` (lines 669–695), Google Camera checks `(usage & 0x10800) != 0`. For composer and video encoder surfaces, it initializes `Lvfa` with `offset = vnu.e(0L)` (elapsed realtime to nano time offset) and `tolerance = 0x7f2815` (8.33ms).
+     - However, for Stream-23 (`usage 2850`), `0xb22 & 0x10800 == 0`. Gcam branches to `:cond_0` and instantiates `Lvfa` with `offset = 0` and `tolerance = 0`!
+     - In `vfa.smali`:
+       - `a(frame_ts, image_ts)`: `diff = frame_ts - image_ts + 0` is ~189,467 seconds. Because tolerance is 0 and diff is non-zero, it immediately returned `false`.
+       - `b(frame_ts, image_ts)`: `image_ts - frame_ts - 0 + 0 < 0` is `-189,467 seconds < 0`, returning `true`.
+       - `OutputDistributor` (`vff.smali`) was misled into believing every single camera frame was older than the image buffer, and distributed `null` to Stream-23 indefinitely.
+* **Resolution:**
+  1. **Dynamic Clock Domain Synchronization in `vfa.smali`:**
+     - `<init>(JJ)`: When `tolerance <= 0`, default tolerance to `0x7f2815` (8,333,333 ns = 8.33ms, half of a 60fps frame). Zero tolerance is invalid for frame correlation.
+     - `a(JJ)`: Compute `diff = frame_ts - image_ts + this.b`. If `|diff| > 200_000_000L` (200ms), a clock domain mismatch is detected. Instantly resynchronize offset via `this.b = this.b - diff` (mathematically `image_ts - frame_ts`) and return `true` (`1`). On all subsequent frames, `|diff| < tolerance`, and stock drift tracking micro-adjusts `this.b`.
+     - `b(JJ)`: If `|image_ts - frame_ts - this.b| > 200_000_000L`, return `false` (`0`) to prevent dropping or destroying buffers when domains are not yet aligned.
+  2. **Non-Zero Tolerance in `wst.smali`:**
+     - Replaced `invoke-direct {v9, v10, v11, v10, v11}, Lvfa;-><init>(JJ)V` with `invoke-direct {v9, v10, v11, v14, v15}, Lvfa;-><init>(JJ)V` at `:cond_0` so `Lvfa` always receives `0x7f2815` (8.33ms).
+  3. **Universal Coverage:**
+     - Applied to standalone builder `build_and_patch_pixelcamera.py` via `patch_vfa_and_wst_smali()`.
+     - Applied to Morphe patch bundle via `PixelCameraPatchUtils.patchVfaTimestampSync()` + `PixelCameraPatchUtils.patchWstTolerance()` hooked in `PhotoSavingFixPatch.kt`.
+     - Full test suite passed via `./gradlew test` in `morphe-patches`.
+     - Tested and verified on connected device; standalone APK and Morphe patch bundle compiled and deployed.
+
+
+
 
 
 
