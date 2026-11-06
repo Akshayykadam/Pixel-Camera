@@ -516,6 +516,37 @@
     invoke-interface {v6, v5, v2}, Ljava/util/List;->add(ILjava/lang/Object;)V
 
     :cond_9
+    if-eqz v3, :cond_chk_upper_bound
+
+    iget v2, v3, Lkof;->c:I
+
+    sget-object v5, Lzde;->s:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_chk_video_portrait_upper
+
+    goto :cond_b
+
+    :cond_chk_video_portrait_upper
+    sget-object v5, Lzde;->H:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_chk_video_portrait_still_upper
+
+    goto :cond_b
+
+    :cond_chk_video_portrait_still_upper
+    sget-object v5, Lzde;->I:Lzde;
+
+    iget v5, v5, Lzde;->X:I
+
+    if-ne v2, v5, :cond_chk_upper_bound
+
+    goto :cond_b
+
+    :cond_chk_upper_bound
     if-lez v10, :cond_b
 
     invoke-interface {v6}, Ljava/util/Collection;->isEmpty()Z
@@ -767,6 +798,37 @@
     invoke-interface {v2, v8, v5}, Ljava/util/List;->add(ILjava/lang/Object;)V
 
     :cond_e
+    if-eqz v3, :cond_chk_button_upper
+
+    iget v5, v3, Lkof;->c:I
+
+    sget-object v8, Lzde;->s:Lzde;
+
+    iget v8, v8, Lzde;->X:I
+
+    if-ne v5, v8, :cond_chk_video_portrait_btn
+
+    goto :cond_f
+
+    :cond_chk_video_portrait_btn
+    sget-object v8, Lzde;->H:Lzde;
+
+    iget v8, v8, Lzde;->X:I
+
+    if-ne v5, v8, :cond_chk_video_portrait_still_btn
+
+    goto :cond_f
+
+    :cond_chk_video_portrait_still_btn
+    sget-object v8, Lzde;->I:Lzde;
+
+    iget v8, v8, Lzde;->X:I
+
+    if-ne v5, v8, :cond_chk_button_upper
+
+    goto :cond_f
+
+    :cond_chk_button_upper
     if-lez v6, :cond_f
 
     invoke-interface {v2}, Ljava/util/Collection;->isEmpty()Z

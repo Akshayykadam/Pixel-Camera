@@ -6,6 +6,40 @@ import app.morphe.patcher.util.smali.toInstructions
 
 class SmokeTest {
     @Test
+    fun testInspectRaeBBytecode() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        var foundRaeB = false
+        var raeBHasSpecialTypeId = false
+        var firstInsIsMoveResult = false
+        for (dexFile in dexDir.listFiles() ?: emptyArray()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Lrae;") {
+                    val m = c.methods.firstOrNull { it.name == "b" && it.parameterTypes.size == 5 }
+                    if (m != null) {
+                        foundRaeB = true
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        if (insList.isNotEmpty() && insList.first().opcode == com.android.tools.smali.dexlib2.Opcode.MOVE_RESULT_OBJECT) {
+                            firstInsIsMoveResult = true
+                        }
+                        for (ins in insList) {
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (ref.contains("TomteInitHelper;->getEffectiveSpecialTypeId")) {
+                                raeBHasSpecialTypeId = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        println("Rae.b audit: found=$foundRaeB, hasSpecialTypeId=$raeBHasSpecialTypeId, firstInsIsMoveResult=$firstInsIsMoveResult")
+        assertTrue(foundRaeB, "rae.b must exist in patched DEX")
+        assertTrue(raeBHasSpecialTypeId, "rae.b must call TomteInitHelper.getEffectiveSpecialTypeId")
+        assertTrue(!firstInsIsMoveResult, "rae.b first instruction must NOT be move-result-object (prevents ART VerifyError [0x0] copyRes1)")
+    }
+
+    @Test
     fun testInspectPatchedDex() {
         val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
         if (!dexDir.exists() || dexDir.listFiles().isNullOrEmpty()) {
@@ -311,6 +345,45 @@ class SmokeTest {
                 zoomDexOut.copyTo(java.io.File("../src/main/resources/ZoomControllers.dex"), overwrite = true)
             }
         }
+
+        val quickAccessSmaliFiles = listOf(
+            java.io.File(rootDir, "apktool_full/smali_classes2/oaj.smali"),
+            java.io.File(rootDir, "apktool_full/smali/pco.smali"),
+            java.io.File(rootDir, "apktool_full/smali/oak.smali"),
+            java.io.File(rootDir, "apktool_full/smali/oau.smali"),
+            java.io.File(rootDir, "apktool_full/smali/plh.smali"),
+            java.io.File(rootDir, "apktool_full/smali/pin.smali"),
+            java.io.File(rootDir, "apktool_full/smali/kfc.smali"),
+            java.io.File(rootDir, "apktool_full/smali_classes2/puu.smali"),
+            java.io.File(rootDir, "apktool_full/smali_classes2/puo.smali"),
+            java.io.File(rootDir, "apktool_full/smali_classes2/pua.smali"),
+            java.io.File(rootDir, "apktool_full/smali_classes2/pul.smali")
+        ).filter { it.exists() }
+
+        if (quickAccessSmaliFiles.isNotEmpty()) {
+            val optionsQA = com.android.tools.smali.smali.SmaliOptions()
+            val qaDexOut = java.io.File("src/main/resources/QuickAccessControllers.dex")
+            optionsQA.outputDexFile = qaDexOut.absolutePath
+            val qaSuccess = com.android.tools.smali.smali.Smali.assemble(optionsQA, quickAccessSmaliFiles.map { it.absolutePath })
+            if (qaSuccess) {
+                println("Generated QuickAccessControllers.dex: ${qaDexOut.length()} bytes")
+                qaDexOut.copyTo(java.io.File("../src/main/resources/QuickAccessControllers.dex"), overwrite = true)
+            }
+        }
+    }
+
+    @Test
+    fun testInspectQuickAccessDex() {
+        val dexFile = java.io.File("src/main/resources/QuickAccessControllers.dex")
+        assertTrue(dexFile.exists(), "QuickAccessControllers.dex must exist")
+        val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        val expectedClasses = listOf(
+            "Loaj;", "Lpco;", "Loak;", "Loau;", "Lplh;", "Lpin;", "Lkfc;", "Lpuu;", "Lpuo;", "Lpua;", "Lpul;"
+        )
+        for (className in expectedClasses) {
+            val cls = dex.classes.firstOrNull { it.type == className }
+            assertTrue(cls != null, "Class $className must exist in QuickAccessControllers.dex")
+        }
     }
 
     @Test
@@ -372,19 +445,39 @@ class SmokeTest {
         if (!dexDir.exists()) return
         var foundMsrInitTomteGrain = false
         var foundMsrGrainEnabled = false
+        var foundMsrApplyNativeTuning = false
+        var msrGrainEnabledUsesV7 = false
+        var msrErrorFallbackUsesV12 = false
         var foundNdfInitTomteGrain = false
         var foundSofSetCurrentMode = false
         var foundMqsForceF = false
+        var foundMwwSpecialType = false
+        var mwwClobbersV1 = false
+        var mwwUsesScratchRegisters = false
         for (dexFile in dexDir.listFiles() ?: emptyArray()) {
             if (!dexFile.name.endsWith(".dex")) continue
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
             for (c in dex.classes) {
                 if (c.type == "Lmsr;") {
                     val m = c.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }
-                    for (ins in m?.implementation?.instructions ?: emptyList()) {
+                    val insList = m?.implementation?.instructions?.toList() ?: emptyList()
+                    for (i in insList.indices) {
+                        val ins = insList[i]
                         val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
                         if (ref.contains("TomteInitHelper;->initTomteGrain")) foundMsrInitTomteGrain = true
-                        if (ref.contains("TomteInitHelper;->isGrainEnabled")) foundMsrGrainEnabled = true
+                        if (ref.contains("TomteInitHelper;->isGrainEnabled")) {
+                            foundMsrGrainEnabled = true
+                            if (i + 1 < insList.size && insList[i + 1].opcode == com.android.tools.smali.dexlib2.Opcode.MOVE_RESULT) {
+                                val reg = (insList[i + 1] as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA
+                                if (reg == 7) msrGrainEnabledUsesV7 = true
+                            }
+                        }
+                        if (ref.contains("applyNativeTuning")) foundMsrApplyNativeTuning = true
+                        if (ref.contains("InitParams_spatial_merge_processor_error_fallback_set")) {
+                            // Format 35c: {v2, v3, v1, v12} -> C=2, D=3, E=1, F=12
+                            val fiveReg = ins as? com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+                            if (fiveReg?.registerF == 12) msrErrorFallbackUsesV12 = true
+                        }
                     }
                 }
                 if (c.type == "Lndf;") {
@@ -409,14 +502,42 @@ class SmokeTest {
                         if (ref.contains("Lmqs;->f:Z")) foundMqsForceF = true
                     }
                 }
+                if (c.type == "Lmww;") {
+                    for (m in c.methods) {
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        for (i in insList.indices) {
+                            val ins = insList[i]
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (ref.contains("TomteInitHelper;->getEffectiveSpecialType")) {
+                                foundMwwSpecialType = true
+                                val fiveReg = ins as? com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+                                if (fiveReg?.registerC == 3 && fiveReg.registerD == 5 && fiveReg.registerE == 7) {
+                                    mwwUsesScratchRegisters = true
+                                }
+                                if (i >= 2) {
+                                    val prev2 = insList[i - 2]
+                                    val prev1 = insList[i - 1]
+                                    val reg2 = (prev2 as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA
+                                    val reg1 = (prev1 as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA
+                                    if (reg2 == 1 || reg1 == 1) {
+                                        mwwClobbersV1 = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
-        println("Hooks verification: msr.initTomteGrain=$foundMsrInitTomteGrain, msr.isGrainEnabled=$foundMsrGrainEnabled, ndf.initTomteGrain=$foundNdfInitTomteGrain, sof.setCurrentMode=$foundSofSetCurrentMode, mqs.forceF=$foundMqsForceF")
-        assertTrue(foundMsrInitTomteGrain, "msr.a must contain TomteInitHelper.initTomteGrain")
-        assertTrue(foundMsrGrainEnabled, "msr.a must contain TomteInitHelper.isGrainEnabled")
+        println("Hooks verification: msr.initTomteGrain=$foundMsrInitTomteGrain, msr.hasApplyNativeTuning=$foundMsrApplyNativeTuning, ndf.initTomteGrain=$foundNdfInitTomteGrain, sof.setCurrentMode=$foundSofSetCurrentMode, mqs.forceF=$foundMqsForceF, mww.specialType=$foundMwwSpecialType, mww.scratchRegisters=$mwwUsesScratchRegisters, mww.clobbersV1=$mwwClobbersV1")
+        assertTrue(!foundMsrInitTomteGrain, "msr.a must NOT contain initTomteGrain to prevent ART VerifyError [0xA] Conflict on Android 17")
+        assertTrue(!foundMsrApplyNativeTuning, "msr.a must NOT call applyNativeTuning (prevents GOS W^X crash)")
         assertTrue(foundNdfInitTomteGrain, "ndf.a must contain TomteInitHelper.initTomteGrain")
         assertTrue(foundSofSetCurrentMode, "sof.P must contain TomteInitHelper.setCurrentMode or onModeChanged")
         assertTrue(foundMqsForceF, "mqs.a must initialize f:Z to true")
+        assertTrue(foundMwwSpecialType, "mww must call TomteInitHelper.getEffectiveSpecialType")
+        assertTrue(mwwUsesScratchRegisters, "mww getEffectiveSpecialType must use scratch registers {v3, v5, v7}")
+        assertTrue(!mwwClobbersV1, "mww getEffectiveSpecialType must NOT clobber register v1 (preserves this pointer Lmww; to avoid ART VerifyError)")
     }
 
     @Test
@@ -603,6 +724,182 @@ class SmokeTest {
                 println("Checking $loc: expected '$expectedLabel', got '$label'")
                 assertTrue(label == expectedLabel, "Expected app_name for $loc to be '$expectedLabel', but got '$label'")
             }
+        }
+    }
+
+    @Test
+    fun testPortraitMode5xRemovalAndViewfinderGrading() {
+        testAssembleDexes()
+
+        // 1. Verify TomteInitHelper.dex
+        val tomteDexFile = java.io.File("src/main/resources/TomteInitHelper.dex")
+        assertTrue(tomteDexFile.exists(), "TomteInitHelper.dex must exist")
+        val tomteDex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(tomteDexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        val tomteCls = tomteDex.classes.firstOrNull { it.type == "Lcom/google/android/patch/cameralooks/TomteInitHelper;" }
+        assertTrue(tomteCls != null, "TomteInitHelper class must exist")
+
+        // 1a. Verify processHardwareBuffer does not gate mode on PHOTO only (v0 == 1)
+        val procHwMethod = tomteCls!!.methods.firstOrNull { it.name == "processHardwareBuffer" }
+        assertTrue(procHwMethod != null, "processHardwareBuffer method must exist")
+        val procIns = procHwMethod!!.implementation?.instructions?.toList() ?: emptyList()
+        var hasModeTwoCheck = false
+        for (i in procIns.indices) {
+            val ins = procIns[i]
+            val narrow = ins as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+            if (narrow != null) {
+                if (narrow.narrowLiteral == 2) hasModeTwoCheck = true
+            }
+        }
+        assertTrue(hasModeTwoCheck, "processHardwareBuffer must exclude mode 2 (Video), permitting mode 6 (Portrait)")
+
+        // 1b. Verify getFlagOverride returns 0 for camera.gouda.mantis
+        val flagMethod = tomteCls.methods.firstOrNull { it.name == "getFlagOverride" }
+        assertTrue(flagMethod != null, "getFlagOverride method must exist")
+        val flagIns = flagMethod!!.implementation?.instructions?.toList() ?: emptyList()
+        var foundMantisString = false
+        var mantisReturnsZero = false
+        for (i in flagIns.indices) {
+            val ins = flagIns[i]
+            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+            if (ref.contains("camera.gouda.mantis")) {
+                foundMantisString = true
+                for (j in i until (i + 10).coerceAtMost(flagIns.size)) {
+                    val insJ = flagIns[j]
+                    val narrow = insJ as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                    if (narrow != null && narrow.narrowLiteral == 0) {
+                        val returnIns = flagIns.getOrNull(j + 1)
+                        if (returnIns?.opcode?.name?.startsWith("return", ignoreCase = true) == true) {
+                            mantisReturnsZero = true
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(foundMantisString, "getFlagOverride must handle camera.gouda.mantis")
+        assertTrue(mantisReturnsZero, "camera.gouda.mantis must return 0 to disable 5x telephoto portrait")
+
+        // 2. Verify PortraitControllers.dex: qfr.e unconditionally returns false (0)
+        val portraitDexFile = java.io.File("src/main/resources/PortraitControllers.dex")
+        assertTrue(portraitDexFile.exists(), "PortraitControllers.dex must exist")
+        val portraitDex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(portraitDexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        val qfrCls = portraitDex.classes.firstOrNull { it.type == "Lqfr;" }
+        assertTrue(qfrCls != null, "qfr class must exist in PortraitControllers.dex")
+        val qfrEMethod = qfrCls!!.methods.firstOrNull { it.name == "e" }
+        assertTrue(qfrEMethod != null, "qfr.e method must exist")
+        val qfrEIns = qfrEMethod!!.implementation?.instructions?.toList() ?: emptyList()
+        assertTrue(qfrEIns.size <= 3, "qfr.e must be a stub returning false, found ${qfrEIns.size} instructions")
+        val firstNarrow = qfrEIns.firstOrNull() as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+        assertTrue(firstNarrow != null && firstNarrow.narrowLiteral == 0, "qfr.e must return false (0)")
+
+        // 3. Verify ZoomControllers.dex: kmo purges 5x in portrait mode
+        val zoomDexFile = java.io.File("src/main/resources/ZoomControllers.dex")
+        assertTrue(zoomDexFile.exists(), "ZoomControllers.dex must exist")
+        val zoomDex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(zoomDexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        val kmoCls = zoomDex.classes.firstOrNull { it.type == "Lkmo;" }
+        assertTrue(kmoCls != null, "kmo class must exist in ZoomControllers.dex")
+        var foundRemoveCall = false
+        for (m in kmoCls!!.methods) {
+            for (ins in m.implementation?.instructions ?: emptyList()) {
+                val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                if (ref.contains("List;->remove(I)Ljava/lang/Object;") || ref.contains("chy;->remove(I)Ljava/lang/Object;")) {
+                    foundRemoveCall = true
+                }
+            }
+        }
+        assertTrue(foundRemoveCall, "kmo must purge 5x zoom button when entering portrait mode")
+    }
+
+    @Test
+    fun testInspectSlidersAndFineTuning() {
+        val dexDir = java.io.File("build/tmp/test_patcher/patched_dex")
+        if (!dexDir.exists() || dexDir.listFiles().isNullOrEmpty()) {
+            println("Skipping testInspectSlidersAndFineTuning: no patched dex in build/tmp/test_patcher/patched_dex")
+            return
+        }
+
+        var foundCameraApp = false
+        var cameraAppHasSetContext = false
+        var foundQwh = false
+        var qwhLCallsUpdateTone = false
+        var qwhLDispatchesPco = false
+        var qwhICallsUpdateColor = false
+        var qwhJCallsUpdateColor = false
+        var qwhJCallsUpdateDetail = false
+        var foundIzt = false
+        var iztHasResetFineTuning = false
+
+        for (dexFile in dexDir.listFiles()?.sortedBy { it.name } ?: emptyList()) {
+            if (!dexFile.name.endsWith(".dex")) continue
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            for (c in dex.classes) {
+                if (c.type == "Lcom/google/android/apps/camera/app/CameraApp;") {
+                    foundCameraApp = true
+                    val onCreateM = c.methods.firstOrNull { it.name == "onCreate" }
+                    val insList = onCreateM?.implementation?.instructions?.toList() ?: emptyList()
+                    for (ins in insList) {
+                        val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if (ref.contains("TomteInitHelper;->setContext")) {
+                            cameraAppHasSetContext = true
+                        }
+                    }
+                }
+                if (c.type == "Lqwh;") {
+                    foundQwh = true
+                    for (m in c.methods) {
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        for (ins in insList) {
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (m.name == "l" && ref.contains("TomteInitHelper;->updateToneFineTuning")) {
+                                qwhLCallsUpdateTone = true
+                            }
+                            if (m.name == "l" && ref.contains("Lpco;->d")) {
+                                qwhLDispatchesPco = true
+                            }
+                            if (m.name == "i" && ref.contains("TomteInitHelper;->updateColorFineTuning")) {
+                                qwhICallsUpdateColor = true
+                            }
+                            if (m.name == "j" && ref.contains("TomteInitHelper;->updateColorFineTuning")) {
+                                qwhJCallsUpdateColor = true
+                            }
+                            if (m.name == "j" && ref.contains("TomteInitHelper;->updateDetailFineTuning")) {
+                                qwhJCallsUpdateDetail = true
+                            }
+                        }
+                    }
+                }
+                if (c.type == "Lizt;") {
+                    foundIzt = true
+                    for (m in c.methods) {
+                        val insList = m.implementation?.instructions?.toList() ?: emptyList()
+                        for (ins in insList) {
+                            val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                            if (ref.contains("TomteInitHelper;->resetFineTuning")) {
+                                iztHasResetFineTuning = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        println("Audit Results for Morphe Patched Dex:")
+        println("  CameraApp found: $foundCameraApp, has setContext: $cameraAppHasSetContext")
+        println("  qwh found: $foundQwh")
+        println("    qwh.l calls updateToneFineTuning: $qwhLCallsUpdateTone")
+        println("    qwh.i calls updateColorFineTuning: $qwhICallsUpdateColor")
+        println("    qwh.j calls updateColorFineTuning: $qwhJCallsUpdateColor")
+        println("    qwh.j calls updateDetailFineTuning: $qwhJCallsUpdateDetail")
+        println("  izt found: $foundIzt, has resetFineTuning: $iztHasResetFineTuning")
+
+        if (foundQwh) {
+            assertTrue(qwhLCallsUpdateTone, "qwh.l must call updateToneFineTuning")
+            assertTrue(qwhLDispatchesPco, "qwh.l must dispatch shadows to pco.d")
+            assertTrue(qwhICallsUpdateColor, "qwh.i must call updateColorFineTuning")
+            assertTrue(!qwhJCallsUpdateColor, "qwh.j must not call updateColorFineTuning")
+            assertTrue(qwhJCallsUpdateDetail, "qwh.j must call updateDetailFineTuning")
+        }
+        if (foundIzt) {
+            assertTrue(iztHasResetFineTuning, "izt must call resetFineTuning")
         }
     }
 }

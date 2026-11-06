@@ -241,6 +241,31 @@ val cameraLooksPatch = bytecodePatch(
                     }
                 } catch (_: Throwable) {}
             }
+
+            // Hook mtt.q to intercept qwk TomteMetadata with effective fine-tuning
+            clazz.methods.firstOrNull { it.name == "q" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val insList = impl.instructions.toList()
+                for (i in insList.indices) {
+                    val ins = insList[i]
+                    val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                    if (ins.opcode == com.android.tools.smali.dexlib2.Opcode.CHECK_CAST && ref == "Lqwk;") {
+                        val oneReg = (ins as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA ?: 8
+                        val hookSmali = """
+                            invoke-static {v$oneReg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveQwk(Lqwk;)Lqwk;
+                            move-result-object v$oneReg
+                        """.trimIndent()
+                        try {
+                            val instructions = hookSmali.toInstructions(method)
+                            var pos = i + 1
+                            for (hIns in instructions) {
+                                impl.addInstruction(pos++, hIns)
+                            }
+                        } catch (_: Throwable) {}
+                        break
+                    }
+                }
+            }
         }
 
         // ── 7b. Align SpecialTypesProvider Authority in ksa.smali / klh.smali for Cloned Package ──
@@ -310,8 +335,21 @@ val cameraLooksPatch = bytecodePatch(
             PixelCameraPatchUtils.hookGalleryReviewIntent(clazz)
         }
 
-        // ── 12. Hook CameraActivity.onResume for Display Max Brightness ─────────────────
+        // ── 12. Hook CameraActivity.onResume for Display Max Brightness & onCreate for Context ─────────────────
         mutableClassDefByOrNull("Lcom/google/android/apps/camera/activity/main/CameraActivity;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "onCreate" && it.parameterTypes == listOf("Landroid/os/Bundle;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static/range {p0 .. p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setContext(Landroid/content/Context;)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
             clazz.methods.firstOrNull { it.name == "onResume" && it.parameterTypes.isEmpty() }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
@@ -379,73 +417,10 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 16. Hook msr / mjy for Gcam Tomte Grain model initialization and InitParams ─────
-        (mutableClassDefByOrNull("Lmsr;") ?: mutableClassDefByOrNull("Lmjy;"))?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "a" && it.returnType == "Ljava/lang/Object;" }?.let { method ->
-                val impl = method.implementation ?: return@let
-
-                // 16a. Hook finish_tomte_grain_enabled in InitParams
-                val grainEnabledIdx = impl.instructions.indexOfFirst {
-                    it.opcode == Opcode.INVOKE_STATIC &&
-                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("InitParams_finish_tomte_grain_enabled_set") == true
-                }
-                if (grainEnabledIdx != -1) {
-                    if (grainEnabledIdx >= 2 && impl.instructions[grainEnabledIdx - 2].opcode == Opcode.IF_EQZ) {
-                        impl.replaceInstruction(grainEnabledIdx - 2, BuilderInstruction10x(Opcode.NOP))
-                    }
-                    val hookSmali = """
-                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
-                        move-result v12
-                    """.trimIndent()
-                    try {
-                        val instructions = hookSmali.toInstructions(method)
-                        var pos = grainEnabledIdx
-                        for (ins in instructions) {
-                            impl.addInstruction(pos++, ins)
-                        }
-                    } catch (_: Throwable) {}
-                }
-
-                // 16b. Hook initTomteGrain on Gcam instantiation
-                val gcamInitIdx = impl.instructions.indexOfFirst {
-                    it.opcode == Opcode.INVOKE_DIRECT &&
-                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lcom/google/googlex/gcam/Gcam;-><init>(J)V") == true
-                }
-                if (gcamInitIdx != -1) {
-                    val fiveReg = impl.instructions[gcamInitIdx] as? FiveRegisterInstruction
-                    val reg = fiveReg?.registerD ?: 0
-                    val regHigh = reg + 1
-                    val hookSmali = """
-                        invoke-static {v$reg, v$regHigh}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->initTomteGrain(J)V
-                    """.trimIndent()
-                    try {
-                        val instructions = hookSmali.toInstructions(method)
-                        var pos = gcamInitIdx + 1
-                        for (ins in instructions) {
-                            impl.addInstruction(pos++, ins)
-                        }
-                    } catch (_: Throwable) {}
-                }
-
-                // 16c. Hook applyNativeTuning right before GcamModuleJNI.Gcam_Create
-                val gcamCreateIdx = impl.instructions.indexOfFirst {
-                    it.opcode == Opcode.INVOKE_STATIC_RANGE &&
-                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("GcamModuleJNI;->Gcam_Create") == true
-                }
-                if (gcamCreateIdx != -1) {
-                    val hookSmali = """
-                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V
-                    """.trimIndent()
-                    try {
-                        val instructions = hookSmali.toInstructions(method)
-                        var pos = gcamCreateIdx
-                        for (ins in instructions) {
-                            impl.addInstruction(pos++, ins)
-                        }
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
+        // ── 16. Preserve msr / mjy stock bytecode (Eliminates ART VerifyError [0xA] Conflict on Android 17 / Pixel 10) ─────
+        // Film grain initialization and runtime grain toggling are handled exclusively in ndf.a (Section 17)
+        // via TomteInitHelper.applyTomteImageFinalizer. msr.a() must NOT be mutated to preserve exact ART
+        // register verification state and eliminate any VerifyError [0xA] non-reference type Conflict on Android 17/targetSdk 37.
 
         // ── 17. Hook ndf / muh for TomteInitHelper.initTomteGrain before applyTomteImageFinalizer ──
         (mutableClassDefByOrNull("Lndf;") ?: mutableClassDefByOrNull("Lmuh;"))?.let { clazz ->
@@ -756,13 +731,72 @@ val cameraLooksPatch = bytecodePatch(
             PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lvbg;", smaliB)
         }
 
-        // ── 29. Hook qwh.smali to connect Tone & Color Fine-Tuning sliders to TomteInitHelper ──
+        // ── 29. Hook qwh.smali to connect Tone & Color Fine-Tuning sliders to TomteInitHelper & pco ──
         mutableClassDefByOrNull("Lqwh;")?.let { clazz ->
-            // 29a. Hook qwh.l(IFZ)V for Tone fine tuning (Contrast, Shadows, Highlights)
+            // 29a. Hook qwh.l(IFZ)V for Tone fine tuning (Contrast, Shadows, Highlights) and pco dispatch
             clazz.methods.firstOrNull { it.name == "l" && it.parameterTypes == listOf("I", "F", "Z") }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
                     invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateToneFineTuning(IF)V
+
+                    const/4 v0, 0x1
+
+                    if-ne p1, v0, :cond_check_hl
+
+                    const/high16 v0, 0x3f800000
+
+                    add-float v1, p2, v0
+
+                    const/high16 v0, 0x3f000000
+
+                    mul-float/2addr v1, v0
+
+                    const/4 v0, 0x0
+
+                    cmpg-float v2, v1, v0
+
+                    if-gez v2, :cond_clamp_s_min
+
+                    move v1, v0
+
+                    :cond_clamp_s_min
+                    const/high16 v0, 0x3f800000
+
+                    cmpl-float v2, v1, v0
+
+                    if-lez v2, :cond_clamp_s_max
+
+                    move v1, v0
+
+                    :cond_clamp_s_max
+                    invoke-static {v1}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+                    move-result-object v0
+
+                    iget-object v1, p0, Lqwh;->g:Lpco;
+
+                    iget-object v2, v1, Lpco;->d:Lusf;
+
+                    invoke-interface {v2, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+                    goto :cond_qwh_hook_done
+
+                    :cond_check_hl
+                    const/4 v0, 0x2
+
+                    if-ne p1, v0, :cond_qwh_hook_done
+
+                    invoke-static {p2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+                    move-result-object v0
+
+                    iget-object v1, p0, Lqwh;->g:Lpco;
+
+                    iget-object v1, v1, Lpco;->e:Lusf;
+
+                    invoke-interface {v1, v0}, Lusf;->a(Ljava/lang/Object;)V
+
+                    :cond_qwh_hook_done
                 """.trimIndent()
                 try {
                     val instructions = hookSmali.toInstructions(method)
@@ -770,7 +804,9 @@ val cameraLooksPatch = bytecodePatch(
                     for (ins in instructions) {
                         impl.addInstruction(insertPos++, ins)
                     }
-                } catch (_: Throwable) {}
+                } catch (t: Throwable) {
+                    println("Failed to hook qwh.l: ${'$'}{t.message}")
+                }
             }
 
             // 29b. Hook qwh.i(IFZ)V for Color fine tuning (Vibrance, Tint, Warmth)
@@ -787,6 +823,49 @@ val cameraLooksPatch = bytecodePatch(
                             impl.addInstruction(insertPos++, ins)
                         }
                     } catch (_: Throwable) {}
+                }
+            }
+
+            // 29bb. Hook qwh.j(IFZ)V for Detail fine tuning (Sharpness, Grain)
+            clazz.methods.firstOrNull { it.name == "j" && it.parameterTypes == listOf("I", "F", "Z") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateDetailFineTuning(IF)V
+                """.trimIndent()
+                try {
+                    val instructions = hookSmali.toInstructions(method)
+                    var insertPos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(insertPos++, ins)
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 29c. Hook Lizt;->onClick(Landroid/view/View;)V to reset fine-tuning on "Reset All" ──
+        mutableClassDefByOrNull("Lizt;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "onClick" && it.parameterTypes == listOf("Landroid/view/View;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val insList = impl.instructions.toList()
+                for (i in insList.indices) {
+                    val ins = insList[i]
+                    val ref = (ins as? ReferenceInstruction)?.reference?.toString() ?: ""
+                    if (ins.opcode == Opcode.CHECK_CAST && ref == "Lobp;") {
+                        val prevIdx = if (i > 0 && insList[i - 1].opcode == Opcode.IGET_OBJECT) i - 1 else i
+                        val hookSmali = """
+                            invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->resetFineTuning()V
+                        """.trimIndent()
+                        try {
+                            val instructions = hookSmali.toInstructions(method)
+                            var insertPos = prevIdx
+                            for (hookIns in instructions) {
+                                impl.addInstruction(insertPos++, hookIns)
+                            }
+                        } catch (t: Throwable) {
+                            println("Failed to hook izt.onClick: ${'$'}{t.message}")
+                        }
+                        break
+                    }
                 }
             }
         }

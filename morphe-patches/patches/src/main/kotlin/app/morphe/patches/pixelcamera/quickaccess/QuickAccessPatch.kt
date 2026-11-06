@@ -26,6 +26,9 @@ val quickAccessPatch = bytecodePatch(
         "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
+        // ── 0. Active 11.1 Brightness, Shadows, and Slider Controllers (oaj, pco, oak, oau, plh, pin, kfc, puu, puo, pua, pul) ──
+        PixelCameraPatchUtils.replaceClassesFromDexResource(this, "QuickAccessControllers.dex")
+
         // ── 1. Hook nzr.G(nzx)Z → allow DUAL_EXPOSURE / SINGLE_EXPOSURE, preserve Pro controls & Looks ──
         mutableClassDefByOrNull("Lnzr;")?.let { clazz ->
             val smaliG = """

@@ -873,7 +873,7 @@ object PixelCameraPatchUtils {
                         append("""
     <string name="pref_category_about_title">About</string>
     <string name="pref_about_title">Pixel Camera</string>
-    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.2)</string>
+    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.3)</string>
                         """.trimIndent())
                         append("\n")
                     }

@@ -204,6 +204,7 @@ class PatcherExecutionTest {
         var foundOmsHiRes = false
         var foundOmlHiRes = false
         var foundCcpBypass = false
+        var foundMgsGuard = false
         var foundKsoBypass = false
         var foundKsaClonedAuth = false
         for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
@@ -232,6 +233,13 @@ class PatcherExecutionTest {
                         foundCcpBypass = true
                     }
                 }
+                if (c.type == "Lmgs;") {
+                    val aMethod = c.methods.firstOrNull { it.name == "a" && it.parameterTypes.size == 2 }
+                    val insList = aMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("ensureProjection") == true }) {
+                        foundMgsGuard = true
+                    }
+                }
                 if (c.type == "Lkso;") {
                     val aMethod = c.methods.firstOrNull { it.name == "a" }
                     val insList = aMethod?.implementation?.instructions?.toList() ?: emptyList()
@@ -251,10 +259,11 @@ class PatcherExecutionTest {
         assertTrue(foundOmsHiRes, "oms must be hooked with isHighResShot(omw)")
         assertTrue(foundOmlHiRes, "oml must be hooked with isHighResShot(omw)")
         assertTrue(foundCcpBypass, "CameraContentProvider.a must return void to unblock Google Photos queries")
+        assertTrue(foundMgsGuard, "mgs.a must guard null projection")
         assertTrue(foundKsoBypass, "kso.a must return true to bypass caller signature verification")
         assertTrue(foundKsaClonedAuth, "ksa.<clinit> must align SpecialTypesProvider authority to cloned package")
 
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, ccp.bypass=$foundCcpBypass, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
     }
 }
 

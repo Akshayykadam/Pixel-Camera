@@ -2272,7 +2272,7 @@ def patch_embedded_sharpen_tuning(f, scale=0.0):
 
 
 def patch_msr_smali():
-    print("[*] Patching msr.smali (Enabling native Tomte model in InitParams and Gcam creation, was mjy)...")
+    print("[*] Patching msr.smali (Preserving clean stock bytecode to eliminate ART VerifyError [0xA] Conflict on Android 17 / Pixel 10)...")
     msr_path = os.path.join(APKTOOL_DIR, "smali", "msr.smali")
     if not os.path.exists(msr_path):
         print("    [!] Warning: msr.smali not found.")
@@ -2280,7 +2280,18 @@ def patch_msr_smali():
     with open(msr_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    if-eqz v2, :cond_2c
+    # Revert finish_tomte_grain_enabled hook back to stock if present
+    hooked_grain = """    iget-wide v2, v1, Lcom/google/googlex/gcam/InitParams;->a:J
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
+
+    move-result v7
+
+    invoke-static {v2, v3, v1, v7}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set(JLcom/google/googlex/gcam/InitParams;Z)V
+
+    const/4 v12, 0x1"""
+
+    stock_grain = """    if-eqz v2, :cond_2c
 
     iget-wide v2, v1, Lcom/google/googlex/gcam/InitParams;->a:J
 
@@ -2288,30 +2299,12 @@ def patch_msr_smali():
 
     :cond_2c"""
 
-    replacement = """    iget-wide v2, v1, Lcom/google/googlex/gcam/InitParams;->a:J
+    if hooked_grain in content:
+        content = content.replace(hooked_grain, stock_grain)
+        print("    [+] msr.smali: reverted finish_tomte_grain_enabled hook to stock to prevent ART VerifyError.")
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z
-
-    move-result v12
-
-    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set(JLcom/google/googlex/gcam/InitParams;Z)V"""
-
-    if target in content:
-        content = content.replace(target, replacement)
-        print("    [+] mjy.smali: finish_tomte_grain_enabled set to TomteInitHelper.isGrainEnabled().")
-    elif "const/4 v12, 0x1\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set" in content:
-        content = content.replace("const/4 v12, 0x1\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set",
-                                  "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isGrainEnabled()Z\n\n    move-result v12\n\n    invoke-static {v2, v3, v1, v12}, Lcom/google/googlex/gcam/GcamModuleJNI;->InitParams_finish_tomte_grain_enabled_set")
-        print("    [+] mjy.smali: updated finish_tomte_grain_enabled to TomteInitHelper.isGrainEnabled().")
-
-    gcam_create_target = """    :cond_2e
-    new-instance v5, Lcom/google/googlex/gcam/Gcam;
-
-    invoke-direct {v5, v0, v1}, Lcom/google/googlex/gcam/Gcam;-><init>(J)V
-
-    :goto_17"""
-
-    gcam_create_repl = """    :cond_2e
+    # Revert initTomteGrain hook back to stock if present
+    gcam_create_hook = """    :cond_2e
     new-instance v5, Lcom/google/googlex/gcam/Gcam;
 
     invoke-direct {v5, v0, v1}, Lcom/google/googlex/gcam/Gcam;-><init>(J)V
@@ -2320,17 +2313,31 @@ def patch_msr_smali():
 
     :goto_17"""
 
-    if gcam_create_target in content:
-        content = content.replace(gcam_create_target, gcam_create_repl)
-        print("    [+] mjy.smali: TomteInitHelper.initTomteGrain hooked on Gcam creation.")
+    gcam_create_stock = """    :cond_2e
+    new-instance v5, Lcom/google/googlex/gcam/Gcam;
 
-    # Hook TomteInitHelper.applyNativeTuning() right before GcamModuleJNI.Gcam_Create
+    invoke-direct {v5, v0, v1}, Lcom/google/googlex/gcam/Gcam;-><init>(J)V
+
+    :goto_17"""
+
+    if gcam_create_hook in content:
+        content = content.replace(gcam_create_hook, gcam_create_stock)
+        print("    [+] msr.smali: reverted initTomteGrain hook on Gcam creation to stock.")
+
+    # Remove any dangerous applyNativeTuning() hook right before GcamModuleJNI.Gcam_Create to prevent W^X / memory protection crash on GOS / Pixel 10
     gcam_create_jni = "invoke-static/range {v14 .. v19}, Lcom/google/googlex/gcam/GcamModuleJNI;->Gcam_Create(JLcom/google/googlex/gcam/InitParams;JLcom/google/googlex/gcam/StaticMetadataVector;)J"
-    if "TomteInitHelper;->applyNativeTuning()V" not in content and gcam_create_jni in content:
-        content = content.replace(gcam_create_jni, "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V\n\n    " + gcam_create_jni)
-        print("    [+] msr.smali: TomteInitHelper.applyNativeTuning hooked right before Gcam_Create.")
-    elif "TomteInitHelper;->applyNativeTuning()V" in content:
-        print("    [+] msr.smali: TomteInitHelper.applyNativeTuning already hooked.")
+    if "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V\n\n    " + gcam_create_jni in content:
+        content = content.replace("invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyNativeTuning()V\n\n    " + gcam_create_jni, gcam_create_jni)
+        print("    [+] msr.smali: removed dangerous applyNativeTuning before Gcam_Create.")
+
+    # Remove any injected cond_gcam_valid to prevent ART VerifyError [0xA] non-reference type Conflict
+    for old_guard in [
+        """    if-nez v5, :cond_gcam_valid\n\n    new-instance v0, Ljava/lang/IllegalArgumentException;\n\n    const-string v1, \"Gcam instance is null\"\n\n    invoke-direct {v0, v1}, Ljava/lang/IllegalArgumentException;-><init>(Ljava/lang/String;)V\n\n    throw v0\n\n    :cond_gcam_valid\n    invoke-virtual {v5}, Lcom/google/googlex/gcam/Gcam;->g()Z""",
+        """    if-eqz v5, :cond_gcam_valid\n\n    new-instance v0, Ljava/lang/IllegalArgumentException;\n\n    const-string v1, \"Gcam instance is null\"\n\n    invoke-direct {v0, v1}, Ljava/lang/IllegalArgumentException;-><init>(Ljava/lang/String;)V\n\n    throw v0\n\n    :cond_gcam_valid\n    invoke-virtual {v5}, Lcom/google/googlex/gcam/Gcam;->g()Z"""
+    ]:
+        if old_guard in content:
+            content = content.replace(old_guard, "    invoke-virtual {v5}, Lcom/google/googlex/gcam/Gcam;->g()Z")
+            print("    [+] msr.smali: removed cond_gcam_valid guard to avoid ART VerifyError.")
 
     # Guard khw.c and khw.g in binned static metadata setup
     opt_cg_target = """    sget-object v7, Lkhw;->c:Lkpr;
@@ -3076,6 +3083,78 @@ def patch_camera_content_provider():
                     print("    [+] kso.smali: method a() patched to always trust calling package.")
             elif ".method public final a(Ljava/lang/String;)Z\n    .locals 1\n\n    const/4 v0, 0x1\n\n    return v0\n.end method" in c:
                 print("    [+] kso.smali: already patched to always trust calling package.")
+
+        if os.path.exists(ccp_path):
+            with open(ccp_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            # Ensure openFile remains clean stock bytecode
+            hook_18 = """:cond_18
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->openProcessingMediaFallback(Landroid/net/Uri;)Landroid/os/ParcelFileDescriptor;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_throw_missing
+
+    return-object v0
+
+    :cond_throw_missing
+    sget-object p0, Lmhn;->a:Lywm;"""
+            stock_18 = """:cond_18
+    sget-object p0, Lmhn;->a:Lywm;"""
+            if hook_18 in c:
+                c = c.replace(hook_18, stock_18, 1)
+                with open(ccp_path, "w", encoding="utf-8") as f:
+                    f.write(c)
+                print("    [+] CameraContentProvider.smali: openFile reverted to clean stock bytecode.")
+
+def patch_mgs_smali():
+    print("[*] Patching mgs.smali (Guard SpecialTypesProvider query against null projection)...")
+    for folder in ["smali", "smali_classes2"]:
+        mgs_path = os.path.join(APKTOOL_DIR, folder, "mgs.smali")
+        if not os.path.exists(mgs_path):
+            continue
+        with open(mgs_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        target = """.method public final a(Landroid/net/Uri;[Ljava/lang/String;)Landroid/database/Cursor;
+    .locals 9
+
+    invoke-virtual {p2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;"""
+        repl = """.method public final a(Landroid/net/Uri;[Ljava/lang/String;)Landroid/database/Cursor;
+    .locals 9
+
+    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->ensureProjection([Ljava/lang/String;)[Ljava/lang/String;
+
+    move-result-object p2
+
+    invoke-virtual {p2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;"""
+        old_repl = """.method public final a(Landroid/net/Uri;[Ljava/lang/String;)Landroid/database/Cursor;
+    .locals 9
+
+    if-nez p2, :cond_has_proj
+
+    const-string v0, "media_store_id"
+
+    const-string v1, "progress_percentage"
+
+    const-string v2, "progress_status"
+
+    filled-new-array {v0, v1, v2}, [Ljava/lang/String;
+
+    move-result-object p2
+
+    :cond_has_proj"""
+        if old_repl in c:
+            c = c.replace(old_repl, repl, 1)
+            with open(mgs_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] mgs.smali: replaced branch guard with branchless ensureProjection.")
+        elif target in c:
+            c = c.replace(target, repl, 1)
+            with open(mgs_path, "w", encoding="utf-8") as f:
+                f.write(c)
+            print("    [+] mgs.smali: guarded null projection with branchless ensureProjection.")
+        elif "ensureProjection" in c:
+            print("    [+] mgs.smali: already guarded against null projection.")
 
 def patch_num_smali():
     print("[*] Patching num.smali (Guard telephoto portrait sensor against NPE)...")
@@ -4534,6 +4613,26 @@ def patch_mtt_smali():
     if target_metadata in content:
         content = content.replace(target_metadata, repl_metadata, 1)
 
+    # Hook TomteMetadata qwk with effective fine-tuning parameters
+    target_qwk_e = """    move-result-object v8
+
+    check-cast v8, Lqwk;
+
+    const/4 v11, 0x3"""
+
+    repl_qwk_e = """    move-result-object v8
+
+    check-cast v8, Lqwk;
+
+    invoke-static {v8}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveQwk(Lqwk;)Lqwk;
+
+    move-result-object v8
+
+    const/4 v11, 0x3"""
+
+    if target_qwk_e in content:
+        content = content.replace(target_qwk_e, repl_qwk_e, 1)
+
     # Hook Pecan ML Denoiser in ShotParams
     pecan_target = """    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
 
@@ -5182,15 +5281,21 @@ def patch_high_resolution_metadata():
     if os.path.exists(mww_path):
         with open(mww_path, "r", encoding="utf-8") as f:
             content = f.read()
-        target_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\\n\\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
-        repl_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\\n\\n    move-object/from16 v1, v16\\n\\n    iget v5, v1, Lrae;->a:I\\n\\n    iget v1, v1, Lrae;->b:I\\n\\n    invoke-static {v3, v5, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;\\n\\n    move-result-object v3\\n\\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;".replace("\\n", "\n")
+        target_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\n\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;"
+        old_repl_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\n\n    move-object/from16 v1, v16\n\n    iget v5, v1, Lrae;->a:I\n\n    iget v1, v1, Lrae;->b:I\n\n    invoke-static {v3, v5, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;\n\n    move-result-object v3\n\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;"
+        repl_mww = "    iget-object v3, v2, Lrbq;->c:Lmhb;\n\n    move-object/from16 v6, v16\n\n    iget v5, v6, Lrae;->a:I\n\n    iget v7, v6, Lrae;->b:I\n\n    invoke-static {v3, v5, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;\n\n    move-result-object v3\n\n    invoke-virtual {v3}, Lmhb;->d()Ljava/lang/String;"
         if repl_mww in content:
-            print("    [+] mww.smali: already patched for getEffectiveSpecialType.")
+            print("    [+] mww.smali: already patched for getEffectiveSpecialType (using scratch registers v6/v7).")
+        elif old_repl_mww in content:
+            content = content.replace(old_repl_mww, repl_mww, 1)
+            with open(mww_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] mww.smali: updated getEffectiveSpecialType to use scratch registers v6/v7.")
         elif target_mww in content:
             content = content.replace(target_mww, repl_mww, 1)
             with open(mww_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] mww.smali: patched for getEffectiveSpecialType.")
+            print("    [+] mww.smali: patched for getEffectiveSpecialType (using scratch registers v6/v7).")
 
     # 4. mtf.smali (Post-processing finisher MediaProvider special_type_id update)
     mtf_path = os.path.join(APKTOOL_DIR, "smali", "mtf.smali")
@@ -5463,6 +5568,35 @@ def patch_qfr_smali():
         print("    [+] qfr.smali: Disabled TPU flags (n, o, p, q, r = false).")
     elif "const/4 v0, 0x0\n\n    iput-boolean v0, p0, Lqfr;->n:Z" in content:
         print("    [+] qfr.smali: TPU flags already disabled.")
+
+    target_e = """.method public final e(Z)Z
+    .locals 0
+
+    if-eqz p1, :cond_0
+
+    iget-boolean p0, p0, Lqfr;->g:Z
+
+    return p0
+
+    :cond_0
+    iget-boolean p0, p0, Lqfr;->f:Z
+
+    return p0
+.end method"""
+
+    repl_e = """.method public final e(Z)Z
+    .locals 0
+
+    const/4 p0, 0x0
+
+    return p0
+.end method"""
+
+    if target_e in content:
+        content = content.replace(target_e, repl_e, 1)
+        print("    [+] qfr.smali: Disabled mantis telephoto portrait e(Z) -> false.")
+    elif "const/4 p0, 0x0\n\n    return p0\n.end method" in content:
+        print("    [+] qfr.smali: mantis telephoto portrait e(Z) already disabled.")
 
     with open(qfr_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -6486,7 +6620,7 @@ def patch_zoom_controllers():
 
     if-ne v8, v6, :cond_check_video_portrait_kmo
 
-    goto :cond_skip_10x_kmo
+    goto :cond_purge_portrait_5x_kmo
 
     :cond_check_video_portrait_kmo
     sget-object v6, Lzde;->H:Lzde;
@@ -6495,7 +6629,7 @@ def patch_zoom_controllers():
 
     if-ne v8, v6, :cond_check_video_portrait_still_kmo
 
-    goto :cond_skip_10x_kmo
+    goto :cond_purge_portrait_5x_kmo
 
     :cond_check_video_portrait_still_kmo
     sget-object v6, Lzde;->I:Lzde;
@@ -6503,6 +6637,39 @@ def patch_zoom_controllers():
     iget v6, v6, Lzde;->X:I
 
     if-ne v8, v6, :cond_check_5x_kmo
+
+    goto :cond_purge_portrait_5x_kmo
+
+    :cond_purge_portrait_5x_kmo
+    const/high16 v6, 0x40a00000    # 5.0f
+
+    invoke-static {v6}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v6
+
+    iget-object v8, v0, Lkmo;->S:Ljava/util/List;
+
+    invoke-interface {v8, v6}, Ljava/util/List;->indexOf(Ljava/lang/Object;)I
+
+    move-result v6
+
+    if-ltz v6, :cond_skip_10x_kmo
+
+    iget-object v8, v0, Lkmo;->S:Ljava/util/List;
+
+    invoke-interface {v8, v6}, Ljava/util/List;->remove(I)Ljava/lang/Object;
+
+    iget-object v8, v0, Lkmo;->R:Lchy;
+
+    invoke-virtual {v8}, Lchy;->size()I
+
+    move-result v8
+
+    if-ge v6, v8, :cond_skip_10x_kmo
+
+    iget-object v8, v0, Lkmo;->R:Lchy;
+
+    invoke-virtual {v8, v6}, Lchy;->remove(I)Ljava/lang/Object;
 
     goto :cond_skip_10x_kmo
 
@@ -7581,7 +7748,7 @@ def patch_brightness_shadows_controllers():
         if orig_qwh_i in c:
             c = c.replace(orig_qwh_i, repl_qwh_i, 1)
 
-        # 10c. Ensure qwh.j (Detail: Sharpness=0, Grain=1) does not clobber Color fine tuning
+        # 10c. Connect qwh.j (Detail: Sharpness=0, Grain=1) to TomteInitHelper.updateDetailFineTuning
         orig_qwh_j = """.method public final j(IFZ)V
     .locals 5
 
@@ -7589,15 +7756,15 @@ def patch_brightness_shadows_controllers():
         repl_qwh_j = """.method public final j(IFZ)V
     .locals 5
 
-    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateColorFineTuning(IF)V
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->updateDetailFineTuning(IF)V
 
     iget-object v0, p0, Lqwh;->e:Lurt;"""
-        if repl_qwh_j in c:
-            c = c.replace(repl_qwh_j, orig_qwh_j, 1)
+        if orig_qwh_j in c:
+            c = c.replace(orig_qwh_j, repl_qwh_j, 1)
 
         with open(qwh_path, "w", encoding="utf-8") as f:
             f.write(c)
-        print("    [+] qwh.smali: Tone and Color fine-tuning sliders connected to TomteInitHelper.")
+        print("    [+] qwh.smali: Tone, Color, and Detail fine-tuning sliders connected to TomteInitHelper.")
 
     # 10d. Patch izt.smali: Hook Reset All to TomteInitHelper.resetFineTuning()
     izt_path = os.path.join(APKTOOL_DIR, "smali", "izt.smali")
@@ -10179,41 +10346,64 @@ def clean_build_artifacts():
         print(f"    [+] Removed {len(xml_dumps)} temporary UI dump XML files.")
 
 def copy_to_desktop(signed_apk):
-    print("[*] Copying APK and Morphe patch to Desktop...")
+    print("[*] Copying single APK and single Morphe patch to Desktop...")
     desktop_dir = os.path.expanduser("~/Desktop")
     if os.path.isdir(desktop_dir):
-        dest_apk = os.path.join(desktop_dir, os.path.basename(signed_apk))
-        shutil.copy2(signed_apk, dest_apk)
-        dest_v112 = os.path.join(desktop_dir, "PixelCamera-1.1.2.apk")
-        shutil.copy2(signed_apk, dest_v112)
-        dest_sf = os.path.join(desktop_dir, "Camera-v11.1.040.982810059.19-patches-v1.1.2.apk")
-        shutil.copy2(signed_apk, dest_sf)
-        size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied APK to Desktop: {dest_apk}, {dest_v112}, and {dest_sf} ({size_mb:.2f} MB)")
+        # Remove redundant duplicate APK and patch files from Desktop so only 1 APK and 1 patch exist
+        for old_file in [
+            "PixelCamera_signed.apk",
+            "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk",
+            "Camera-v11.1.040.982810059.19-patches-v1.1.4.apk",
+            "PixelCamera-1.1.4.apk",
+            "patches-1.1.3.mpp",
+            "patches-1.1.4.mpp",
+            "morphe-patches-pixelcamera-1.1.4.mpp"
+        ]:
+            old_path = os.path.join(desktop_dir, old_file)
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
 
-        # Also copy the Morphe .mpp patch file to Desktop
-        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.2.mpp")
+        # Exactly ONE APK on Desktop: PixelCamera-1.1.3.apk
+        dest_apk = os.path.join(desktop_dir, "PixelCamera-1.1.3.apk")
+        shutil.copy2(signed_apk, dest_apk)
+        size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
+        print(f"    [+] Successfully copied single APK to Desktop: {dest_apk} ({size_mb:.2f} MB)")
+
+        # Exactly ONE Morphe .mpp patch file on Desktop: morphe-patches-pixelcamera-1.1.3.mpp
+        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.3.mpp")
         if not os.path.exists(mpp_src):
-            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.2.mpp")
+            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.3.mpp")
             if os.path.exists(built_mpp):
                 mpp_src = built_mpp
-        if not os.path.exists(mpp_src):
-            built_mpp_legacy = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.1.mpp")
-            if os.path.exists(built_mpp_legacy):
-                mpp_src = built_mpp_legacy
         if os.path.exists(mpp_src):
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.2.mpp"))
-            shutil.copy2(mpp_src, os.path.join(desktop_dir, "patches-1.1.2.mpp"))
-            print(f"    [+] Successfully copied patch to Desktop: {os.path.join(desktop_dir, 'morphe-patches-pixelcamera-1.1.2.mpp')}")
+            dest_mpp = os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.3.mpp")
+            shutil.copy2(mpp_src, dest_mpp)
+            print(f"    [+] Successfully copied single patch to Desktop: {dest_mpp}")
         
         pixelcam_dir = os.path.join(desktop_dir, "PixelCam")
         if os.path.isdir(pixelcam_dir):
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, os.path.basename(signed_apk)))
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.2.apk"))
+            for old_file in [
+                "PixelCamera_signed.apk",
+                "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk",
+                "Camera-v11.1.040.982810059.19-patches-v1.1.4.apk",
+                "PixelCamera-1.1.4.apk",
+                "patches-1.1.3.mpp",
+                "patches-1.1.4.mpp"
+            ]:
+                old_path = os.path.join(pixelcam_dir, old_file)
+                if os.path.exists(old_path):
+                    try:
+                        os.remove(old_path)
+                    except Exception:
+                        pass
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.3.apk"))
             if os.path.exists(mpp_src):
-                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.2.mpp"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.2.apk")
-        return dest_v112
+                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.3.mpp"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.3.apk")
+        return dest_apk
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
         return None
@@ -10235,15 +10425,17 @@ def install_and_launch(signed_apk):
     res = subprocess.run(["adb", "-s", target_device, "install", "-r", "-d", "-g", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(f"    {res.stdout.strip()}")
     if "Success" in res.stdout:
-        # Also copy Morphe .mpp patch to device Download directory
-        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.2.mpp")
+        # Also copy release APK and Morphe .mpp patch to device Download directory
+        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.3.mpp")
         if not os.path.exists(mpp_file):
-            mpp_file = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.2.mpp")
+            mpp_file = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.3.mpp")
         if os.path.exists(mpp_file):
             print(f"[*] Copying {os.path.basename(mpp_file)} to device /sdcard/Download/...")
-            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.2.mpp"], stdout=subprocess.DEVNULL)
-            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/patches-1.1.2.mpp"], stdout=subprocess.DEVNULL)
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.3.mpp"], stdout=subprocess.DEVNULL)
             print("    [+] Successfully copied Morphe patch to /sdcard/Download/ on device!")
+        print(f"[*] Copying PixelCamera-1.1.3.apk to device /sdcard/Download/...")
+        subprocess.run(["adb", "-s", target_device, "push", signed_apk, "/sdcard/Download/PixelCamera-1.1.3.apk"], stdout=subprocess.DEVNULL)
+        print("    [+] Successfully copied release APK to /sdcard/Download/PixelCamera-1.1.3.apk on device!")
         print(f"[*] Launching PixelCamera on {target_device} (com.google.android.GoogleCameraEng)...")
         subprocess.run(["adb", "-s", target_device, "shell", "am", "force-stop", "com.google.android.GoogleCameraEng"])
         subprocess.run(["adb", "-s", target_device, "shell", "am", "start", "-n", "com.google.android.GoogleCameraEng/com.android.camera.CameraLauncher"])
@@ -10505,6 +10697,7 @@ def patch_display_max_brightness():
             print("    [+] CameraActivity.smali: already hooked with applyScreenBrightness.")
 
 def patch_image_quality_preferences():
+    import re
     print("[*] Patching In-App JPEG Quality & Spatial Noise Reduction menus...")
     # 1. Inject strings into strings.xml
     strings_path = os.path.join(APKTOOL_DIR, "res", "values", "strings.xml")
@@ -10560,10 +10753,14 @@ def patch_image_quality_preferences():
                 f.write(content)
             print("    [+] strings.xml: Advanced settings category title added.")
 
-        if "pref_category_about_title" not in content:
+        if "pref_about_version_summary" in content:
+            content = re.sub(r'<string name="pref_about_version_summary">.*?</string>', '<string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.3)</string>', content)
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        elif "pref_category_about_title" not in content:
             about_strings = """    <string name="pref_category_about_title">About</string>
     <string name="pref_about_title">Pixel Camera</string>
-    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.2)</string>"""
+    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.3)</string>"""
             content = content.replace("<resources>", f"<resources>\n{about_strings}")
             with open(strings_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -10873,7 +11070,6 @@ def patch_image_quality_preferences():
 .end method"""
         if "setPrefEntry" not in content:
             # Replace method o
-            import re
             content = re.sub(r'\.method public final o\(Ljava/lang/String;\)V[\s\S]*?\.end method', repl_lp, content)
             with open(list_pref_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -11703,6 +11899,7 @@ def main():
     patch_psh_smali()
     patch_klh_smali()
     patch_camera_content_provider()
+    patch_mgs_smali()
     patch_kgy_smali()
     patch_kgx_smali()
     patch_kgs_smali()

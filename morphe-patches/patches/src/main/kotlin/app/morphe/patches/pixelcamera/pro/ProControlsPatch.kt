@@ -366,9 +366,11 @@ val proControlsPatch = bytecodePatch(
             clazz.methods.firstOrNull { it.name == "b" && it.parameterTypes.size == 5 }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val smali = """
-                    iget v0, p0, Lrae;->a:I
-                    iget v2, p0, Lrae;->b:I
-                    invoke-static {p4, v0, v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeId(Ljava/lang/String;II)Ljava/lang/String;
+                    move-object/from16 v1, p0
+                    iget v0, v1, Lrae;->a:I
+                    iget v2, v1, Lrae;->b:I
+                    move-object/from16 v3, p4
+                    invoke-static {v3, v0, v2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialTypeId(Ljava/lang/String;II)Ljava/lang/String;
                     move-result-object p4
                 """.trimIndent()
                 val newIns = smali.toInstructions(method)
@@ -388,10 +390,10 @@ val proControlsPatch = bytecodePatch(
                 }
                 if (cIdx != -1) {
                     val smali = """
-                        move-object/from16 v1, v16
-                        iget v5, v1, Lrae;->a:I
-                        iget v1, v1, Lrae;->b:I
-                        invoke-static {v3, v5, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;
+                        move-object/from16 v6, v16
+                        iget v5, v6, Lrae;->a:I
+                        iget v7, v6, Lrae;->b:I
+                        invoke-static {v3, v5, v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveSpecialType(Lmhb;II)Lmhb;
                         move-result-object v3
                     """.trimIndent()
                     val newIns = smali.toInstructions(method)
@@ -545,6 +547,22 @@ val proControlsPatch = bytecodePatch(
                     move-result-object p1
                 """.trimIndent()
                 val newIns = smali.toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
+                }
+            }
+        }
+
+        // l2) mgs: guard null projection in a(Landroid/net/Uri;[Ljava/lang/String;)Landroid/database/Cursor;
+        mutableClassDefByOrNull("Lmgs;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" && it.parameterTypes.size == 2 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val guardSmali = """
+                    invoke-static {p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->ensureProjection([Ljava/lang/String;)[Ljava/lang/String;
+                    move-result-object p2
+                """.trimIndent()
+                val newIns = guardSmali.toInstructions(method)
                 var pos = 0
                 for (ni in newIns) {
                     impl.addInstruction(pos++, ni)

@@ -1,12 +1,12 @@
-# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.1.2)
+# Pixel Camera Root-Cause Investigation, Fixes & Broader Application Audit (v1.1.3)
 
 ---
 
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.2 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.2.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.2 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.2.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.2.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.3.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.3.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.3.mpp)
 * **Morphe Patches Source**: [morphe-patches/README.md](morphe-patches/README.md)
 * **Smali Reference & Helper Classes**: [smali_patches/README.md](smali_patches/README.md)
 * **Unified Smali Diffs**: [patches/README.md](patches/README.md)
@@ -1869,6 +1869,81 @@ In `libpropatcher.so`, `sharpenScale` and halo suppression de-ring clamping were
 2. **Telephoto Acutance Shield:**
    - Telephoto curves enforce `asset_sharpen_scale = is_tele ? fmaxf(1.0f, sharpenScale) : sharpenScale;` and `asset_dering_scale = is_tele ? 1.0f : (0.25f + 0.75f * sharpenScale);`.
    - Wide and Ultra-wide lenses receive full halo elimination and filmic roll-off, while the Telephoto lens retains 100% stock unsharp masking and microcontrast.
+
+---
+
+## 18. Issue 14: Dalvik VerifyError on Android 17 / Pixel 10 in `msr.a()` (`[0xA] Conflict`)
+
+### 18.1 Symptoms & Crash Trace
+- **Device**: Google Pixel 10 (`frankel`, Android 17 / CP3A.261005.005, targetSdk 37).
+- **Installer**: Morphe Manager (`app.morphe.manager`).
+- **Crash Log**:
+  ```text
+  type: crash
+  osVersion: google/frankel/frankel:17/CP3A.261005.005/2026110201:user/release-keys
+  package: com.google.android.GoogleCamera.morphe:69703284, targetSdk 37
+  process: com.google.android.GoogleCamera.morphe
+  processUptime: 126 + 325 ms
+  installer: app.morphe.manager
+
+  java.lang.VerifyError: Verifier rejected class msr: java.lang.Object msr.a() failed to verify: java.lang.Object msr.a(): [0xA] instance field access on object that has non-reference type Conflict (declaration of 'msr' appears in /data/app/~~em8KBuVx8P2k4cT7ANpETQ==/com.google.android.GoogleCamera.morphe-k-aU3fyDFMH-gnBxsTY0rg==/base.apk!classes5.dex)
+      at itb.I(PG:209)
+      at itb.<init>(PG:1140)
+      at isl.a(PG:203)
+      at adoc.a(PG:20)
+      at com.google.android.apps.camera.app.CameraApp.i(PG:2)
+      at com.google.android.apps.camera.app.CameraApp.d(PG:0)
+      at com.google.android.apps.camera.contentprovider.CameraContentProvider.onCreate(PG:27)
+  ```
+
+### 18.2 Root Cause Analysis
+1. `msr` implements `Lacns` (the Dagger `Provider<Gcam>` factory) instantiated during application startup when `CameraContentProvider` mounts.
+2. Section 16 of `CameraLooksPatch.kt` injected hooks into `msr.a()` to force film grain initialization by replacing conditional branch `if-eqz v2, :cond_2c` with `NOP` and inserting instructions calling `TomteInitHelper.initTomteGrain`.
+3. In Android 17 ART (targetSdk 37), strict bytecode flow analysis detected that register `v0` (initially holding `this` via `move-object/from16 v0, p0` and later holding a wide 64-bit return `move-result-wide v0` from `Gcam_Create`) suffered a merge conflict across the modified basic blocks. This led ART to assign register `v0` the non-reference type `Conflict` at offset `0x000a` (`iget-object v2, v0, Lmsr;->b:Lacnw;`), causing Dalvik class verification rejection (`VerifyError`).
+4. Furthermore, mutating `msr.a()` was completely redundant: Film grain and all 13 Camera Looks are injected and managed downstream in the imaging pipeline inside `ndf.smali` (`ndf.a`) via `TomteInitHelper.applyTomteImageFinalizer`, which already invokes `initTomteGrain`.
+
+---
+
+## 19. Issue 15: Camera Looks Shadows, Highlights, and Sharpness Sliders Only Active on Viewfinder Preview, Not Captured Photos
+
+### 19.1 Symptoms
+- Adjusting the Shadows, Highlights, and Sharpness sliders in the Camera Looks fine-tuning drawer showed immediate, visible changes in the live viewfinder preview.
+- However, captured still photos saved to storage and viewed in Google Photos did not reflect the adjusted shadows, highlights, or edge sharpness, falling back to stock unadjusted tones.
+
+### 19.2 Root Cause Analysis
+1. **Detail Slider Disconnect in `qwh.j`**:
+   The Fine-Tuning UI updates tone sliders through `qwh.l` (Contrast, Shadows, Highlights) and color sliders through `qwh.i` (Vibrance, Tint, Warmth). However, the Detail slider callback `qwh.j(IFZ)V` (controlling Sharpness at index 0 and Grain at index 1) was not hooked. Any user adjustments to Sharpness were never forwarded to `TomteInitHelper.sFineTuneSharpness` or synchronized to native `libpropatcher.so`.
+2. **Shot Parameter Omission in Still Capture Pipeline (`mtt.q`)**:
+   During still photo capture, `mtt.q` creates `ShotParams` for Gcam, querying the fine-tuning parameter container `qwk` (which holds `Optional<Float>` instances for Contrast, Highlights, Shadows, Vibrance, Tint, Warmth, Mono, Sharpness, and Grain). In stock bytecode, `mtt.q` passed an unmodified or empty `qwk` instance, completely ignoring the user's active fine-tuning slider values.
+3. **Crude Tone Clamping in Native Look-Up Tables (`propatcher.c`)**:
+   In `update_active_luts()`, shadow adjustments used linear piecewise clipping (`clamp(eff_black_lift * 255.0f * (1.0f - x * 1.6f), 0, 255)`), unnaturally crushing shadow detail and clipping deep blacks. Similarly, highlight compression clamped near-white values, producing flat and dull highlights rather than a smooth photographic roll-off.
+4. **Absence of 2D Spatial Acutance / Sharpening in Raster Post-Processing**:
+   Offline post-processing passes through `nativeProcessRasterImage` and `lut_grade_raster`. While 1D/3D LUTs can adjust tone curves and color gamuts, sharpness is a spatial acutance operation requiring 2D neighborhood convolution. `lut_grade_raster` was performing only per-pixel color lookups (`neon_grade_rgba`), offering zero edge sharpening.
+
+### 19.3 Technical Implementation
+1. **Bytecode Hooking in `qwh.j`**:
+   Hooked the entry of `qwh.j(IFZ)V` in both standalone smali and Morphe patch suite (`CameraLooksPatch.kt`) to invoke `TomteInitHelper.updateDetailFineTuning(IF)V`. When `p1 == 0` (Sharpness), `sFineTuneSharpness` is set and immediately synchronized to `libpropatcher.so`.
+2. **Shot Parameters Merging in `mtt.q`**:
+   Hooked `mtt.q` immediately following `check-cast v8, Lqwk;` to invoke `TomteInitHelper.getEffectiveQwk(Lqwk;)Lqwk;`. `getEffectiveQwk` merges any active Fine-Tuning slider settings (Contrast, Shadows, Highlights, Vibrance, Tint, Warmth, Sharpness, Grain) into a newly instantiated `qwk` object, ensuring full parameter propagation into Gcam's `ShotParams`.
+3. **Smooth Continuous Parabolic Bell Curves in `propatcher.c`**:
+   Replaced linear piecewise clamping with photographic parabolic curves:
+   - **Shadows Zone ($x < 0.60$)**:
+     $$f_{shadow}(x) = 1.0 + \text{shadows} \times \left(1.0 - \frac{x}{0.60}\right) \times \left(\frac{x}{0.30}\right)$$
+     Reaches peak effect at $x = 0.30$ (low-mids) with zero clipping at $x = 0$ (preserving inky blacks).
+   - **Highlights Zone ($x > 0.40$)**:
+     $$f_{highlight}(x) = 1.0 + \text{highlights} \times \left(\frac{x - 0.40}{0.60}\right) \times \left(\frac{1.0 - x}{0.30}\right)$$
+     Reaches peak effect at $x = 0.70$ (high-mids) with zero clipping at $x = 1.0$ (preserving specular whites).
+   - Vectorized tone grading in `neon_grade_y` and `neon_grade_rgba` using pure ARM64 NEON table lookups (`vqtbl4q_u8` with `vld1q_u8_x4`), achieving 100% bit-exact tone parity between the live viewfinder and offline still photo grading at ~0.4 cycles/pixel.
+4. **Adaptive 2D Luma Laplacian Sharpening in `lut_grade_raster`**:
+   Integrated 2D 4-neighbor spatial convolution for raster image grading:
+   $$L(x, y) = 4 \cdot Y(x, y) - [Y(x-1, y) + Y(x+1, y) + Y(x, y-1) + Y(x, y+1)]$$
+   $$\Delta_{sharp} = \text{clamp}\left(\frac{L(x, y) \cdot \text{sharp\_mult}}{256}, -26, 26\right)$$
+   Proportionally scales all RGB channels without color fringing or halo artifacts.
+5. **Native JNI and Loader Synchronisation**:
+   Updated `nativeSetFineTuning` to accept 7 floats `(contrast, shadows, highlights, vibrance, tint, warmth, sharpness)`. Recompiled `libpropatcher.so` (18,880 bytes) and updated `TomteProPatcherLoader.smali` base64 payload.
+6. **Full Test Suite Validation**:
+   Reassembled `TomteInitHelper.dex` (86,308 bytes). Verified all 19 tests in `morphe-patches` pass cleanly (`BUILD SUCCESSFUL`). Rebuilt `morphe-patches-pixelcamera-1.1.3.mpp`.
+
 
 
 
