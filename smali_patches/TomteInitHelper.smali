@@ -26,6 +26,8 @@
 
 .field public static final PREF_FOCAL_CYCLING:Ljava/lang/String; = "pref_camera_focal_length_cycling_key"
 
+.field public static final PREF_RAW_SEPARATE_FOLDER:Ljava/lang/String; = "pref_camera_raw_separate_folder_key"
+
 .field public static sCurrentActivity:Ljava/lang/ref/WeakReference;
 
 .field public static sFineTuneContrast:F
@@ -5484,7 +5486,7 @@
 
     if-eqz v0, :cond_check_camcorder_osprey
 
-    const/4 v0, 0x1
+    const/4 v0, 0x0
 
     return v0
 
@@ -5497,7 +5499,7 @@
 
     if-eqz v0, :cond_check_camcorder_stokes_dyn
 
-    const/4 v0, 0x1
+    const/4 v0, 0x0
 
     return v0
 
@@ -5521,9 +5523,33 @@
 
     move-result v0
 
-    if-eqz v0, :cond_not_found
+    if-eqz v0, :cond_check_raw_separate_folder
 
     const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_raw_separate_folder
+    const-string v0, "enable_camera_raw_folder_burst"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_not_found
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isRawSeparateFolderEnabled()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_raw_separate_folder_disabled
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_raw_separate_folder_disabled
+    const/4 v0, 0x0
 
     return v0
 
@@ -7666,6 +7692,58 @@
     :catchall_fce
     :cond_ret_false
     const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static isRawSeparateFolderEnabled()Z
+    .locals 3
+
+    :try_start_rsf
+    const-string v0, "pref_camera_raw_separate_folder_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_check_sp
+
+    const/4 v1, 0x1
+
+    invoke-static {v0, v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->checkPrefValue(Ljava/lang/Object;Z)Z
+
+    move-result v0
+
+    return v0
+
+    :cond_check_sp
+    const/4 v0, 0x0
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSharedPrefs(Landroid/content/Context;)Landroid/content/SharedPreferences;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_ret_default
+
+    const-string v2, "pref_camera_raw_separate_folder_key"
+
+    const/4 v1, 0x1
+
+    invoke-interface {v0, v2, v1}, Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z
+
+    move-result v0
+
+    return v0
+
+    :cond_ret_default
+    const/4 v0, 0x1
+
+    return v0
+    :try_end_rsf
+    .catchall {:try_start_rsf .. :try_end_rsf} :catchall_rsf
+
+    :catchall_rsf
+    const/4 v0, 0x1
 
     return v0
 .end method

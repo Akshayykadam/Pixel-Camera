@@ -1027,6 +1027,8 @@ object PixelCameraPatchUtils {
     <string name="pref_camera_sharpness_entry_natural_desc">Subtle edge contrast with film-like organic rolloff</string>
     <string name="pref_camera_sharpness_entry_standard">Standard (1.0x)</string>
     <string name="pref_camera_sharpness_entry_standard_desc">Default Google Camera edge sharpening</string>
+    <string name="pref_camera_raw_separate_folder_title">Save RAW to Separate Folder</string>
+    <string name="pref_camera_raw_separate_folder_summary">Save DNG files in Pictures/Raw to prevent Google Photos from backing them up</string>
                         """.trimIndent())
                         append("\n")
                     }
@@ -1255,6 +1257,7 @@ object PixelCameraPatchUtils {
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />
     </androidx.preference.PreferenceCategory>
                     """.trimIndent()
 
@@ -1314,6 +1317,7 @@ object PixelCameraPatchUtils {
         <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
         <ListPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
         <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />
     </PreferenceCategory>
                     """.trimIndent()
 

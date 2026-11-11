@@ -733,3 +733,66 @@ This document tracks bugs, image tuning observations, and feature requests repor
   1. Updated `CameraLooksPatch.kt` to target the instruction referencing `NOISE_REDUCTION_MODE` specifically (`(it as? ReferenceInstruction)?.reference?.toString()?.contains("NOISE_REDUCTION_MODE") == true`), where `v1` is guaranteed to be a primitive integer.
   2. Added an automated regression test in `PatcherExecutionTest.kt` verifying that `jhh.a` hooks `filterVideoNoiseReductionMode` immediately preceding `NOISE_REDUCTION_MODE`.
   3. Reassembled `morphe-patches-pixelcamera-1.1.3.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
+
+### 24. Separate Folder for RAW (DNG) Files to Prevent Automatic Cloud Backup (#85)
+* **Status:** ✅ **Implemented, Verified & Built**
+* **Reporter:** `@czuker` (GitHub Issue [#85](https://github.com/Akshayykadam/Pixel-Camera/issues/85))
+* **Description:**
+  Users shooting RAW + JPEG requested saving DNG RAW files into a separate dedicated folder (e.g., `Pictures/Raw`) rather than inside `DCIM/Camera`. Because Google Photos and other cloud sync providers automatically back up everything inside `DCIM/Camera`, both massive RAW files (~25–50 MB each) and standard JPEGs were backed up to the cloud simultaneously, quickly exhausting storage limits.
+* **Architecture & Root Causes:**
+  1. **Built-in Storage Routing Choke Point (`pgs.d`):**
+     In `pgs.smali` (`pgs.d(Lrbo;)Lpgr;`), Google Camera evaluates the flag `kre.b` (`"enable_camera_raw_folder_burst"`):
+     ```smali
+     sget-object v3, Lkre;->b:Lkps;
+     invoke-virtual {v1, v3}, Lksf;->q(Lkps;)Z
+     move-result v1
+     if-eqz v1, :cond_0
+     sget-object v1, Lvnc;->b:Lvnc; # DIRECTORY_PICTURES
+     const-string v3, "Raw"
+     goto :goto_0
+     :cond_0
+     sget-object v1, Lvnc;->a:Lvnc; # DIRECTORY_DCIM
+     const-string v3, "Camera"
+     ```
+     When the flag is false (stock default), RAW files are directed to `DCIM/Camera/` alongside JPEGs. When true, RAW files are directed to `Pictures/Raw/`.
+  2. **In-App Explanatory Bottom Sheet Notice (`sai.smali`):**
+     In `sai.smali`, Google Camera queries `Lkre;->b` to display user guidance:
+     - When true: Displays string `0x7f1307cb` (`"RAW photos will not be backed up by default."`)
+     - When false: Displays string `0x7f1307c8` (`"RAW photos will be backed up by default..."`)
+* **Resolution & Implementation (Approach A - User Toggle):**
+  1. **In-App Camera Settings Toggle:**
+     - Injected preference toggle `pref_camera_raw_separate_folder_key` under `pref_category_resolution_camera` (Photo / Resolution) in both `camera_gm3_preferences.xml` and `camera_preferences.xml`:
+       - **Title:** "Save RAW to separate folder" (`pref_camera_raw_separate_folder_title`)
+       - **Summary:** "Save RAW (DNG) files to Pictures/Raw instead of DCIM/Camera to prevent automatic cloud backup in Google Photos" (`pref_camera_raw_separate_folder_summary`)
+       - **Default:** `true` (Enabled by default to save cloud storage, but fully toggleable by the user).
+       - **Icon:** `@drawable/gs_raw_on_vd_theme_24`
+  2. **Interception & SharedPreferences Synchronization (`TomteInitHelper.isRawSeparateFolderEnabled`):**
+     - Implemented `TomteInitHelper.isRawSeparateFolderEnabled()Z`, checking the in-memory pref cache (`getPrefEntry`) with fallback to `SharedPreferences` (`pref_camera_raw_separate_folder_key`, default `true`).
+     - Intercepted `"enable_camera_raw_folder_burst"` in `TomteInitHelper.getFlagOverride(String)` and `ksf.smali` (`q(Lkps;)Z`), dynamically routing flag evaluation to `TomteInitHelper.isRawSeparateFolderEnabled()`.
+  3. **Dual Build-System Synchronization:**
+     - Updated standalone Python patcher `build_and_patch_pixelcamera.py` under `inject_custom_in_app_preferences()` and `patch_ksf_smali()`.
+     - Updated Morphe Kotlin patches in `PixelCameraPatchUtils.kt` across both `morphe-patches/patches` and `morphe-patches/`.
+     - Reassembled `TomteInitHelper.dex` containing `isRawSeparateFolderEnabled()` and `PREF_RAW_SEPARATE_FOLDER`.
+  4. **Verification & Delivery:**
+     - Passed all Gradle unit & regression tests (`./gradlew test`) in `SmokeTest` and `PatcherExecutionTest`.
+     - Rebuilt `morphe-patches-pixelcamera-1.1.3.mpp` (256 KB) and updated root bundle.
+
+### 25. Black Viewfinder in Video Portrait (Cinematic Blur) Caused by 4K Stream Allocation
+* **Status:** ✅ **Resolved & Verified on Physical Device**
+* **Reporter:** User testing on connected Pixel 8 Pro (`39041FDJG00021`)
+* **Symptom:**
+  Switching to "Portrait" under Video mode (Cinematic Blur / `mode_amber`) resulted in a completely black viewfinder screen, while standard Photo, Video, and Portrait still modes worked normally.
+* **Root Cause:**
+  1. **Hardware HAL Limitation:**
+     Google Tensor's Lyric Camera HAL physically does not configure Video Bokeh graphs for 4K (`3840x2160`). In logcat:
+     ```text
+     Lyric : active_camera_device_tracker.cc:208: Failed to session_manager->BuildGraph(), NOT_FOUND: Video Bokeh sizes not configured for resolution: {width: 3840, height: 2160}; Can't make a subgraph for camera Rear; Failed constructing subgraph
+     CameraDevice-JV-0: Stream configuration failed due to: endConfigureLocked:891: Camera 0: Unsupported set of inputs/outputs provided
+     CameraCaptureSession: Failed to create capture session; configuration failed
+     ```
+  2. **Flag Overrides Over-Extending to Video Bokeh:**
+     When multi-lens video zoom smoothing was implemented, `camcorder.peregrine` and `camcorder.osprey` were forced to return `1` (`true`). In Google Camera, `camcorder.peregrine` signals that the camera HAL supports 4K Video Bokeh, causing Gcam to bypass the internal 1080p clamp in `jbw.smali` (`f()Lusx;`) and attempt 4K stream allocation on Lyric HAL.
+* **Resolution:**
+  1. Updated `TomteInitHelper.smali`, `ksf.smali`, and `build_and_patch_pixelcamera.py` to return `0` (`false`) for `camcorder.peregrine` and `camcorder.osprey`.
+  2. Ensured Video Portrait (`mode_amber`) strictly clamps to **1080p** (`RES_1080P` / `FHD`), satisfying Lyric HAL's Video Bokeh hardware constraints.
+  3. Recompiled, signed, and installed `PixelCamera-1.1.3.apk` on physical Pixel 8 Pro. Captured on-device screenshot verifying live FHD Video Portrait viewfinder feed.

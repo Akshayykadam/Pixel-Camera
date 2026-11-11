@@ -160,6 +160,12 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
 * **4K 60 FPS Multi-Camera Surface Sharing**: Unlocks multi-sensor stream sharing (`camcorder.scalable_vpipe`, `camcorder.surface_share`, `camcorder.peregrine`, `camcorder.osprey`, `camcorder.stokes_dyn`, `camcorder.4k60fps`), enabling smooth multi-lens zoom even during 4K 60 FPS recording.
 * *(See [`VideoLensSwitchingPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/VideoLensSwitchingPatch.kt) and [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) for implementation).*
 
+### 15. Save RAW to Separate Folder (Prevent Google Photos Auto-Backup)
+* **Dedicated RAW Storage Location**: When enabled, RAW (DNG) captures are saved to `Pictures/Raw/` instead of `DCIM/Camera/`. Because Google Photos and other cloud backup tools automatically monitor the `DCIM/` folder, separating RAW files prevents heavy 25–50 MB DNG captures from burning through cloud storage.
+* **In-App Camera Settings Toggle**: Configurable switch in **Settings > Photo / Resolution** (`pref_camera_raw_separate_folder_key`). Users can freely choose between separate storage (`Pictures/Raw`, default) or unified storage (`DCIM/Camera`).
+* **Dynamic Framework Interception**: Intercepts Google Camera's internal `enable_camera_raw_folder_burst` flag across `TomteInitHelper` and `ksf.smali`. Synchronizes both physical file storage and the camera's built-in RAW explanatory bottom-sheet notice.
+* *(See [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) and [`PixelCameraPatchUtils.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/PixelCameraPatchUtils.kt) for implementation).*
+
 ---
 
 ## ⚠️ Technical Limitations & Architectural Constraints
@@ -232,6 +238,7 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 - [x] **Pro Settings Styling & Stock Spacing**: **Resolved** — Aligned Pro panel to Google Camera native 56dp row height, 6dp vertical padding, and 38dp capsule pills with dynamic Monet theming.
 - [x] **Device-Aware 50MP Resolution Gating**: **Resolved** — Preserved 50MP selection on Pro Pixel models (Pixel 8 Pro, 9 Pro, 7 Pro, etc.) while cleanly hiding the non-functional toggle on non-Pro Pixels to enforce stock 12MP with restored RAW+JPEG support.
 - [x] **Camera Looks Viewfinder Preview**: **Resolved** — Real-time live viewfinder Look preview active across all supported Pixel devices.
+- [x] **DNG Backup Folder Selection (Issue #85)**: **Resolved** — Added in-app setting toggle to save RAW (DNG) captures to `Pictures/Raw` to avoid automatic Google Photos cloud sync, or keep in `DCIM/Camera` based on user choice.
 - [ ] **Grain Adjustment Slider**: Uses fixed baseline organic tone grain; fine-tuning slider has minimal impact without TPU kernel access.
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
 

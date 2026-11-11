@@ -92,9 +92,10 @@ class PatcherExecutionTest {
             assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_gm3_preferences.xml should contain pref_camera_noise_reduction_key")
             assertTrue(content.contains("pref_camera_raw_compression_key"), "camera_gm3_preferences.xml should contain pref_camera_raw_compression_key")
             assertTrue(content.contains("pref_camera_sharpness_key"), "camera_gm3_preferences.xml should contain pref_camera_sharpness_key")
+            assertTrue(content.contains("pref_camera_raw_separate_folder_key"), "camera_gm3_preferences.xml should contain pref_camera_raw_separate_folder_key")
             assertTrue(content.contains("pref_video_sharpness_key"), "camera_gm3_preferences.xml should contain pref_video_sharpness_key")
             assertTrue(content.contains("pref_video_noise_reduction_key"), "camera_gm3_preferences.xml should contain pref_video_noise_reduction_key")
-            println("Verified: camera_gm3_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, and video ISP keys")
+            println("Verified: camera_gm3_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, raw separate folder, and video ISP keys")
         }
         val camXml = File(tmpDir, "apk/resources/package_1/res/xml/camera_preferences.xml")
         if (camXml.exists()) {
@@ -104,15 +105,17 @@ class PatcherExecutionTest {
             assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_preferences.xml should contain pref_camera_noise_reduction_key")
             assertTrue(content.contains("pref_camera_raw_compression_key"), "camera_preferences.xml should contain pref_camera_raw_compression_key")
             assertTrue(content.contains("pref_camera_sharpness_key"), "camera_preferences.xml should contain pref_camera_sharpness_key")
+            assertTrue(content.contains("pref_camera_raw_separate_folder_key"), "camera_preferences.xml should contain pref_camera_raw_separate_folder_key")
             assertTrue(content.contains("pref_video_sharpness_key"), "camera_preferences.xml should contain pref_video_sharpness_key")
             assertTrue(content.contains("pref_video_noise_reduction_key"), "camera_preferences.xml should contain pref_video_noise_reduction_key")
-            println("Verified: camera_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, and video ISP keys")
+            println("Verified: camera_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, raw separate folder, and video ISP keys")
         }
         val stringsXml = File(tmpDir, "apk/resources/package_1/res/values/strings.xml")
         if (stringsXml.exists()) {
             val content = stringsXml.readText()
             assertTrue(content.contains("pref_camera_max_brightness_title"), "strings.xml should contain pref_camera_max_brightness_title")
             assertTrue(content.contains("pref_camera_jpeg_quality_title"), "strings.xml should contain pref_camera_jpeg_quality_title")
+            assertTrue(content.contains("pref_camera_raw_separate_folder_title"), "strings.xml should contain pref_camera_raw_separate_folder_title")
             assertTrue(content.contains("pref_camera_noise_reduction_title"), "strings.xml should contain pref_camera_noise_reduction_title")
             assertTrue(content.contains("pref_camera_raw_compression_title"), "strings.xml should contain pref_camera_raw_compression_title")
             assertTrue(content.contains("pref_camera_sharpness_title"), "strings.xml should contain pref_camera_sharpness_title")
@@ -291,6 +294,29 @@ class PatcherExecutionTest {
         assertTrue(foundKsaClonedAuth, "ksa.<clinit> must align SpecialTypesProvider authority to cloned package")
 
         println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
+    }
+
+    @Test
+    fun assembleTomteInitHelper() {
+        val smaliDir = File("../../smali_patches")
+        val smaliFiles = smaliDir.listFiles { _, name ->
+            name.startsWith("Tomte") && name.endsWith(".smali") && !name.startsWith("TomtePreviewRenderer")
+        }?.map { it.absolutePath }?.sorted() ?: emptyList()
+        println("Found ${smaliFiles.size} smali files to assemble")
+        assertTrue(smaliFiles.isNotEmpty(), "smali_patches/Tomte*.smali must exist")
+        val outDex = File("src/main/resources/TomteInitHelper.dex")
+        val options = com.android.tools.smali.smali.SmaliOptions().apply {
+            apiLevel = 34
+            outputDexFile = outDex.absolutePath
+        }
+        val ok = com.android.tools.smali.smali.Smali.assemble(options, smaliFiles)
+        assertTrue(ok, "Smali assemble must succeed")
+        println("Assembled to ${outDex.absolutePath} (${outDex.length()} bytes)")
+        val rootRes = File("../src/main/resources/TomteInitHelper.dex")
+        if (rootRes.parentFile.exists()) {
+            outDex.copyTo(rootRes, overwrite = true)
+            println("Copied to ${rootRes.absolutePath}")
+        }
     }
 }
 

@@ -674,62 +674,10 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 26. Force VFE Pipeline Enablement (rvq.b) ──
-        mutableClassDefByOrNull("Lrvq;")?.let { clazz ->
-            val smali = """
-                sget-object p0, Lyuq;->a:Lyuq;
-                const/4 v0, 0x0
-                invoke-static {p0, v0}, Lthd;->c(Ljava/util/Set;Z)Lthd;
-                move-result-object p0
-                invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
-                return-object p0
-            """.trimIndent()
-            PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lthd;", smali)
-        }
-
-        // ── 27. Force VFE Presentation Creation (rva.m) ──
-        mutableClassDefByOrNull("Lrva;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "m" && it.parameterTypes == listOf("Z", "Z") }?.let { method ->
-                val impl = method.implementation ?: return@let
-                val amIdx = impl.instructions.indexOfFirst {
-                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lrva;->am:Lurt;") == true
-                }
-                if (amIdx != -1) {
-                    val ifEqzIdx = impl.instructions.subList(amIdx, impl.instructions.size).indexOfFirst {
-                        it.opcode == Opcode.IF_EQZ
-                    }
-                    if (ifEqzIdx != -1) {
-                        val targetIdx = amIdx + ifEqzIdx
-                        val forceOne = "const/4 v5, 0x1".toInstructions(method)
-                        impl.addInstruction(targetIdx, forceOne[0])
-                    }
-                }
-            }
-        }
-
-        // ── 28. Force Viewfinder Stream to ImageReader for VFE (ozw.b) ──
-        mutableClassDefByOrNull("Lozw;")?.let { clazz ->
-            val smaliB = """
-                invoke-virtual {p0, p1}, Lozw;->a(Lusx;)Luwy;
-                move-result-object p0
-                invoke-static {}, Lvbg;->a()Lvbf;
-                move-result-object p1
-                sget-object v0, Lvbj;->a:Lvbj;
-                iput-object v0, p1, Lvbf;->a:Lvbj;
-                invoke-virtual {p1, p2}, Lvbf;->b(Lvgu;)V
-                invoke-virtual {p1, p0}, Lvbf;->p(Luwy;)V
-                const/16 p0, 0x22
-                invoke-virtual {p1, p0}, Lvbf;->j(I)V
-                const/4 p0, 0x7
-                invoke-virtual {p1, p0}, Lvbf;->c(I)V
-                const-wide/16 v0, 0x922
-                invoke-virtual {p1, v0, v1}, Lvbf;->t(J)V
-                invoke-virtual {p1}, Lvbf;->a()Lvbg;
-                move-result-object p0
-                return-object p0
-            """.trimIndent()
-            PixelCameraPatchUtils.replaceMethodBody(clazz, "b", "Lvbg;", smaliB)
-        }
+        // ── 26-28. Timelapse (Cheetah) VFE presentation overrides removed ──
+        // Note: rva, rvq, and ozw are internal Timelapse Mode ("Cheetah") classes.
+        // Forcing VFE presentation in rva.m causes a fatal crash (xum.E on null this.as).
+        // Camera Looks operates in photo/capture modes and does not touch Timelapse.
 
         // ── 29. Hook qwh.smali to connect Tone & Color Fine-Tuning sliders to TomteInitHelper & pco ──
         mutableClassDefByOrNull("Lqwh;")?.let { clazz ->

@@ -935,7 +935,7 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_camcorder_osprey
 
-    const/4 v0, 0x1
+    const/4 v0, 0x0
 
     return v0
 
@@ -948,7 +948,7 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_camcorder_stokes_dyn
 
-    const/4 v0, 0x1
+    const/4 v0, 0x0
 
     return v0
 
@@ -972,9 +972,24 @@ def patch_ksf_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig
+    if-eqz v1, :cond_check_raw_separate_folder
 
     const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_raw_separate_folder
+    const-string v1, "enable_camera_raw_folder_burst"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isRawSeparateFolderEnabled()Z
+
+    move-result v0
 
     return v0
 
@@ -1019,8 +1034,6 @@ def patch_ksf_smali():
                 "camera.video_prewarm",
                 "camcorder.scalable_vpipe",
                 "camcorder.surface_share",
-                "camcorder.peregrine",
-                "camcorder.osprey",
                 "camcorder.stokes_dyn",
                 "camcorder.4k60fps",
             ]
@@ -4506,28 +4519,15 @@ def patch_rvq_smali():
         print("    [*] rvq.smali already patched.")
 
 def patch_rva_smali():
-    print("[*] Patching rva.smali (Force VFE Presentation Pipeline Creation)...")
+    # rva is Timelapse Mode ("Cheetah"). Forcing VFE presentation pipeline causes a crash
+    # on xum.E(this.as) because this.as is null when kpk.e is false. Ensure it is clean.
     smali_path = os.path.join(APKTOOL_DIR, "smali_classes2", "rva.smali")
     if not os.path.exists(smali_path):
         return
     with open(smali_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    iget-object v5, v0, Lrva;->am:Lurt;
-
-    invoke-interface {v5}, Lurt;->d()Ljava/lang/Object;
-
-    move-result-object v5
-
-    check-cast v5, Ljava/lang/Boolean;
-
-    invoke-virtual {v5}, Ljava/lang/Boolean;->booleanValue()Z
-
-    move-result v5
-
-    if-eqz v5, :cond_19"""
-
-    replacement = """    iget-object v5, v0, Lrva;->am:Lurt;
+    bad_force = """    iget-object v5, v0, Lrva;->am:Lurt;
 
     invoke-interface {v5}, Lurt;->d()Ljava/lang/Object;
 
@@ -4543,46 +4543,46 @@ def patch_rva_smali():
 
     if-eqz v5, :cond_19"""
 
-    if target in content:
-        content = content.replace(target, replacement, 1)
+    clean_target = """    iget-object v5, v0, Lrva;->am:Lurt;
+
+    invoke-interface {v5}, Lurt;->d()Ljava/lang/Object;
+
+    move-result-object v5
+
+    check-cast v5, Ljava/lang/Boolean;
+
+    invoke-virtual {v5}, Ljava/lang/Boolean;->booleanValue()Z
+
+    move-result v5
+
+    if-eqz v5, :cond_19"""
+
+    if bad_force in content:
+        content = content.replace(bad_force, clean_target, 1)
         with open(smali_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] rva.smali: Bypassed absent VFE jump, creating Optional.of(wuq).")
-    elif replacement in content:
-        print("    [*] rva.smali already patched.")
+        print("    [+] rva.smali: Removed forced VFE pipeline (restored Timelapse stability).")
 
 def patch_ozw_smali():
-    print("[*] Patching ozw.smali (Route Viewfinder Stream to ImageReader for VFE)...")
     smali_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ozw.smali")
     if not os.path.exists(smali_path):
         return
     with open(smali_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    move-result p1
-
-    if-nez p1, :cond_0"""
-
-    replacement = """    move-result p1
+    bad_target = """    move-result p1
 
     goto :cond_0"""
 
-    if target in content:
-        content = content.replace(target, replacement, 1)
-        print("    [+] ozw.smali: Forced viewfinder stream to IMAGE_READER.")
-    elif replacement in content:
-        print("    [*] ozw.smali already patched for IMAGE_READER.")
+    clean_target = """    move-result p1
 
-    # Also ensure buffer usage is CPU cacheable (0x922)
-    target_usage = """    const-wide/16 v0, 0x100
+    if-nez p1, :cond_0"""
 
-    invoke-virtual {p1, v0, v1}, Lvbf;->t(J)V"""
-    repl_usage = """    const-wide/16 v0, 0x922
-
-    invoke-virtual {p1, v0, v1}, Lvbf;->t(J)V"""
-
-    if target_usage in content:
-        content = content.replace(target_usage, repl_usage, 1)
+    if bad_target in content:
+        content = content.replace(bad_target, clean_target, 1)
+        with open(smali_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("    [+] ozw.smali: Restored stock viewfinder stream condition for Timelapse.")
         print("    [+] ozw.smali: Updated buffer usage to 0x922 (CPU cacheable).")
 
     with open(smali_path, "w", encoding="utf-8") as f:
@@ -11009,6 +11009,14 @@ def patch_image_quality_preferences():
         else:
             print("    [+] strings.xml: RAW compression strings already present.")
 
+        if "pref_camera_raw_separate_folder_title" not in content:
+            raw_folder_strings = """    <string name="pref_camera_raw_separate_folder_title">Save RAW to Separate Folder</string>
+    <string name="pref_camera_raw_separate_folder_summary">Save DNG files in Pictures/Raw to prevent Google Photos from backing them up</string>"""
+            content = content.replace("<resources>", f"<resources>\n{raw_folder_strings}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: RAW separate folder strings added.")
+
         if "pref_video_sharpness_title" not in content:
             video_strings = """    <string name="pref_category_advanced_video_title">Advanced video settings</string>
     <string name="pref_video_sharpness_title">Video edge sharpness</string>
@@ -11196,13 +11204,21 @@ def patch_image_quality_preferences():
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />
     </androidx.preference.PreferenceCategory>"""
             content = content.replace('<androidx.preference.PreferenceCategory android:title="@string/mode_video"', f'{extra_gm3}\n    <androidx.preference.PreferenceCategory android:title="@string/mode_video"')
             with open(gm3_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print("    [+] camera_gm3_preferences.xml: Advanced settings category injected.")
         else:
-            print("    [+] camera_gm3_preferences.xml: Advanced settings category already present.")
+            if "pref_camera_raw_separate_folder_key" not in content:
+                raw_folder_pref = '        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreferenceCompat android:icon="@drawable/gs_raw_on_vd_theme_24" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />\n    </androidx.preference.PreferenceCategory>'
+                content = content.replace("    </androidx.preference.PreferenceCategory>", raw_folder_pref, 1)
+                with open(gm3_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_gm3_preferences.xml: RAW separate folder switch injected.")
+            else:
+                print("    [+] camera_gm3_preferences.xml: Advanced settings category already present.")
 
         if "pref_category_help_and_feedback" in content:
             about_gm3 = """    <androidx.preference.PreferenceCategory android:title="@string/pref_category_about_title" android:key="pref_category_about">
@@ -11242,13 +11258,21 @@ def patch_image_quality_preferences():
         <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_camera_noise_reduction_entries" android:title="@string/pref_camera_noise_reduction_title" android:key="pref_camera_noise_reduction_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_camera_noise_reduction_entryvalues" />
         <ListPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:entries="@array/pref_camera_raw_compression_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_compression_title" android:key="pref_camera_raw_compression_key" android:summary="%s" android:order="4" android:defaultValue="uncompressed" android:entryValues="@array/pref_camera_raw_compression_entryvalues" />
         <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_camera_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_sharpness_title" android:key="pref_camera_sharpness_key" android:summary="%s" android:order="5" android:defaultValue="natural" android:entryValues="@array/pref_camera_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />
     </PreferenceCategory>"""
             content = content.replace('<PreferenceCategory android:title="@string/mode_video"', f'{extra_cam}\n    <PreferenceCategory android:title="@string/mode_video"')
             with open(cam_pref_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print("    [+] camera_preferences.xml: Advanced settings category injected.")
         else:
-            print("    [+] camera_preferences.xml: Advanced settings category already present.")
+            if "pref_camera_raw_separate_folder_key" not in content:
+                raw_folder_cam = '        <com.google.android.apps.camera.ui.preference.ManagedSwitchPreference android:icon="@drawable/gs_raw_on_vd_theme_24" android:layout="@layout/preference_with_margin" android:title="@string/pref_camera_raw_separate_folder_title" android:key="pref_camera_raw_separate_folder_key" android:summary="@string/pref_camera_raw_separate_folder_summary" android:order="6" android:defaultValue="true" />\n    </PreferenceCategory>'
+                content = content.replace("    </PreferenceCategory>", raw_folder_cam, 1)
+                with open(cam_pref_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("    [+] camera_preferences.xml: RAW separate folder switch injected.")
+            else:
+                print("    [+] camera_preferences.xml: Advanced settings category already present.")
 
         if "pref_category_help_and_feedback" in content:
             about_cam = """    <PreferenceCategory android:title="@string/pref_category_about_title" android:key="pref_category_about">
