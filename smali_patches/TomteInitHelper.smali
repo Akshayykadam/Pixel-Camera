@@ -48,6 +48,10 @@
 
 .field public static volatile lastExposureTimeNs:J
 
+.field public static sLastNightSightTimestamp:J
+
+.field public static sLastNightSightCaptureTime:J
+
 
 
 # direct methods
@@ -101,6 +105,12 @@
     const-wide/32 v0, 0x1312d00
 
     sput-wide v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->lastExposureTimeNs:J
+
+    const-wide/16 v0, 0x0
+
+    sput-wide v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastNightSightTimestamp:J
+
+    sput-wide v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastNightSightCaptureTime:J
 
 
     :try_start_propatcher
@@ -8505,6 +8515,32 @@
     goto/16 :goto_ret
 
     :cond_1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isNightSightActive()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_dims
+
+    const-string v2, "com.google.android.apps.camera.gallery.specialtype.SpecialType-NIGHT"
+
+    invoke-static {p1, v2}, Lvoc;->m(Lgyn;Ljava/lang/String;)V
+
+    if-eqz p2, :cond_log_night
+
+    const/4 v0, 0x1
+
+    invoke-virtual {p2, v0}, Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V
+
+    :cond_log_night
+    const-string p0, "PATCH_LOOKS"
+
+    const-string p1, "Injected SpecialTypeID: com.google.android.apps.camera.gallery.specialtype.SpecialType-NIGHT"
+
+    invoke-static {p0, p1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    goto/16 :goto_ret
+
+    :cond_check_dims
     invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->parseJpegDimensions([B)[I
 
     move-result-object p0
@@ -8648,6 +8684,24 @@
     return-object p0
 
     :cond_0
+    sget-object v0, Lmhb;->f:Lmhb;
+
+    if-ne p0, v0, :cond_check_active_night
+
+    return-object p0
+
+    :cond_check_active_night
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isNightSightActive()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_bytes
+
+    sget-object p0, Lmhb;->f:Lmhb;
+
+    return-object p0
+
+    :cond_check_bytes
     instance-of v0, p1, [B
 
     if-eqz v0, :cond_4
@@ -8783,13 +8837,13 @@
     return-object p0
 
     :cond_0
-    if-eqz p0, :cond_2
+    if-eqz p0, :cond_check_night
 
     invoke-virtual {p0}, Lyia;->h()Z
 
     move-result v0
 
-    if-eqz v0, :cond_2
+    if-eqz v0, :cond_check_night
 
     invoke-virtual {p0}, Lyia;->c()Ljava/lang/Object;
 
@@ -8797,13 +8851,24 @@
 
     check-cast v0, Lmhb;
 
+    sget-object v1, Lmhb;->f:Lmhb;
+
+    invoke-virtual {v0, v1}, Lmhb;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_not_night
+
+    return-object p0
+
+    :cond_not_night
     sget-object v1, Lmhb;->a:Lmhb;
 
     invoke-virtual {v0, v1}, Lmhb;->equals(Ljava/lang/Object;)Z
 
     move-result v1
 
-    if-nez v1, :cond_2
+    if-nez v1, :cond_check_night
 
     sget-object v1, Lmhb;->t:Lmhb;
 
@@ -8811,7 +8876,7 @@
 
     move-result v1
 
-    if-nez v1, :cond_2
+    if-nez v1, :cond_check_night
 
     sget-object v1, Lmhb;->e:Lmhb;
 
@@ -8838,7 +8903,44 @@
     :cond_1
     return-object p0
 
-    :cond_2
+    :cond_check_night
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMediaNight(J)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_50
+
+    const-string v0, "PATCH_LOOKS"
+
+    new-instance v1, Ljava/lang/StringBuilder;
+
+    invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v2, "resolveSpecialTypeForMediaId: ID "
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v1, p1, p2}, Ljava/lang/StringBuilder;->append(J)Ljava/lang/StringBuilder;
+
+    const-string v2, " is Night Sight -> NIGHT"
+
+    invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    sget-object p1, Lmhb;->f:Lmhb;
+
+    invoke-static {p1}, Lyia;->i(Ljava/lang/Object;)Lyia;
+
+    move-result-object p1
+
+    return-object p1
+
+    :cond_check_50
     invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isMedia50MP(J)Z
 
     move-result v0
@@ -8985,6 +9087,182 @@
     const/4 p0, 0x0
 
     return p0
+.end method
+
+.method public static isMediaNight(J)Z
+    .locals 8
+
+    :try_start_0
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getApplicationContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    if-nez v0, :cond_0
+
+    const/4 p0, 0x0
+
+    return p0
+
+    :cond_0
+    sget-object v1, Landroid/provider/MediaStore$Images$Media;->EXTERNAL_CONTENT_URI:Landroid/net/Uri;
+
+    invoke-static {v1, p0, p1}, Landroid/content/ContentUris;->withAppendedId(Landroid/net/Uri;J)Landroid/net/Uri;
+
+    move-result-object v3
+
+    invoke-virtual {v0}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
+
+    move-result-object v2
+
+    const-string p0, "_data"
+
+    const-string p1, "_display_name"
+
+    filled-new-array {p0, p1}, [Ljava/lang/String;
+
+    move-result-object v4
+
+    const/4 v5, 0x0
+
+    const/4 v6, 0x0
+
+    const/4 v7, 0x0
+
+    invoke-virtual/range {v2 .. v7}, Landroid/content/ContentResolver;->query(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;
+
+    move-result-object p0
+
+    if-eqz p0, :cond_3
+
+    invoke-interface {p0}, Landroid/database/Cursor;->moveToFirst()Z
+
+    move-result p1
+
+    if-eqz p1, :cond_2
+
+    const/4 p1, 0x0
+
+    invoke-interface {p0, p1}, Landroid/database/Cursor;->getString(I)Ljava/lang/String;
+
+    move-result-object p1
+
+    const/4 v0, 0x1
+
+    invoke-interface {p0, v0}, Landroid/database/Cursor;->getString(I)Ljava/lang/String;
+
+    move-result-object v1
+
+    invoke-interface {p0}, Landroid/database/Cursor;->close()V
+
+    const-string p0, "NIGHT"
+
+    if-eqz p1, :cond_1
+
+    invoke-virtual {p1, p0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result p1
+
+    if-eqz p1, :cond_1
+
+    return v0
+
+    :cond_1
+    if-eqz v1, :cond_3
+
+    invoke-virtual {v1, p0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result p0
+
+    if-eqz p0, :cond_3
+
+    return v0
+
+    :cond_2
+    invoke-interface {p0}, Landroid/database/Cursor;->close()V
+
+    :cond_3
+    const/4 p0, 0x0
+
+    return p0
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_all
+
+    :catch_all
+    move-exception p0
+
+    const-string p1, "PATCH_LOOKS"
+
+    const-string v0, "isMediaNight error"
+
+    invoke-static {p1, v0, p0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+
+    const/4 p0, 0x0
+
+    return p0
+.end method
+
+.method public static onNightSightSession(J)V
+    .locals 2
+
+    sput-wide p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastNightSightTimestamp:J
+
+    invoke-static {}, Ljava/lang/System;->currentTimeMillis()J
+
+    move-result-wide v0
+
+    sput-wide v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastNightSightCaptureTime:J
+
+    const-string v0, "PATCH_LOOKS"
+
+    const-string v1, "onNightSightSession: recorded Night Sight session"
+
+    invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    return-void
+.end method
+
+.method public static isNightSightActive()Z
+    .locals 4
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/16 v1, 0x9
+
+    if-ne v0, v1, :cond_check_recent
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_recent
+    invoke-static {}, Ljava/lang/System;->currentTimeMillis()J
+
+    move-result-wide v0
+
+    sget-wide v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastNightSightCaptureTime:J
+
+    sub-long/2addr v0, v2
+
+    const-wide/32 v2, 0xea60
+
+    cmp-long v2, v0, v2
+
+    if-gez v2, :cond_false
+
+    const-wide/16 v2, 0x0
+
+    cmp-long v0, v0, v2
+
+    if-ltz v0, :cond_false
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_false
+    const/4 v0, 0x0
+
+    return v0
 .end method
 
 .method public static isHighResShot(ZLomw;)Z

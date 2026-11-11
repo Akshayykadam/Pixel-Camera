@@ -5637,6 +5637,33 @@ def patch_high_resolution_metadata():
                 f.write(content)
             print("    [+] mgx.smali: patched for resolveSpecialTypeForMediaId.")
 
+    # 9. rbu.smali (Night Sight capture session hook to track timestamp & force NIGHT SpecialType)
+    rbu_path = os.path.join(APKTOOL_DIR, "smali", "rbu.smali")
+    if os.path.exists(rbu_path):
+        with open(rbu_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        target_rbu = """.method public final j(JZZ)Lrbs;
+    .locals 2
+
+    if-eqz p4, :cond_0
+
+    sget-object p4, Lmhb;->p:Lmhb;"""
+        repl_rbu = """.method public final j(JZZ)Lrbs;
+    .locals 2
+
+    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onNightSightSession(J)V
+
+    if-eqz p4, :cond_0
+
+    sget-object p4, Lmhb;->f:Lmhb;"""
+        if repl_rbu in content:
+            print("    [+] rbu.smali: already patched for onNightSightSession.")
+        elif target_rbu in content:
+            content = content.replace(target_rbu, repl_rbu, 1)
+            with open(rbu_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] rbu.smali: patched for onNightSightSession.")
+
 def patch_poy_smali():
     print("[*] Patching poy.smali (Inject TomteProSettingsPanel in bottomsheet M(I))...")
     poy_path = os.path.join(APKTOOL_DIR, "smali", "poy.smali")

@@ -508,6 +508,29 @@ val proControlsPatch = bytecodePatch(
             }
         }
 
+        // h2) rbu: Hook Night Sight capture session creation in j(JZZ)Lrbs;
+        mutableClassDefByOrNull("Lrbu;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "j" && it.parameterTypes.size == 3 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookSmali = """
+                    invoke-static {p1, p2}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onNightSightSession(J)V
+                """.trimIndent()
+                val newIns = hookSmali.toInstructions(method)
+                var pos = 0
+                for (ni in newIns) {
+                    impl.addInstruction(pos++, ni)
+                }
+
+                val pIdx = impl.instructions.indexOfFirst { ins ->
+                    (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lmhb;->p:Lmhb;") == true
+                }
+                if (pIdx != -1) {
+                    val nightIns = "sget-object p4, Lmhb;->f:Lmhb;".toInstructions(method).first()
+                    impl.replaceInstruction(pIdx, nightIns)
+                }
+            }
+        }
+
         // i) CameraContentProvider: bypass signature verification in a()V
         mutableClassDefByOrNull("Lcom/google/android/apps/camera/contentprovider/CameraContentProvider;")?.let { clazz ->
             app.morphe.patches.pixelcamera.PixelCameraPatchUtils.forceReturnVoid(clazz, "a")

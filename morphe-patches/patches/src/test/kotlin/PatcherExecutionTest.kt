@@ -230,9 +230,10 @@ class PatcherExecutionTest {
         }
         assertTrue(foundJhhHook, "jhh.a must hook filterVideoNoiseReductionMode right before NOISE_REDUCTION_MODE")
 
-        // Verify 50MP High Resolution session flag and SpecialTypesProvider hooks
+        // Verify 50MP High Resolution session flag, Night Sight session, and SpecialTypesProvider hooks
         var foundOmsHiRes = false
         var foundOmlHiRes = false
+        var foundRbuNight = false
         var foundCcpBypass = false
         var foundMgsGuard = false
         var foundKsoBypass = false
@@ -240,6 +241,13 @@ class PatcherExecutionTest {
         for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
             for (c in dex.classes) {
+                if (c.type == "Lrbu;") {
+                    val jMethod = c.methods.firstOrNull { it.name == "j" }
+                    val insList = jMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("onNightSightSession") == true }) {
+                        foundRbuNight = true
+                    }
+                }
                 if (c.type == "Loms;") {
                     for (m in c.methods) {
                         val insList = m.implementation?.instructions?.toList() ?: emptyList()
@@ -288,12 +296,13 @@ class PatcherExecutionTest {
         }
         assertTrue(foundOmsHiRes, "oms must be hooked with isHighResShot(omw)")
         assertTrue(foundOmlHiRes, "oml must be hooked with isHighResShot(omw)")
+        assertTrue(foundRbuNight, "rbu.j must be hooked with onNightSightSession")
         assertTrue(foundCcpBypass, "CameraContentProvider.a must return void to unblock Google Photos queries")
         assertTrue(foundMgsGuard, "mgs.a must guard null projection")
         assertTrue(foundKsoBypass, "kso.a must return true to bypass caller signature verification")
         assertTrue(foundKsaClonedAuth, "ksa.<clinit> must align SpecialTypesProvider authority to cloned package")
 
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, rbu.night=$foundRbuNight, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
     }
 
     @Test

@@ -797,3 +797,36 @@ This document tracks bugs, image tuning observations, and feature requests repor
   1. Updated `TomteInitHelper.smali`, `ksf.smali`, and `build_and_patch_pixelcamera.py` to return `0` (`false`) for `camcorder.peregrine` and `camcorder.osprey`.
   2. Ensured Video Portrait (`mode_amber`) strictly clamps to **1080p** (`RES_1080P` / `FHD`), satisfying Lyric HAL's Video Bokeh hardware constraints.
   3. Recompiled, signed, and installed `PixelCamera-1.1.3.apk` on physical Pixel 8 Pro. Captured on-device screenshot verifying live FHD Video Portrait viewfinder feed.
+
+### 26. Missing Night Sight Badge in Google Photos
+* **Status:** ✅ **Fixed & Verified**
+* **Reporter:** User testing
+* **Symptom:**
+  High Resolution (50MP) photos received the "High Res" badge in Google Photos, but Night Shots (both standard ~12.5MP and 50MP Night Sight captures) did not show the "Night Sight" badge/tag in Google Photos.
+* **Root Causes:**
+  1. **Dual Tagging Path in Google Photos:**
+     Google Photos determines Special Types via two complementary mechanisms:
+     - **Embedded XMP Metadata:** Direct file inspection of `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-NIGHT"` in the primary JPEG header.
+     - **`SpecialTypesProvider` ContentProvider Queries:** Querying `content://com.google.android.GoogleCamera.specialtypes.SpecialTypesProvider/data/<mediaId>` on media review and catalog indexing.
+  2. **Early Return in `TomteInitHelper.injectSpecialTypeToXmp`:**
+     In `ocw.smali`, XMP injection was delegated to `TomteInitHelper.injectSpecialTypeToXmp([BLgyn;AtomicBoolean;)V`. Previously, this method checked `is50MPActive()` and returned early if the capture was standard ~12.5MP. Consequently, standard Night Sight captures wrote no `GCamera:SpecialTypeID` to XMP, and 50MP Night Sight captures were tagged as `HIGH_RESOLUTION` instead of `NIGHT`.
+  3. **Downstream SpecialType Overwriting in `fp.smali` & `rbu.j`:**
+     In `rbu.smali` method `j(JZZ)Lrbs;`, when high-resolution capture was active (`p4 != 0`), Google Camera assigned `p4 = Lmhb.p` (`HIGH_RESOLUTION`) rather than `Lmhb.f` (`NIGHT`), discarding the night capture type. In `fp.smali`, `TomteInitHelper.getEffectiveSpecialTypeForJpegBytes` was unconditionally replacing non-portrait special types with `Lmhb.p` if 50MP was active.
+  4. **Fallback in `SpecialTypesProvider` Media Resolution:**
+     In `mgx.smali`, queries to `SpecialTypesProvider` routed through `resolveSpecialTypeForMediaId(Lyia;J)Lyia;`. If the in-memory cache missed, it only checked `isMedia50MP(mediaId)`, returning `HIGH_RESOLUTION` for 50MP captures and `absent` for 12.5MP files, never returning `Lmhb.f` (`NIGHT`).
+* **Resolution:**
+  1. **Night Sight Session & State Tracking:**
+     - Added `sLastNightSightTimestamp:J` and `sLastNightSightCaptureTime:J` static fields and `onNightSightSession(J)V` tracking hook in `TomteInitHelper`.
+     - Enhanced `isNightSightActive()Z` to check both mode ordinal 9 (`Ltbp.j` = `NIGHT_SIGHT`) and recent Night Sight captures within a 60-second window.
+  2. **Night Sight Hook in Session Factory (`rbu.smali`):**
+     - Hooked `.method public final j(JZZ)Lrbs;` at method entry to invoke `TomteInitHelper.onNightSightSession(p1, p2)`.
+     - Replaced `sget-object p4, Lmhb;->p:Lmhb;` with `sget-object p4, Lmhb;->f:Lmhb;` so that all Night Sight sessions retain `Lmhb.f` (`NIGHT`).
+  3. **Direct XMP Tag Injection:**
+     - Updated `injectSpecialTypeToXmp` to prioritize `isNightSightActive()`, directly injecting `GCamera:SpecialTypeID = "com.google.android.apps.camera.gallery.specialtype.SpecialType-NIGHT"` via `voc.m` and triggering XMP serialization.
+  4. **SpecialType Preservation in Saver & Provider:**
+     - Updated `getEffectiveSpecialTypeForJpegBytes` to preserve `Lmhb.f` whenever incoming type is `Lmhb.f` or `isNightSightActive()` is true.
+     - Implemented `isMediaNight(J)Z` querying MediaStore `_data` and `_display_name` for the standard `"NIGHT"` filename token (`PXL_...NIGHT.jpg`).
+     - Updated `resolveSpecialTypeForMediaId` in `mgx.smali` to resolve `Lmhb.f` (`NIGHT`) for night captures, returning `Lyia.i(Lmhb.f)` to Google Photos.
+  5. **Cross-Patcher Synchronization & Verification:**
+     - Synchronized changes across `smali_patches/TomteInitHelper.smali`, `apktool_full/smali_classes4/.../TomteInitHelper.smali`, `apktool_full/smali/rbu.smali`, `build_and_patch_pixelcamera.py`, and Morphe bytecode patch `ProControlsPatch.kt`.
+     - Reassembled `TomteInitHelper.dex` and verified all DEX bytecode assertions (`rbu.night=true`, `oms.hi_res=true`, `ccp.bypass=true`, etc.) in `PatcherExecutionTest.testPatcherRun` with Gradle `BUILD SUCCESSFUL`.
