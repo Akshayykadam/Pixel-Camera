@@ -842,6 +842,136 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_24fps
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_24fps
+    const-string v1, "camcorder.24fps"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_video_smooth_filter
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_smooth_filter
+    const-string v1, "camera.video_smooth_zoom_filter"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_video_smooth_spring
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_smooth_spring
+    const-string v1, "camera.video_smooth_zoom_spring"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_video_prewarm
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_prewarm
+    const-string v1, "camera.video_prewarm"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_scalable_vpipe
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_scalable_vpipe
+    const-string v1, "camcorder.scalable_vpipe"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_surface_share
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_surface_share
+    const-string v1, "camcorder.surface_share"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_peregrine
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_peregrine
+    const-string v1, "camcorder.peregrine"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_osprey
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_osprey
+    const-string v1, "camcorder.osprey"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_stokes_dyn
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_stokes_dyn
+    const-string v1, "camcorder.stokes_dyn"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_4k60fps
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_4k60fps
+    const-string v1, "camcorder.4k60fps"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_orig
 
     const/4 v0, 0x1
@@ -883,6 +1013,16 @@ def patch_ksf_smali():
                 "camera.ark_lens_selector",
                 "camcorder.jellybean_setting",
                 "camcorder_jellybean_feature",
+                "camcorder.24fps",
+                "camera.video_smooth_zoom_filter",
+                "camera.video_smooth_zoom_spring",
+                "camera.video_prewarm",
+                "camcorder.scalable_vpipe",
+                "camcorder.surface_share",
+                "camcorder.peregrine",
+                "camcorder.osprey",
+                "camcorder.stokes_dyn",
+                "camcorder.4k60fps",
             ]
             chain_x = ""
             for idx, flag in enumerate(flags_x):
@@ -1360,6 +1500,69 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_smooth_zoom_min_cutoff
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_min_cutoff
+    const-string v1, "camera.video_smooth_zoom_min_cutoff"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_smooth_zoom_beta
+
+    const v0, 0x3f99999a    # 1.2f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_beta
+    const-string v1, "camera.video_smooth_zoom_beta"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_smooth_zoom_deriv
+
+    const v0, 0x3c03126f    # 0.008f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_deriv
+    const-string v1, "camera.video_smooth_zoom_derivative_cutoff"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_orig_r
 
     const/high16 v0, 0x3f800000    # 1.0f
@@ -1378,6 +1581,68 @@ def patch_ksf_smali():
     """
             content = content[:r_start] + new_r + content[map_idx2:]
             print("    [+] klm.smali: r(Lkps;) patched for Gouda max_zoom, mantis, and Boba Jelly flags.")
+
+    # 3b. Patch a(Lkpr;)Lj$/util/Optional;
+    a_start = content.find(".method public final a(Lkpr;)Lj$/util/Optional;")
+    if a_start != -1:
+        a_end = content.find(".end method", a_start)
+        target_marker_a = "iget-object v0, p0, Lksf;->b:Ljava/util/Map;"
+        map_idx_a = content.find(target_marker_a, a_start)
+        if map_idx_a != -1 and map_idx_a < a_end:
+            new_a = """.method public final a(Lkpr;)Lj$/util/Optional;
+    .locals 7
+
+    if-eqz p1, :cond_check_orig_a
+
+    iget-object v0, p1, Lkpq;->a:Ljava/lang/String;
+
+    if-eqz v0, :cond_check_orig_a
+
+    const-string v1, "camera.video_zoom_animation_duration"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_zoom_curve_preset
+
+    const/16 v0, 0x17c
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_zoom_curve_preset
+    const-string v1, "camera.zoom_curve_control_preset"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig_a
+
+    const/16 v0, 0x8
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_orig_a
+    """
+            content = content[:a_start] + new_a + content[map_idx_a:]
+            print("    [+] klm.smali: a(Lkpr;) patched for video zoom animation duration (380ms) and curve preset (8).")
 
     # 4. Replace missing Lasagna models in klm.smali
     content = content.replace("4af512f87afd43af81a4bbd160034804/4af512f87afd43af81a4bbd160034804.uncompressed", "")
@@ -10761,11 +11026,25 @@ def patch_image_quality_preferences():
     <string name="pref_video_noise_reduction_entry_minimal">Minimal</string>
     <string name="pref_video_noise_reduction_entry_minimal_desc">Minimal filtering (Fast) preserving fine texture</string>
     <string name="pref_video_noise_reduction_entry_off">Off (Sensor Grain)</string>
-    <string name="pref_video_noise_reduction_entry_off_desc">Disables hardware noise reduction for organic sensor texture</string>"""
+    <string name="pref_video_noise_reduction_entry_off_desc">Disables hardware noise reduction for organic sensor texture</string>
+    <string name="pref_video_bitrate_title">Video bitrate &amp; encoding</string>
+    <string name="pref_video_bitrate_entry_stock">Stock (Standard)</string>
+    <string name="pref_video_bitrate_entry_stock_desc">Standard Google Camera bitrate (~45-55 Mbps for 4K)</string>
+    <string name="pref_video_bitrate_entry_high">High (100 Mbps Pro)</string>
+    <string name="pref_video_bitrate_entry_high_desc">100 Mbps at 4K60 / 70 Mbps at 4K30; clamped QP 12-24 for reduced compression artifacts</string>
+    <string name="pref_video_bitrate_entry_ultra">Ultra (150 Mbps Cinema)</string>
+    <string name="pref_video_bitrate_entry_ultra_desc">150 Mbps at 4K60 / 110 Mbps at 4K30; clamped QP 10-20 for maximum mastering bit depth</string>
+    <string name="pref_video_stabilization_mode_title">Video stabilization mode</string>
+    <string name="pref_video_stabilization_mode_entry_standard">Standard (OIS + EIS)</string>
+    <string name="pref_video_stabilization_mode_entry_standard_desc">Full electronic and optical stabilization with dynamic cropping</string>
+    <string name="pref_video_stabilization_mode_entry_ois_only">OIS Only (Cinema Wide, 0% Crop)</string>
+    <string name="pref_video_stabilization_mode_entry_ois_only_desc">Hardware optical stabilization only; disables electronic warping and crop for maximum wide field of view</string>
+    <string name="pref_video_stabilization_mode_entry_off">Off (Gimbal / Tripod)</string>
+    <string name="pref_video_stabilization_mode_entry_off_desc">Disables both OIS and EIS; ideal for motorized gimbals and tripod shots</string>"""
             content = content.replace("<resources>", f"<resources>\n{video_strings}")
             with open(strings_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("    [+] strings.xml: Video Sharpness and Noise Reduction strings added.")
+            print("    [+] strings.xml: Video Sharpness, Noise Reduction, Bitrate, and Stabilization strings added.")
         else:
             print("    [+] strings.xml: Video Sharpness strings already present.")
 
@@ -10869,6 +11148,36 @@ def patch_image_quality_preferences():
         <item>stock</item>
         <item>minimal</item>
         <item>off</item>
+    </string-array>
+    <string-array name="pref_video_bitrate_entries">
+        <item>@string/pref_video_bitrate_entry_stock</item>
+        <item>@string/pref_video_bitrate_entry_high</item>
+        <item>@string/pref_video_bitrate_entry_ultra</item>
+    </string-array>
+    <string-array name="pref_video_bitrate_entrydescriptions">
+        <item>@string/pref_video_bitrate_entry_stock_desc</item>
+        <item>@string/pref_video_bitrate_entry_high_desc</item>
+        <item>@string/pref_video_bitrate_entry_ultra_desc</item>
+    </string-array>
+    <string-array name="pref_video_bitrate_entryvalues">
+        <item>stock</item>
+        <item>high</item>
+        <item>ultra</item>
+    </string-array>
+    <string-array name="pref_video_stabilization_mode_entries">
+        <item>@string/pref_video_stabilization_mode_entry_standard</item>
+        <item>@string/pref_video_stabilization_mode_entry_ois_only</item>
+        <item>@string/pref_video_stabilization_mode_entry_off</item>
+    </string-array>
+    <string-array name="pref_video_stabilization_mode_entrydescriptions">
+        <item>@string/pref_video_stabilization_mode_entry_standard_desc</item>
+        <item>@string/pref_video_stabilization_mode_entry_ois_only_desc</item>
+        <item>@string/pref_video_stabilization_mode_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_video_stabilization_mode_entryvalues">
+        <item>standard</item>
+        <item>ois_only</item>
+        <item>off</item>
     </string-array>"""
             content = content.replace("<resources>", f"<resources>\n{video_arrays}")
             with open(arrays_path, "w", encoding="utf-8") as f:
@@ -10911,6 +11220,8 @@ def patch_image_quality_preferences():
             video_gm3 = """    <androidx.preference.PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
         <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_videocam_vd_theme_24" android:entries="@array/pref_video_bitrate_entries" android:title="@string/pref_video_bitrate_title" android:key="pref_video_bitrate_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_video_bitrate_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_video_stable_vd_theme_24" android:entries="@array/pref_video_stabilization_mode_entries" android:title="@string/pref_video_stabilization_mode_title" android:key="pref_video_stabilization_mode_key" android:summary="%s" android:order="4" android:defaultValue="standard" android:entryValues="@array/pref_video_stabilization_mode_entryvalues" />
     </androidx.preference.PreferenceCategory>"""
             match = re.search(r'(<androidx\.preference\.PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</androidx\.preference\.PreferenceCategory>)', content)
             if match:
@@ -10955,6 +11266,8 @@ def patch_image_quality_preferences():
             video_cam = """    <PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
         <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
         <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_videocam_vd_theme_24" android:entries="@array/pref_video_bitrate_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_bitrate_title" android:key="pref_video_bitrate_key" android:summary="%s" android:order="3" android:defaultValue="stock" android:entryValues="@array/pref_video_bitrate_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_video_stable_vd_theme_24" android:entries="@array/pref_video_stabilization_mode_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_stabilization_mode_title" android:key="pref_video_stabilization_mode_key" android:summary="%s" android:order="4" android:defaultValue="standard" android:entryValues="@array/pref_video_stabilization_mode_entryvalues" />
     </PreferenceCategory>"""
             match = re.search(r'(<PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</PreferenceCategory>)', content)
             if match:
@@ -11148,6 +11461,22 @@ def patch_image_quality_preferences():
 
     invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
+    move-result v1
+
+    if-nez v1, :cond_restart_tuning
+
+    const-string v1, "pref_video_bitrate_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_restart_tuning
+
+    const-string v1, "pref_video_stabilization_mode_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
     move-result v0
 
     if-eqz v0, :cond_done
@@ -11289,6 +11618,37 @@ def patch_image_quality_preferences():
             with open(jhh_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print("    [+] jhh.smali: dynamic noise reduction hooked with TomteInitHelper.filterVideoNoiseReductionMode().")
+
+    # 14. Patch uuy.smali (MediaFormat bitrate & QP clamp -> filterVideoBitrate)
+    uuy_path = os.path.join(APKTOOL_DIR, "smali_classes2", "uuy.smali")
+    if os.path.exists(uuy_path):
+        with open(uuy_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        uuy_target = """    invoke-virtual {p1}, Lute;->b()I
+
+    move-result v10
+
+    const-string v11, "bitrate"
+
+    invoke-virtual {v9, v11, v10}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V"""
+        uuy_repl = """    invoke-virtual {p1}, Lute;->b()I
+
+    move-result v10
+
+    invoke-static {v10, v9}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoBitrate(ILandroid/media/MediaFormat;)I
+
+    move-result v10
+
+    const-string v11, "bitrate"
+
+    invoke-virtual {v9, v11, v10}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V"""
+        if "filterVideoBitrate" in content:
+            print("    [+] uuy.smali: already hooked with filterVideoBitrate.")
+        elif uuy_target in content:
+            content = content.replace(uuy_target, uuy_repl)
+            with open(uuy_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] uuy.smali: bitrate creation hooked with TomteInitHelper.filterVideoBitrate().")
 
 
 def patch_fzf_smali():

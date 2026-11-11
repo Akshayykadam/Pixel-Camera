@@ -900,6 +900,14 @@ val cameraLooksPatch = bytecodePatch(
                 if-nez v1, :cond_restart_tuning
                 const-string v1, "pref_video_noise_reduction_key"
                 invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v1
+                if-nez v1, :cond_restart_tuning
+                const-string v1, "pref_video_bitrate_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v1
+                if-nez v1, :cond_restart_tuning
+                const-string v1, "pref_video_stabilization_mode_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
                 move-result v0
                 if-eqz v0, :cond_done
                 :cond_restart_tuning
@@ -999,6 +1007,27 @@ val cameraLooksPatch = bytecodePatch(
                         } catch (_: Throwable) {}
                         break
                     }
+                }
+            }
+        }
+
+        // ── 35. Hook Luuy;-><init> before setInteger("bitrate") to apply Pro Video Bitrate and QP clamp ──
+        mutableClassDefByOrNull("Luuy;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "<init>" && it.parameterTypes.size >= 10 }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val bitrateIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("bitrate") == true
+                }
+                if (bitrateIdx != -1) {
+                    try {
+                        val insList = """
+                            invoke-static {v10, v9}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoBitrate(ILandroid/media/MediaFormat;)I
+                            move-result v10
+                        """.trimIndent().toInstructions(method)
+                        for ((offset, ins) in insList.withIndex()) {
+                            impl.addInstruction(bitrateIdx + offset, ins)
+                        }
+                    } catch (_: Throwable) {}
                 }
             }
         }

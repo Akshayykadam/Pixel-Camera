@@ -3240,6 +3240,304 @@
     return p0
 .end method
 
+.method public static getVideoStabilizationMode()I
+    .locals 2
+
+    :try_start_gvsm
+    const-string v0, "pref_video_stabilization_mode_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_vsm_default
+
+    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "ois_only"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vsm_ois
+
+    const-string v1, "1"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_vsm_check_off
+
+    :cond_vsm_ois
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_vsm_check_off
+    const-string v1, "off"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vsm_off
+
+    const-string v1, "2"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_vsm_default
+
+    :cond_vsm_off
+    const/4 v0, 0x2
+
+    return v0
+
+    :cond_vsm_default
+    const/4 v0, 0x0
+
+    return v0
+    :try_end_gvsm
+    .catch Ljava/lang/Throwable; {:try_start_gvsm .. :try_end_gvsm} :catch_gvsm
+
+    :catch_gvsm
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static filterVideoBitrate(ILandroid/media/MediaFormat;)I
+    .locals 4
+
+    if-gtz p0, :cond_chk_pref
+
+    return p0
+
+    :cond_chk_pref
+    :try_start_fvb
+    const-string v0, "pref_video_bitrate_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-nez v0, :cond_chk_val
+
+    return p0
+
+    :cond_chk_val
+    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "high"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_high_bitrate
+
+    const-string v1, "1"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_chk_ultra
+
+    :cond_high_bitrate
+    if-eqz p1, :cond_high_mult
+
+    :try_start_high_fmt
+    const-string v0, "video-qp-max"
+
+    const/16 v1, 0x18
+
+    invoke-virtual {p1, v0, v1}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V
+
+    const-string v0, "video-qp-min"
+
+    const/16 v1, 0xc
+
+    invoke-virtual {p1, v0, v1}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V
+
+    const-string v0, "width"
+
+    invoke-virtual {p1, v0}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v0
+
+    const-string v1, "height"
+
+    invoke-virtual {p1, v1}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v1
+
+    mul-int/2addr v0, v1
+
+    const v1, 0x700000
+
+    if-lt v0, v1, :cond_high_1080
+
+    const-string v0, "frame-rate"
+
+    invoke-virtual {p1, v0}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v0
+
+    const/16 v1, 0x30
+
+    if-ge v0, v1, :cond_high_4k60
+
+    const v1, 0x344c200
+
+    if-le p0, v1, :cond_high_4k30
+
+    :cond_high_4k60
+    const p0, 0x5f5e100
+
+    return p0
+
+    :cond_high_4k30
+    const p0, 0x42c1d80
+
+    return p0
+
+    :cond_high_1080
+    const v1, 0x1c0000
+
+    if-lt v0, v1, :cond_high_mult
+
+    const p0, 0x2160ec0
+
+    return p0
+    :try_end_high_fmt
+    .catch Ljava/lang/Throwable; {:try_start_high_fmt .. :try_end_high_fmt} :catch_high_fmt
+
+    :catch_high_fmt
+    :cond_high_mult
+    shr-int/lit8 v0, p0, 0x1
+
+    shr-int/lit8 v1, p0, 0x3
+
+    add-int/2addr p0, v0
+
+    add-int/2addr p0, v1
+
+    return p0
+
+    :cond_chk_ultra
+    const-string v1, "ultra"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_ultra_bitrate
+
+    const-string v1, "2"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_ret_orig
+
+    :cond_ultra_bitrate
+    if-eqz p1, :cond_ultra_mult
+
+    :try_start_ultra_fmt
+    const-string v0, "video-qp-max"
+
+    const/16 v1, 0x14
+
+    invoke-virtual {p1, v0, v1}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V
+
+    const-string v0, "video-qp-min"
+
+    const/16 v1, 0xa
+
+    invoke-virtual {p1, v0, v1}, Landroid/media/MediaFormat;->setInteger(Ljava/lang/String;I)V
+
+    const-string v0, "width"
+
+    invoke-virtual {p1, v0}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v0
+
+    const-string v1, "height"
+
+    invoke-virtual {p1, v1}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v1
+
+    mul-int/2addr v0, v1
+
+    const v1, 0x700000
+
+    if-lt v0, v1, :cond_ultra_1080
+
+    const-string v0, "frame-rate"
+
+    invoke-virtual {p1, v0}, Landroid/media/MediaFormat;->getInteger(Ljava/lang/String;)I
+
+    move-result v0
+
+    const/16 v1, 0x30
+
+    if-ge v0, v1, :cond_ultra_4k60
+
+    const v1, 0x344c200
+
+    if-le p0, v1, :cond_ultra_4k30
+
+    :cond_ultra_4k60
+    const p0, 0x8f0d180
+
+    return p0
+
+    :cond_ultra_4k30
+    const p0, 0x68de980
+
+    return p0
+
+    :cond_ultra_1080
+    const v1, 0x1c0000
+
+    if-lt v0, v1, :cond_ultra_mult
+
+    const p0, 0x2faf080
+
+    return p0
+    :try_end_ultra_fmt
+    .catch Ljava/lang/Throwable; {:try_start_ultra_fmt .. :try_end_ultra_fmt} :catch_ultra_fmt
+
+    :catch_ultra_fmt
+    :cond_ultra_mult
+    shl-int/lit8 v0, p0, 0x1
+
+    shr-int/lit8 v1, p0, 0x3
+
+    add-int/2addr v0, v1
+
+    return v0
+
+    :cond_ret_orig
+    return p0
+    :try_end_fvb
+    .catch Ljava/lang/Throwable; {:try_start_fvb .. :try_end_fvb} :catch_fvb
+
+    :catch_fvb
+    return p0
+.end method
+
 .method public static isVideoMode()Z
     .locals 2
 
@@ -3327,7 +3625,7 @@
 
     move-result v0
 
-    if-ltz v0, :cond_done
+    if-ltz v0, :cond_chk_stab
 
     sget-object v1, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
 
@@ -3340,6 +3638,58 @@
     .catch Ljava/lang/Throwable; {:try_start_avnr .. :try_end_avnr} :catch_avnr
 
     :catch_avnr
+    :cond_chk_stab
+    :try_start_avstab
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoStabilizationMode()I
+
+    move-result v0
+
+    if-lez v0, :cond_done
+
+    const/4 v1, 0x1
+
+    if-ne v0, v1, :cond_stab_all_off
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_VIDEO_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->LENS_OPTICAL_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x1
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    goto :cond_done
+
+    :cond_stab_all_off
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_VIDEO_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->LENS_OPTICAL_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+    :try_end_avstab
+    .catch Ljava/lang/Throwable; {:try_start_avstab .. :try_end_avstab} :catch_avstab
+
+    :catch_avstab
     :cond_done
     return-void
 .end method
@@ -3432,7 +3782,7 @@
 
     move-result v0
 
-    if-ltz v0, :cond_done
+    if-ltz v0, :cond_check_stab
 
     invoke-interface {p0}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
 
@@ -3479,6 +3829,115 @@
     new-instance v2, Lvaz;
 
     invoke-direct {v2, v1, v0}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    :cond_check_stab
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoStabilizationMode()I
+
+    move-result v0
+
+    if-lez v0, :cond_done
+
+    invoke-interface {p0}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
+
+    move-result-object v1
+
+    :cond_stab_loop
+    invoke-interface {v1}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_stab_add
+
+    invoke-interface {v1}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v2
+
+    instance-of v3, v2, Lvaz;
+
+    if-eqz v3, :cond_stab_loop
+
+    check-cast v2, Lvaz;
+
+    iget-object v2, v2, Lvaz;->a:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    sget-object v3, Landroid/hardware/camera2/CaptureRequest;->CONTROL_VIDEO_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {v3, v2}, Landroid/hardware/camera2/CaptureRequest$Key;->equals(Ljava/lang/Object;)Z
+
+    move-result v3
+
+    if-nez v3, :cond_stab_rem
+
+    sget-object v3, Landroid/hardware/camera2/CaptureRequest;->LENS_OPTICAL_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {v3, v2}, Landroid/hardware/camera2/CaptureRequest$Key;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-eqz v2, :cond_stab_loop
+
+    :cond_stab_rem
+    invoke-interface {v1}, Ljava/util/Iterator;->remove()V
+
+    goto :cond_stab_loop
+
+    :cond_stab_add
+    const/4 v1, 0x1
+
+    if-ne v0, v1, :cond_stab_session_off
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_VIDEO_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v0, v1}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->LENS_OPTICAL_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x1
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v0, v1}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    goto :cond_done
+
+    :cond_stab_session_off
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_VIDEO_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v0, v1}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->LENS_OPTICAL_STABILIZATION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v0, v1}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
 
     invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
     :try_end_ivp
@@ -4932,6 +5391,136 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_24fps
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_24fps
+    const-string v0, "camcorder.24fps"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_video_smooth_filter
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_smooth_filter
+    const-string v0, "camera.video_smooth_zoom_filter"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_video_smooth_spring
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_smooth_spring
+    const-string v0, "camera.video_smooth_zoom_spring"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_video_prewarm
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_video_prewarm
+    const-string v0, "camera.video_prewarm"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_scalable_vpipe
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_scalable_vpipe
+    const-string v0, "camcorder.scalable_vpipe"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_surface_share
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_surface_share
+    const-string v0, "camcorder.surface_share"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_peregrine
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_peregrine
+    const-string v0, "camcorder.peregrine"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_osprey
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_osprey
+    const-string v0, "camcorder.osprey"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_stokes_dyn
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_stokes_dyn
+    const-string v0, "camcorder.stokes_dyn"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_4k60fps
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_4k60fps
+    const-string v0, "camcorder.4k60fps"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_not_found
 
     const/4 v0, 0x1
@@ -5184,9 +5773,51 @@
 
     move-result v1
 
-    if-eqz v1, :cond_try_orig_a
+    if-eqz v1, :cond_check_video_zoom_anim_duration
 
     const/4 v1, 0x0
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-static {v1}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v1
+
+    return-object v1
+
+    :cond_check_video_zoom_anim_duration
+    const-string v1, "camera.video_zoom_animation_duration"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_zoom_curve_preset
+
+    const/16 v1, 0x17c
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    invoke-static {v1}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v1
+
+    return-object v1
+
+    :cond_check_zoom_curve_preset
+    const-string v1, "camera.zoom_curve_control_preset"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_try_orig_a
+
+    const/16 v1, 0x8
 
     invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 
@@ -5602,6 +6233,69 @@
 
     :cond_check_boba_ext
     const-string v1, "camera.boba_jelly_ext_threshold"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_smooth_zoom_min_cutoff
+
+    const/high16 v0, 0x3f800000    # 1.0f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_min_cutoff
+    const-string v1, "camera.video_smooth_zoom_min_cutoff"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_smooth_zoom_beta
+
+    const v0, 0x3f99999a    # 1.2f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_beta
+    const-string v1, "camera.video_smooth_zoom_beta"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_smooth_zoom_deriv
+
+    const v0, 0x3c03126f    # 0.008f
+
+    invoke-static {v0}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lj$/util/Optional;->of(Ljava/lang/Object;)Lj$/util/Optional;
+
+    move-result-object v0
+
+    return-object v0
+
+    :cond_check_smooth_zoom_deriv
+    const-string v1, "camera.video_smooth_zoom_derivative_cutoff"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 

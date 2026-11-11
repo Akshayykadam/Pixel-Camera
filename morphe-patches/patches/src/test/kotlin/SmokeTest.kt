@@ -924,5 +924,126 @@ class SmokeTest {
         PixelCameraPatchUtils.replaceClassesFromDexResource(mockContext, "QuickAccessControllers.dex")
         println("Verified: replaceClassesFromDexResource succeeds on obfuscated context without patchClasses field across all dex resources")
     }
+
+    @Test
+    fun testVideoZoomSmoothingAndLensSwitching() {
+        testAssembleDexes()
+
+        // 1. Verify TomteInitHelper.dex has video flags in getFlagOverride
+        val tomteDexFile = java.io.File("src/main/resources/TomteInitHelper.dex")
+        assertTrue(tomteDexFile.exists(), "TomteInitHelper.dex must exist")
+        val tomteDex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(tomteDexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+        val tomteCls = tomteDex.classes.firstOrNull { it.type == "Lcom/google/android/patch/cameralooks/TomteInitHelper;" }
+        assertTrue(tomteCls != null, "TomteInitHelper class must exist")
+
+        val flagMethod = tomteCls.methods.firstOrNull { it.name == "getFlagOverride" }
+        assertTrue(flagMethod != null, "getFlagOverride method must exist")
+        val flagIns = flagMethod!!.implementation?.instructions?.toList() ?: emptyList()
+
+        val expectedFlags = listOf(
+            "camera.video_smooth_zoom_filter",
+            "camera.video_smooth_zoom_spring",
+            "camera.video_prewarm",
+            "camcorder.scalable_vpipe",
+            "camcorder.surface_share",
+            "camcorder.peregrine",
+            "camcorder.osprey",
+            "camcorder.stokes_dyn",
+            "camcorder.4k60fps"
+        )
+        for (flag in expectedFlags) {
+            var found = false
+            for (ins in flagIns) {
+                val ref = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                if (ref.contains(flag)) {
+                    found = true
+                    break
+                }
+            }
+            assertTrue(found, "getFlagOverride must check flag: $flag")
+        }
+
+        // 2. Verify interceptFlagA has duration (380) and preset (8)
+        val flagAMethod = tomteCls.methods.firstOrNull { it.name == "interceptFlagA" }
+        assertTrue(flagAMethod != null, "interceptFlagA method must exist")
+        val aIns = flagAMethod!!.implementation?.instructions?.toList() ?: emptyList()
+
+        var foundDurationString = false
+        var durationHas380 = false
+        var foundPresetString = false
+        var presetHas8 = false
+
+        for (i in aIns.indices) {
+            val ref = (aIns[i] as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+            if (ref.contains("camera.video_zoom_animation_duration")) {
+                foundDurationString = true
+                for (j in i until (i + 15).coerceAtMost(aIns.size)) {
+                    val narrow = aIns[j] as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                    if (narrow != null && narrow.narrowLiteral == 380) {
+                        durationHas380 = true
+                    }
+                }
+            }
+            if (ref.contains("camera.zoom_curve_control_preset")) {
+                foundPresetString = true
+                for (j in i until (i + 15).coerceAtMost(aIns.size)) {
+                    val narrow = aIns[j] as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                    if (narrow != null && narrow.narrowLiteral == 8) {
+                        presetHas8 = true
+                    }
+                }
+            }
+        }
+        assertTrue(foundDurationString, "interceptFlagA must check camera.video_zoom_animation_duration")
+        assertTrue(durationHas380, "camera.video_zoom_animation_duration must return 380 ms")
+        assertTrue(foundPresetString, "interceptFlagA must check camera.zoom_curve_control_preset")
+        assertTrue(presetHas8, "camera.zoom_curve_control_preset must return 8 (fast_out_slow_in)")
+
+        // 3. Verify interceptFlagR has 1 Euro filter float constants
+        val flagRMethod = tomteCls.methods.firstOrNull { it.name == "interceptFlagR" }
+        assertTrue(flagRMethod != null, "interceptFlagR method must exist")
+        val rIns = flagRMethod!!.implementation?.instructions?.toList() ?: emptyList()
+
+        var foundMinCutoff = false
+        var minCutoffHas1_2 = false
+        var foundBeta = false
+        var betaHas0_008 = false
+        var foundDeriv = false
+
+        for (i in rIns.indices) {
+            val ref = (rIns[i] as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+            if (ref.contains("camera.video_smooth_zoom_min_cutoff")) {
+                foundMinCutoff = true
+                for (j in i until (i + 15).coerceAtMost(rIns.size)) {
+                    val narrow = rIns[j] as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                    if (narrow != null && narrow.narrowLiteral == 0x3f99999a) {
+                        minCutoffHas1_2 = true
+                    }
+                }
+            }
+            if (ref.contains("camera.video_smooth_zoom_beta")) {
+                foundBeta = true
+                for (j in i until (i + 15).coerceAtMost(rIns.size)) {
+                    val narrow = rIns[j] as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
+                    if (narrow != null && narrow.narrowLiteral == 0x3c03126f) {
+                        betaHas0_008 = true
+                    }
+                }
+            }
+            if (ref.contains("camera.video_smooth_zoom_derivative_cutoff")) {
+                foundDeriv = true
+            }
+        }
+        assertTrue(foundMinCutoff, "interceptFlagR must check camera.video_smooth_zoom_min_cutoff")
+        assertTrue(minCutoffHas1_2, "camera.video_smooth_zoom_min_cutoff must return 1.2f")
+        assertTrue(foundBeta, "interceptFlagR must check camera.video_smooth_zoom_beta")
+        assertTrue(betaHas0_008, "camera.video_smooth_zoom_beta must return 0.008f")
+        assertTrue(foundDeriv, "interceptFlagR must check camera.video_smooth_zoom_derivative_cutoff")
+
+        // 4. Verify VideoLensSwitchingPatch metadata
+        val patch = app.morphe.patches.pixelcamera.video.videoLensSwitchingPatch
+        assertTrue(patch.name == "Seamless Video Lens Switching & Zoom Smoothing", "Patch name must match")
+        println("Verified: Seamless Video Lens Switching & Zoom Smoothing patch and TomteInitHelper bytecode verified successfully.")
+    }
 }
 

@@ -13,6 +13,7 @@ import app.morphe.patches.pixelcamera.pro.proControlsPatch
 import app.morphe.patches.pixelcamera.quality.proImageQualityPatch
 import app.morphe.patches.pixelcamera.quickaccess.quickAccessPatch
 import app.morphe.patches.pixelcamera.video.av1VideoEncodingPatch
+import app.morphe.patches.pixelcamera.video.videoLensSwitchingPatch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -38,6 +39,7 @@ class PatcherExecutionTest {
             proControlsPatch,
             creatorSuitePatch,
             av1VideoEncodingPatch,
+            videoLensSwitchingPatch,
             maxBrightnessPatch,
             proImageQualityPatch,
             pixelCameraClonePatch

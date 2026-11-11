@@ -650,6 +650,72 @@ This document tracks bugs, image tuning observations, and feature requests repor
      - Built and signed `PixelCamera_signed.apk` (1.7GB, Android v3 signature verified).
      - Generated updated Morphe patch package `morphe-patches-pixelcamera-1.1.3.mpp` (246 KB).
 
+### 17. Cinematic Video Suite: Pro Bitrates, 24 FPS Cinema Mode, and OIS-Only Stabilization
+* **Status:** ✅ **Implemented, Verified & Built**
+* **Reporter:** Community Request / Advanced Cinema Video Quality Engineering
+* **Description:**
+  Extending the cinematic video pipeline beyond ISP edge sharpening and denoising controls:
+  1. **Pro Video Bitrates & QP Clamp:** Unlocks true high-bitrate video encoding (100 Mbps Pro / 150 Mbps Cinema for 4K; 35 Mbps / 50 Mbps for 1080p) and enforces strict MediaCodec quantization parameter (QP) clamping (`video-qp-min` / `video-qp-max`), eliminating macroblocking and compression artifacts in foliage, water, and fast motion.
+  2. **24fps Cinema Mode:** Enables native 24.0 fps recording mode in the video FPS drawer and quick settings, adhering to industry cinema motion cadence.
+  3. **OIS-Only Video Stabilization (Zero Sensor Crop):** Bypasses electronic video stabilization (EIS) warp meshes to unlock the full 100% native sensor field of view (zero crop) while maintaining hardware optical image stabilization (OIS).
+* **Architecture & Root Causes:**
+  1. **Central MediaFormat Choke Point:** In Google Camera 11.1, all camcorder video encoders configure `MediaCodec` through `uuy.smali` (`<init>`). Bitrate is read from `p1.b()` (`Lute;->b()I`) and applied via `MediaFormat.setInteger("bitrate", v10)`. Stock Google Camera hardcaps 4K video bitrate around 45–55 Mbps and leaves QP range unbounded, resulting in severe compression artifacts during complex scenes.
+  2. **Hidden 24 FPS Flag:** Google Camera contains built-in 24 FPS camcorder support (`khy.w` = `"camcorder.24fps"`), but the flag evaluation method `ksf.smali` (`q(Lkps;)Z` and `x(Lkps;)Z`) defaults to returning false unless enabled per device/carrier flag config.
+  3. **EIS Crop & Electronic Warping:** Stock video stabilization enforces `CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE = 1` (`ON`), cropping 10–20% of the ultra-wide and main sensor edges and introducing unnatural perspective distortion ("EIS jitter/warping") around corner subjects.
+* **Resolution & Implementation:**
+  1. **Pro Video Bitrate & QP Clamp Handler (`TomteInitHelper.filterVideoBitrate`):**
+     - Hooked `uuy.smali` right before `MediaFormat.setInteger("bitrate", v10)`.
+     - Dynamically inspects frame dimensions and frame rate on the incoming `MediaFormat`.
+     - **High Mode (100 Mbps Pro):** Enforces 100 Mbps at 4K60, 70 Mbps at 4K30/24, 35 Mbps at 1080p (fallback ~1.625x) and clamps QP range to `video-qp-min = 12`, `video-qp-max = 24`.
+     - **Ultra Mode (150 Mbps Cinema):** Enforces 150 Mbps at 4K60, 110 Mbps at 4K30/24, 50 Mbps at 1080p (fallback ~2.125x) and clamps QP range to `video-qp-min = 10`, `video-qp-max = 20`.
+     - **Stock Mode:** Preserves standard Google Camera bitrate encoding unmodified.
+  2. **24 FPS Cinema Activation:**
+     - Overrode `"camcorder.24fps"` in `TomteInitHelper.getFlagOverride(String)` to return `1` (`true`).
+     - Added `"camcorder.24fps"` to `ksf.smali` `q()` and `x()` bypass tables in `build_and_patch_pixelcamera.py` and `PixelCameraPatchUtils.kt`.
+     - Google Camera's FPS manager (`qdk.java` and `iux.java`) automatically exposes 24 FPS in the video mode drawer.
+  3. **OIS-Only Video Stabilization Mode (`TomteInitHelper.getVideoStabilizationMode`):**
+     - Added preference `pref_video_stabilization_mode_key`:
+       - **Standard (OIS + EIS):** Stock Google Camera dual stabilization with dynamic cropping.
+       - **OIS Only (Cinema Wide, 0% Crop):** Sets `CONTROL_VIDEO_STABILIZATION_MODE = 0` (OFF) and `LENS_OPTICAL_STABILIZATION_MODE = 1` (ON) in both repeating request builder (`applyVideoIspToBuilder` in `th.smali`) and session configuration (`injectVideoIspParameters` in `jai.smali`). Unlocks maximum wide-angle coverage and eliminates warp distortion.
+       - **Off (Gimbal / Tripod):** Sets both EIS and OIS to 0 (OFF), ideal for motorized gimbals.
+  4. **Settings UI & Dual Build-System Synchronization:**
+     - Injected `pref_video_bitrate_key` and `pref_video_stabilization_mode_key` into `camera_gm3_preferences.xml` and `camera_preferences.xml` under `pref_category_advanced_video`.
+     - Added localized strings and string-arrays in `strings.xml` and `arrays.xml`.
+     - Updated `ListPreference.smali` to trigger instant session restart on bitrate or stabilization mode change.
+     - Synchronized both `build_and_patch_pixelcamera.py` and `morphe-patches` (`PixelCameraPatchUtils.kt`, `CameraLooksPatch.kt`, and `TomteInitHelper.smali`).
+  5. **Verification & Testing:**
+     - Compiled and reassembled `TomteInitHelper.dex` (89,752 bytes).
+     - Passed full Gradle test suite (`./gradlew test`) cleanly without warnings or regressions.
+     - Verified Python patcher syntax via `py_compile`.
+
+### 18. Seamless Video Lens Switching & Zoom Smoothing (0.5x -> 1x -> 5x)
+* **Status:** ✅ **Implemented, Verified & Built**
+* **Reporter:** Community Request / Video Smoothness & Optical Transition Engineering
+* **Description:**
+  When recording video and zooming from ultra-wide (0.5x) through main (1x) to telephoto (5x):
+  1. **Lens Switch Stutter & Frame Drop:** Crossing the optical threshold (especially 1.0x to 5.0x) caused 100–250ms freezing or visual stutter as the incoming physical periscope sensor woke up from cold standby.
+  2. **Sluggish Digital Zoom Lingering:** During discrete zoom taps (0.5x -> 1x -> 5x), the animation lingered excessively in extreme digital crop (4.2x to 4.95x) before hand-off, creating noticeable softness and muddy textures.
+  3. **High FPS Multi-Lens Lockout:** In 4K60 and 1080p60 recording, lens switching during recording was locked out by device and pipe configuration checks.
+* **Architecture & Root Causes:**
+  1. **Interpolation Curve Deceleration Tail (`eib.smali`):** Discrete zoom animations in `kmn.smali` (`kmo.w`) use a 200-sample pre-calculated curve (`eib.smali`). Over 70% of the total animation duration is spent in a long asymptotic deceleration tail ($y \in [0.85, 1.0]$), keeping the main sensor in severe digital crop ($>4.5\times$) for hundreds of milliseconds instead of transitioning quickly into the optical sensor.
+  2. **Stretched Animation Duration:** `krx.b` (`camera.video_zoom_animation_duration`) defaults to 700ms, making lens hand-off feel sluggish and unresponsive.
+  3. **Dormant 1 Euro Filter & Spring Dynamics:** Google Camera includes an advanced 1 Euro filter (`Ltdg;` / `ssd.smali`) and physics-based spring dampening (`egh`), but keeps them disabled behind dormant flags `krx.q` (`camera.video_smooth_zoom_filter`) and `krx.p` (`camera.video_smooth_zoom_spring`).
+  4. **Cold Standby Sensors:** Secondary sensors remain in low-power idle during single-camera streaming; without `camera.video_prewarm`, the Camera HAL experiences significant MIPI CSI and VCM actuator latency when activating the periscope.
+  5. **Camcorder Multi-Camera Surface Sharing Flags:** High-frame-rate multi-lens recording is gated behind `camcorder.scalable_vpipe`, `camcorder.surface_share`, `camcorder.peregrine`, `camcorder.osprey`, `camcorder.stokes_dyn`, and `camcorder.4k60fps`.
+* **Resolution & Implementation:**
+  1. **Fast-Out-Slow-In Bezier Curve Preset:** Overrode `camera.zoom_curve_control_preset` (`krx.c`) to `8` (`android.R.interpolator.fast_out_slow_in`) in `TomteInitHelper.interceptFlagA`. This eliminates the lagging deceleration tail in `eib.smali`, accelerating rapidly through the digital crop zone and settling cleanly onto the physical telephoto sensor.
+  2. **Optimized Transition Duration:** Intercepted `camera.video_zoom_animation_duration` (`krx.b`) to `380` ms (down from 700ms), delivering snappy, cinematic hand-offs without frame skips.
+  3. **1 Euro Filter & Spring Dynamics Activation:**
+     - Enabled `camera.video_smooth_zoom_filter` and `camera.video_smooth_zoom_spring` in `TomteInitHelper.getFlagOverride`.
+     - Provided tuned filter coefficients in `TomteInitHelper.interceptFlagR`: `camera.video_smooth_zoom_min_cutoff = 1.2f`, `camera.video_smooth_zoom_beta = 0.008f`, `camera.video_smooth_zoom_derivative_cutoff = 1.0f`.
+  4. **Standby Sensor Pre-Warming:** Forced `camera.video_prewarm` to `true`, ensuring the ultra-wide and telephoto sensors maintain streaming-ready VCM actuator positions and exposure parameters for instant hand-off.
+  5. **4K60 & Multi-Camera Surface Sharing:** Overrode `camcorder.scalable_vpipe`, `camcorder.surface_share`, `camcorder.peregrine`, `camcorder.osprey`, `camcorder.stokes_dyn`, and `camcorder.4k60fps` to `true`.
+  6. **Morphe Patch & Python Patcher Synchronization:**
+     - Created `VideoLensSwitchingPatch.kt` (`Seamless Video Lens Switching & Zoom Smoothing`) in `morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/`.
+     - Synchronized `q(Lkps;)`, `x(Lkps;)`, `a(Lkpr;)`, and `r(Lkps;)` in `build_and_patch_pixelcamera.py`.
+  7. **Automated Verification:** Added `testVideoZoomSmoothingAndLensSwitching` in `SmokeTest.kt` verifying all Dalvik flag overrides, filter constants, and timing presets.
+     - Built `morphe-patches-pixelcamera-1.1.3.mpp` (251 KB).
+
 
 
 

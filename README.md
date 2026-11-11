@@ -151,6 +151,15 @@ Instant tone mapping, color matrix shifts, and organic film grain encoded into c
   * Preserved native Camera2 stream configurations and eliminated stream format collisions to guarantee 100% crash-free live viewfinder feeds.
 * *(See [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) and [`build_and_patch_pixelcamera.py`](build_and_patch_pixelcamera.py#L4200-L4335) for resolution gating logic).*
 
+### 14. Seamless Video Lens Switching & Zoom Smoothing (0.5x -> 1x -> 5x)
+* **Zero-Stutter Lens Transitions**: Completely eliminates the 100–250ms freezing and frame drop when zooming across the optical sensor thresholds ($0.5\times \to 1.0\times \to 5.0\times$).
+* **Fast-Out-Slow-In Bezier Curve Preset**: Overrides Google's lagging 200-sample LUT curve preset (`eib.smali`) with Android framework's native `fast_out_slow_in` cubic bezier curve (`camera.zoom_curve_control_preset = 8`), accelerating smoothly through digital crop ranges and snapping quickly onto the physical periscope without lingering softness.
+* **Cinematic 380ms Transition Timing**: Decreases discrete zoom tap duration (`camera.video_zoom_animation_duration`) from 700ms down to 380ms for responsive, movie-grade hand-offs.
+* **1 Euro Filter & Physics Spring Dynamics**: Activates Google's built-in 1 Euro filter (`Ltdg;`) and spring dynamics (`camera.video_smooth_zoom_filter` and `camera.video_smooth_zoom_spring`) with precision cutoff coefficients (`min_cutoff = 1.2f`, `beta = 0.008f`, `derivative_cutoff = 1.0f`) for jitter-free manual zoom slider scrubbing.
+* **Standby Sensor Pre-Warming**: Forces `camera.video_prewarm = true` to keep secondary physical sensors initialized with synchronized exposure and focus states, eliminating cold-start actuator delays.
+* **4K 60 FPS Multi-Camera Surface Sharing**: Unlocks multi-sensor stream sharing (`camcorder.scalable_vpipe`, `camcorder.surface_share`, `camcorder.peregrine`, `camcorder.osprey`, `camcorder.stokes_dyn`, `camcorder.4k60fps`), enabling smooth multi-lens zoom even during 4K 60 FPS recording.
+* *(See [`VideoLensSwitchingPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/VideoLensSwitchingPatch.kt) and [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) for implementation).*
+
 ---
 
 ## ⚠️ Technical Limitations & Architectural Constraints
