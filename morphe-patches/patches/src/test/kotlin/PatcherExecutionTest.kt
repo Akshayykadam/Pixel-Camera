@@ -208,6 +208,25 @@ class PatcherExecutionTest {
             }
         }
 
+        // Verify jhh.a hooks NOISE_REDUCTION_MODE specifically (prevent ART VerifyError)
+        var foundJhhHook = false
+        for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
+            val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
+            val jhh = dex.classes.firstOrNull { it.type == "Ljhh;" } ?: continue
+            val a = jhh.methods.firstOrNull { it.name == "a" } ?: continue
+            val insList = a.implementation?.instructions?.toList() ?: emptyList()
+            for (i in insList.indices) {
+                val ins = insList[i]
+                if ((ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("filterVideoNoiseReductionMode") == true) {
+                    val nextIns = insList.getOrNull(i + 2)
+                    if ((nextIns as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("NOISE_REDUCTION_MODE") == true) {
+                        foundJhhHook = true
+                    }
+                }
+            }
+        }
+        assertTrue(foundJhhHook, "jhh.a must hook filterVideoNoiseReductionMode right before NOISE_REDUCTION_MODE")
+
         // Verify 50MP High Resolution session flag and SpecialTypesProvider hooks
         var foundOmsHiRes = false
         var foundOmlHiRes = false

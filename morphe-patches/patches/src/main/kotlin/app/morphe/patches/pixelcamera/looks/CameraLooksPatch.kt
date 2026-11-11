@@ -988,25 +988,20 @@ val cameraLooksPatch = bytecodePatch(
         mutableClassDefByOrNull("Ljhh;")?.let { clazz ->
             for (method in clazz.methods) {
                 val impl = method.implementation ?: continue
-                val eIdx = impl.instructions.indexOfFirst {
-                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Ljhq;->e(Landroid/hardware/camera2/CaptureRequest\$Key;Ljava/lang/Object;Lvae;)V") == true
+                val nrIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("NOISE_REDUCTION_MODE") == true
                 }
-                if (eIdx != -1) {
-                    val valOfIdx = impl.instructions.indexOfFirst {
-                        (it as? ReferenceInstruction)?.reference?.toString()?.contains("Integer;->valueOf(I)Ljava/lang/Integer;") == true
-                    }
-                    if (valOfIdx != -1 && valOfIdx < eIdx) {
-                        try {
-                            val insList = """
-                                invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoNoiseReductionMode(I)I
-                                move-result v1
-                            """.trimIndent().toInstructions(method)
-                            for ((offset, ins) in insList.withIndex()) {
-                                impl.addInstruction(valOfIdx + offset, ins)
-                            }
-                        } catch (_: Throwable) {}
-                        break
-                    }
+                if (nrIdx != -1) {
+                    try {
+                        val insList = """
+                            invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoNoiseReductionMode(I)I
+                            move-result v1
+                        """.trimIndent().toInstructions(method)
+                        for ((offset, ins) in insList.withIndex()) {
+                            impl.addInstruction(nrIdx + offset, ins)
+                        }
+                    } catch (_: Throwable) {}
+                    break
                 }
             }
         }

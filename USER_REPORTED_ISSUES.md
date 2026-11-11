@@ -716,12 +716,20 @@ This document tracks bugs, image tuning observations, and feature requests repor
   7. **Automated Verification:** Added `testVideoZoomSmoothingAndLensSwitching` in `SmokeTest.kt` verifying all Dalvik flag overrides, filter constants, and timing presets.
      - Built `morphe-patches-pixelcamera-1.1.3.mpp` (251 KB).
 
-
-
-
-
-
-
-
-
-
+### 23. Morphe Patched APK Crash: VerifyError in jhh.a (register v1 has type Reference but expected Integer)
+* **Status:** ✅ **Resolved & Verified**
+* **Reporter:** User device testing (`Process: com.google.android.GoogleCamera.morphe`)
+* **Crash Log:**
+  ```text
+  java.lang.VerifyError: Verifier rejected class jhh: void jhh.a(java.lang.Object) failed to verify:
+  void jhh.a(java.lang.Object): [0xC1] register v1 has type Reference: android.hardware.camera2.CaptureRequest$Key but expected Integer
+  (declaration of 'jhh' appears in base.apk!classes5.dex)
+  ```
+* **Root Cause:**
+  In `CameraLooksPatch.kt` (step 34), the hook for dynamic noise reduction listener used `indexOfFirst` to locate `Integer;->valueOf(I)Ljava/lang/Integer;`.
+  Because `jhh.a(Object)` contains multiple switch cases that box integers, `indexOfFirst` matched case 0 (line 309) where `v1` held an object reference (`CaptureRequest$Key`), rather than the actual camcorder noise reduction mode block (line 1060).
+  Inserting `invoke-static {v1}, TomteInitHelper->filterVideoNoiseReductionMode(I)I` into case 0 caused Android ART's dex verifier to reject class `jhh` on startup.
+* **Fix Implemented:**
+  1. Updated `CameraLooksPatch.kt` to target the instruction referencing `NOISE_REDUCTION_MODE` specifically (`(it as? ReferenceInstruction)?.reference?.toString()?.contains("NOISE_REDUCTION_MODE") == true`), where `v1` is guaranteed to be a primitive integer.
+  2. Added an automated regression test in `PatcherExecutionTest.kt` verifying that `jhh.a` hooks `filterVideoNoiseReductionMode` immediately preceding `NOISE_REDUCTION_MODE`.
+  3. Reassembled `morphe-patches-pixelcamera-1.1.3.mpp`, copied to `~/Desktop/`, and pushed directly to device `/sdcard/Download/`.
