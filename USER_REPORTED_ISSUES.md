@@ -437,12 +437,13 @@ This document tracks bugs, image tuning observations, and feature requests repor
   3. **Dedicated "Advanced settings" Preference Category:**
      - Created standalone `<PreferenceCategory>` with key `pref_category_advanced_settings` and title `@string/pref_category_advanced_settings_title` ("Advanced settings").
      - Placed between "Photo" (`pref_category_resolution_camera`) and "Video" (`pref_category_resolution_video` / `mode_video`).
-     - Houses all 5 advanced settings:
+     - Houses all 6 advanced settings:
        1. `1x Focal Length Cycling` (`pref_camera_focal_length_cycling_key`)
        2. `JPEG Quality` (`pref_camera_jpeg_quality_key`)
        3. `Spatial Noise Reduction` (`pref_camera_noise_reduction_key`)
-       4. `RAW DNG Format` (`pref_camera_raw_compression_key`)
-       5. `Edge Sharpness & De-Ring` (`pref_camera_sharpness_key`)
+       4. `Edge Sharpness & De-Ring` (`pref_camera_sharpness_key`)
+       5. `RAW DNG Format` (`pref_camera_raw_compression_key`)
+       6. `Save RAW to Separate Folder` (`pref_camera_raw_separate_folder_key`)
   4. **Build, Test, and Deployment:**
      - Updated in `build_and_patch_pixelcamera.py`, `apktool_full` resources/smali, and `morphe-patches` (`PixelCameraPatchUtils.kt`).
      - Morphe patch test suite verified (`BUILD SUCCESSFUL` via `./gradlew :patches:test`).
