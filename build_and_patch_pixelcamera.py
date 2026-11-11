@@ -10746,6 +10746,29 @@ def patch_image_quality_preferences():
         else:
             print("    [+] strings.xml: RAW compression strings already present.")
 
+        if "pref_video_sharpness_title" not in content:
+            video_strings = """    <string name="pref_category_advanced_video_title">Advanced video settings</string>
+    <string name="pref_video_sharpness_title">Video edge sharpness</string>
+    <string name="pref_video_sharpness_entry_stock">Stock</string>
+    <string name="pref_video_sharpness_entry_stock_desc">Stock ISP edge enhancement</string>
+    <string name="pref_video_sharpness_entry_reduced">Reduced</string>
+    <string name="pref_video_sharpness_entry_reduced_desc">Reduced edge enhancement (Fast) for natural acutance</string>
+    <string name="pref_video_sharpness_entry_off">Off (Cinematic)</string>
+    <string name="pref_video_sharpness_entry_off_desc">Disables hardware edge sharpening to eliminate white halos</string>
+    <string name="pref_video_noise_reduction_title">Video noise reduction</string>
+    <string name="pref_video_noise_reduction_entry_stock">Stock</string>
+    <string name="pref_video_noise_reduction_entry_stock_desc">Standard spatial and temporal noise filtering</string>
+    <string name="pref_video_noise_reduction_entry_minimal">Minimal</string>
+    <string name="pref_video_noise_reduction_entry_minimal_desc">Minimal filtering (Fast) preserving fine texture</string>
+    <string name="pref_video_noise_reduction_entry_off">Off (Sensor Grain)</string>
+    <string name="pref_video_noise_reduction_entry_off_desc">Disables hardware noise reduction for organic sensor texture</string>"""
+            content = content.replace("<resources>", f"<resources>\n{video_strings}")
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] strings.xml: Video Sharpness and Noise Reduction strings added.")
+        else:
+            print("    [+] strings.xml: Video Sharpness strings already present.")
+
         if "pref_category_advanced_settings_title" not in content:
             cat_string = """    <string name="pref_category_advanced_settings_title">Advanced settings</string>"""
             content = content.replace("<resources>", f"<resources>\n{cat_string}")
@@ -10816,6 +10839,44 @@ def patch_image_quality_preferences():
         else:
             print("    [+] arrays.xml: RAW compression arrays already present.")
 
+        if "pref_video_sharpness_entries" not in content:
+            video_arrays = """    <string-array name="pref_video_sharpness_entries">
+        <item>@string/pref_video_sharpness_entry_stock</item>
+        <item>@string/pref_video_sharpness_entry_reduced</item>
+        <item>@string/pref_video_sharpness_entry_off</item>
+    </string-array>
+    <string-array name="pref_video_sharpness_entrydescriptions">
+        <item>@string/pref_video_sharpness_entry_stock_desc</item>
+        <item>@string/pref_video_sharpness_entry_reduced_desc</item>
+        <item>@string/pref_video_sharpness_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_video_sharpness_entryvalues">
+        <item>stock</item>
+        <item>reduced</item>
+        <item>off</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entries">
+        <item>@string/pref_video_noise_reduction_entry_stock</item>
+        <item>@string/pref_video_noise_reduction_entry_minimal</item>
+        <item>@string/pref_video_noise_reduction_entry_off</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entrydescriptions">
+        <item>@string/pref_video_noise_reduction_entry_stock_desc</item>
+        <item>@string/pref_video_noise_reduction_entry_minimal_desc</item>
+        <item>@string/pref_video_noise_reduction_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entryvalues">
+        <item>stock</item>
+        <item>minimal</item>
+        <item>off</item>
+    </string-array>"""
+            content = content.replace("<resources>", f"<resources>\n{video_arrays}")
+            with open(arrays_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] arrays.xml: Video Sharpness and Noise Reduction arrays added.")
+        else:
+            print("    [+] arrays.xml: Video Sharpness arrays already present.")
+
     # 3. Inject into camera_gm3_preferences.xml
     gm3_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_gm3_preferences.xml")
     if os.path.exists(gm3_path):
@@ -10846,6 +10907,20 @@ def patch_image_quality_preferences():
                 f.write(content)
             print("    [+] camera_gm3_preferences.xml: Help and feedback replaced with About category.")
 
+        if "pref_category_advanced_video" not in content:
+            video_gm3 = """    <androidx.preference.PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+    </androidx.preference.PreferenceCategory>"""
+            match = re.search(r'(<androidx\.preference\.PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</androidx\.preference\.PreferenceCategory>)', content)
+            if match:
+                content = content.replace(match.group(1), f"{match.group(1)}\n{video_gm3}")
+            else:
+                content = content.replace("</androidx.preference.PreferenceScreen>", f"{video_gm3}\n</androidx.preference.PreferenceScreen>")
+            with open(gm3_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_gm3_preferences.xml: Advanced video settings category injected.")
+
     # 4. Inject into camera_preferences.xml
     cam_pref_path = os.path.join(APKTOOL_DIR, "res", "xml", "camera_preferences.xml")
     if os.path.exists(cam_pref_path):
@@ -10875,6 +10950,20 @@ def patch_image_quality_preferences():
             with open(cam_pref_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print("    [+] camera_preferences.xml: Help and feedback replaced with About category.")
+
+        if "pref_category_advanced_video" not in content:
+            video_cam = """    <PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
+        <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+    </PreferenceCategory>"""
+            match = re.search(r'(<PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</PreferenceCategory>)', content)
+            if match:
+                content = content.replace(match.group(1), f"{match.group(1)}\n{video_cam}")
+            else:
+                content = content.replace("</PreferenceScreen>", f"{video_cam}\n</PreferenceScreen>")
+            with open(cam_pref_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] camera_preferences.xml: Advanced video settings category injected.")
 
     # 5. Patch pbe.smali (Camera2 CaptureRequest providers)
     pbe_path = os.path.join(APKTOOL_DIR, "smali", "pbe.smali")
@@ -11043,6 +11132,24 @@ def patch_image_quality_preferences():
 
     move-result v0
 
+    if-nez v0, :cond_restart_tuning
+
+    iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+
+    const-string v1, "pref_video_sharpness_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_restart_tuning
+
+    const-string v1, "pref_video_noise_reduction_key"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_done
 
     :cond_restart_tuning
@@ -11123,6 +11230,65 @@ def patch_image_quality_preferences():
             with open(rfl_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print("    [+] rfl.smali: ar() hooked to remove pro preferences on non-pro models.")
+
+    # 11. Patch th.smali (CameraPipe CaptureRequest.Builder -> applyVideoIspToBuilder)
+    th_path = os.path.join(APKTOOL_DIR, "smali", "th.smali")
+    if os.path.exists(th_path):
+        with open(th_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        th_target = "    invoke-virtual {v8}, Landroid/hardware/camera2/CaptureRequest$Builder;->build()Landroid/hardware/camera2/CaptureRequest;"
+        th_repl = """    invoke-static {v8}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;)V\n\n    invoke-virtual {v8}, Landroid/hardware/camera2/CaptureRequest$Builder;->build()Landroid/hardware/camera2/CaptureRequest;"""
+        if "applyVideoIspToBuilder" in content:
+            print("    [+] th.smali: already hooked with applyVideoIspToBuilder.")
+        elif th_target in content:
+            content = content.replace(th_target, th_repl)
+            with open(th_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] th.smali: CaptureRequest.Builder hooked with TomteInitHelper.applyVideoIspToBuilder().")
+
+    # 12. Patch jai.smali (Camcorder session parameters -> injectVideoIspParameters)
+    jai_path = os.path.join(APKTOOL_DIR, "smali_classes2", "jai.smali")
+    if os.path.exists(jai_path):
+        with open(jai_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        jai_target = """    :cond_15
+    invoke-virtual {v4, v5}, Lvag;->c(Ljava/util/Set;)V"""
+        jai_repl = """    :cond_15
+    invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectVideoIspParameters(Ljava/util/Set;)V
+
+    invoke-virtual {v4, v5}, Lvag;->c(Ljava/util/Set;)V"""
+        if "injectVideoIspParameters" in content:
+            print("    [+] jai.smali: already hooked with injectVideoIspParameters.")
+        elif jai_target in content:
+            content = content.replace(jai_target, jai_repl)
+            with open(jai_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] jai.smali: session configuration hooked with TomteInitHelper.injectVideoIspParameters().")
+
+    # 13. Patch jhh.smali (Camcorder dynamic noise reduction listener -> filterVideoNoiseReductionMode)
+    jhh_path = os.path.join(APKTOOL_DIR, "smali_classes2", "jhh.smali")
+    if os.path.exists(jhh_path):
+        with open(jhh_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        jhh_target = """    :goto_4
+    iget-object p0, p0, Ljhh;->b:Ljava/lang/Object;
+
+    sget-object p1, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;"""
+        jhh_repl = """    :goto_4
+    iget-object p0, p0, Ljhh;->b:Ljava/lang/Object;
+
+    invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoNoiseReductionMode(I)I
+
+    move-result v1
+
+    sget-object p1, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;"""
+        if "filterVideoNoiseReductionMode" in content:
+            print("    [+] jhh.smali: already hooked with filterVideoNoiseReductionMode.")
+        elif jhh_target in content:
+            content = content.replace(jhh_target, jhh_repl)
+            with open(jhh_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("    [+] jhh.smali: dynamic noise reduction hooked with TomteInitHelper.filterVideoNoiseReductionMode().")
 
 
 def patch_fzf_smali():

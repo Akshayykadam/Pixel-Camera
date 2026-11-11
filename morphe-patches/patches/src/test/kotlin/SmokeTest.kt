@@ -737,6 +737,11 @@ class SmokeTest {
         val tomteDex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(tomteDexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
         val tomteCls = tomteDex.classes.firstOrNull { it.type == "Lcom/google/android/patch/cameralooks/TomteInitHelper;" }
         assertTrue(tomteCls != null, "TomteInitHelper class must exist")
+        assertTrue(tomteCls.methods.any { it.name == "getVideoEdgeMode" }, "getVideoEdgeMode must exist in TomteInitHelper")
+        assertTrue(tomteCls.methods.any { it.name == "getVideoNoiseReductionMode" }, "getVideoNoiseReductionMode must exist in TomteInitHelper")
+        assertTrue(tomteCls.methods.any { it.name == "applyVideoIspToBuilder" }, "applyVideoIspToBuilder must exist in TomteInitHelper")
+        assertTrue(tomteCls.methods.any { it.name == "injectVideoIspParameters" }, "injectVideoIspParameters must exist in TomteInitHelper")
+        assertTrue(tomteCls.methods.any { it.name == "filterVideoNoiseReductionMode" }, "filterVideoNoiseReductionMode must exist in TomteInitHelper")
 
         // 1a. Verify processHardwareBuffer does not gate mode on PHOTO only (v0 == 1)
         val procHwMethod = tomteCls!!.methods.firstOrNull { it.name == "processHardwareBuffer" }
@@ -901,6 +906,23 @@ class SmokeTest {
         if (foundIzt) {
             assertTrue(iztHasResetFineTuning, "izt must call resetFineTuning")
         }
+    }
+
+    @Test
+    fun testReplaceClassesFromDexResourceResilience() {
+        // Test context object that has NO patchClasses field (simulating R8 minified Morphe Manager 2.5.0 / Patcher 2.3.0)
+        class MockObfuscatedContext {
+            val classes = mutableMapOf<String, app.morphe.patcher.util.proxy.mutableTypes.MutableClass>()
+            fun mutableClassDefByOrNull(descriptor: String): app.morphe.patcher.util.proxy.mutableTypes.MutableClass? {
+                return classes[descriptor]
+            }
+        }
+        val mockContext = MockObfuscatedContext()
+        // Should not throw NoSuchFieldException: patchClasses
+        PixelCameraPatchUtils.replaceClassesFromDexResource(mockContext, "ZoomControllers.dex")
+        PixelCameraPatchUtils.replaceClassesFromDexResource(mockContext, "PortraitControllers.dex")
+        PixelCameraPatchUtils.replaceClassesFromDexResource(mockContext, "QuickAccessControllers.dex")
+        println("Verified: replaceClassesFromDexResource succeeds on obfuscated context without patchClasses field across all dex resources")
     }
 }
 

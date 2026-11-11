@@ -892,6 +892,15 @@ val cameraLooksPatch = bytecodePatch(
                 const-string v1, "pref_camera_sharpness_key"
                 invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
                 move-result v0
+                if-nez v0, :cond_restart_tuning
+                iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
+                const-string v1, "pref_video_sharpness_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v1
+                if-nez v1, :cond_restart_tuning
+                const-string v1, "pref_video_noise_reduction_key"
+                invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+                move-result v0
                 if-eqz v0, :cond_done
                 :cond_restart_tuning
                 iget-object v0, p0, Landroidx/preference/Preference;->r:Ljava/lang/String;
@@ -925,6 +934,71 @@ val cameraLooksPatch = bytecodePatch(
                             impl.addInstruction(awIdx, ins)
                         }
                     } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 32. Hook Lth; before CaptureRequest.Builder.build() to apply Video ISP settings ──
+        mutableClassDefByOrNull("Lth;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val buildIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("CaptureRequest\$Builder;->build()") == true
+                }
+                if (buildIdx != -1) {
+                    val hookSmali = "invoke-static {v8}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest\$Builder;)V"
+                    try {
+                        val ins = hookSmali.toInstructions(method).firstOrNull()
+                        if (ins != null) {
+                            impl.addInstruction(buildIdx, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 33. Hook Ljai;->a before Lvag;->c(Ljava/util/Set;)V to inject Video ISP session parameters ──
+        mutableClassDefByOrNull("Ljai;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "a" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val cIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Lvag;->c(Ljava/util/Set;)V") == true
+                }
+                if (cIdx != -1) {
+                    val hookSmali = "invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->injectVideoIspParameters(Ljava/util/Set;)V"
+                    try {
+                        val ins = hookSmali.toInstructions(method).firstOrNull()
+                        if (ins != null) {
+                            impl.addInstruction(cIdx, ins)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        // ── 34. Hook Ljhh; dynamic noise reduction listener to filter mode ──
+        mutableClassDefByOrNull("Ljhh;")?.let { clazz ->
+            for (method in clazz.methods) {
+                val impl = method.implementation ?: continue
+                val eIdx = impl.instructions.indexOfFirst {
+                    (it as? ReferenceInstruction)?.reference?.toString()?.contains("Ljhq;->e(Landroid/hardware/camera2/CaptureRequest\$Key;Ljava/lang/Object;Lvae;)V") == true
+                }
+                if (eIdx != -1) {
+                    val valOfIdx = impl.instructions.indexOfFirst {
+                        (it as? ReferenceInstruction)?.reference?.toString()?.contains("Integer;->valueOf(I)Ljava/lang/Integer;") == true
+                    }
+                    if (valOfIdx != -1 && valOfIdx < eIdx) {
+                        try {
+                            val insList = """
+                                invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->filterVideoNoiseReductionMode(I)I
+                                move-result v1
+                            """.trimIndent().toInstructions(method)
+                            for ((offset, ins) in insList.withIndex()) {
+                                impl.addInstruction(valOfIdx + offset, ins)
+                            }
+                        } catch (_: Throwable) {}
+                        break
+                    }
                 }
             }
         }

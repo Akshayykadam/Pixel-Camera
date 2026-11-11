@@ -504,6 +504,8 @@ object PixelCameraPatchUtils {
 
     /**
      * Replaces class definitions in the active BytecodePatchContext with classes from a DEX resource.
+     * Resilient against Morphe Manager / Patcher runtime differences, R8/ProGuard minification,
+     * and class hierarchy wrappers.
      */
     fun replaceClassesFromDexResource(context: Any, resourceName: String) {
         val stream = PixelCameraPatchUtils::class.java.classLoader.getResourceAsStream(resourceName)
@@ -513,24 +515,189 @@ object PixelCameraPatchUtils {
             com.android.tools.smali.dexlib2.Opcodes.getDefault(),
             bufferedStream
         )
-        val patchClassesField = context.javaClass.getDeclaredField("patchClasses").apply { isAccessible = true }
-        val patchClasses = patchClassesField.get(context)
-        val classMapField = patchClasses.javaClass.getDeclaredField("classMap").apply { isAccessible = true }
-        @Suppress("UNCHECKED_CAST")
-        val classMap = classMapField.get(patchClasses) as MutableMap<String, Any>
+
+        val (patchClassesObj, classMap) = resolvePatchClassesAndMap(context)
 
         for (classDef in dexFile.classes) {
             val mutableClass = app.morphe.patcher.util.proxy.mutableTypes.MutableClass(classDef)
-            val wrapper = classMap[classDef.type]
-            if (wrapper != null) {
-                val setClassDefMethod = wrapper.javaClass.getMethod("setClassDef", com.android.tools.smali.dexlib2.iface.ClassDef::class.java)
-                setClassDefMethod.invoke(wrapper, mutableClass)
-            } else {
-                val addClassMethod = patchClasses.javaClass.getDeclaredMethod("addClass\$morphe_patcher", com.android.tools.smali.dexlib2.iface.ClassDef::class.java)
-                addClassMethod.isAccessible = true
-                addClassMethod.invoke(patchClasses, mutableClass)
+
+            // Strategy 1: If classMap is available, replace or add via wrapper
+            if (classMap != null) {
+                val wrapper = classMap[classDef.type]
+                if (wrapper != null) {
+                    try {
+                        val setClassDefMethod = wrapper.javaClass.methods.firstOrNull {
+                            it.name == "setClassDef" && it.parameterTypes.size == 1 &&
+                            com.android.tools.smali.dexlib2.iface.ClassDef::class.java.isAssignableFrom(it.parameterTypes[0])
+                        } ?: wrapper.javaClass.declaredMethods.firstOrNull {
+                            it.name == "setClassDef" && it.parameterTypes.size == 1 &&
+                            com.android.tools.smali.dexlib2.iface.ClassDef::class.java.isAssignableFrom(it.parameterTypes[0])
+                        }
+                        if (setClassDefMethod != null) {
+                            setClassDefMethod.isAccessible = true
+                            setClassDefMethod.invoke(wrapper, mutableClass)
+                        }
+                    } catch (_: Throwable) {}
+                } else if (patchClassesObj != null) {
+                    try {
+                        val addClassMethod = patchClassesObj.javaClass.methods.firstOrNull {
+                            it.name.startsWith("addClass") && it.parameterTypes.size == 1 &&
+                            com.android.tools.smali.dexlib2.iface.ClassDef::class.java.isAssignableFrom(it.parameterTypes[0])
+                        } ?: patchClassesObj.javaClass.declaredMethods.firstOrNull {
+                            it.name.startsWith("addClass") && it.parameterTypes.size == 1 &&
+                            com.android.tools.smali.dexlib2.iface.ClassDef::class.java.isAssignableFrom(it.parameterTypes[0])
+                        }
+                        if (addClassMethod != null) {
+                            addClassMethod.isAccessible = true
+                            addClassMethod.invoke(patchClassesObj, mutableClass)
+                        }
+                    } catch (_: Throwable) {}
+                }
+            }
+
+            // Strategy 2: Directly update existing MutableClass in BytecodePatchContext via public API
+            val existingClass = (context as? app.morphe.patcher.patch.BytecodePatchContext)?.mutableClassDefByOrNull(classDef.type)
+                ?: run {
+                    try {
+                        val method = context.javaClass.methods.firstOrNull {
+                            (it.name == "mutableClassDefByOrNull" || it.name == "mutableClassDefBy") &&
+                            it.parameterTypes.size == 1 && it.parameterTypes[0] == String::class.java
+                        }
+                        method?.invoke(context, classDef.type) as? app.morphe.patcher.util.proxy.mutableTypes.MutableClass
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
+
+            if (existingClass != null) {
+                existingClass.accessFlags = classDef.accessFlags
+                classDef.superclass?.let { existingClass.setSuperClass(it) }
+                classDef.sourceFile?.let { existingClass.sourceFile = it }
+
+                try {
+                    existingClass.interfaces.clear()
+                    existingClass.interfaces.addAll(classDef.interfaces)
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.annotations.clear()
+                    existingClass.annotations.addAll(classDef.annotations.map { app.morphe.patcher.util.proxy.mutableTypes.MutableAnnotation(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.fields.clear()
+                    existingClass.fields.addAll(classDef.fields.map { app.morphe.patcher.util.proxy.mutableTypes.MutableField(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.methods.clear()
+                    existingClass.methods.addAll(classDef.methods.map { app.morphe.patcher.util.proxy.mutableTypes.MutableMethod(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.directMethods.clear()
+                    existingClass.directMethods.addAll(classDef.directMethods.map { app.morphe.patcher.util.proxy.mutableTypes.MutableMethod(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.virtualMethods.clear()
+                    existingClass.virtualMethods.addAll(classDef.virtualMethods.map { app.morphe.patcher.util.proxy.mutableTypes.MutableMethod(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.staticFields.clear()
+                    existingClass.staticFields.addAll(classDef.staticFields.map { app.morphe.patcher.util.proxy.mutableTypes.MutableField(it) })
+                } catch (_: Throwable) {}
+
+                try {
+                    existingClass.instanceFields.clear()
+                    existingClass.instanceFields.addAll(classDef.instanceFields.map { app.morphe.patcher.util.proxy.mutableTypes.MutableField(it) })
+                } catch (_: Throwable) {}
             }
         }
+    }
+
+    /**
+     * Robustly resolves PatchClasses and its inner classMap across all class hierarchy levels,
+     * getter methods, and obfuscated member configurations.
+     */
+    private fun resolvePatchClassesAndMap(context: Any): Pair<Any?, MutableMap<String, Any>?> {
+        var patchClassesObj: Any? = null
+
+        // 1. Search fields across entire class hierarchy of context
+        var curr: Class<*>? = context.javaClass
+        while (curr != null && curr != Any::class.java) {
+            try {
+                val f = curr.declaredFields.firstOrNull { field ->
+                    field.name == "patchClasses" ||
+                    field.type.name.contains("PatchClasses") ||
+                    field.type.simpleName == "PatchClasses"
+                }
+                if (f != null) {
+                    f.isAccessible = true
+                    patchClassesObj = f.get(context)
+                    if (patchClassesObj != null) break
+                }
+            } catch (_: Throwable) {}
+            curr = curr.superclass
+        }
+
+        // 2. If not found by field, search methods on context
+        if (patchClassesObj == null) {
+            try {
+                val m = context.javaClass.methods.firstOrNull { method ->
+                    (method.name.contains("PatchClasses", ignoreCase = true) ||
+                     method.returnType.name.contains("PatchClasses")) &&
+                    method.parameterTypes.isEmpty()
+                }
+                if (m != null) {
+                    m.isAccessible = true
+                    patchClassesObj = m.invoke(context)
+                }
+            } catch (_: Throwable) {}
+        }
+
+        if (patchClassesObj == null) {
+            return Pair(null, null)
+        }
+
+        // 3. Search classMap in patchClassesObj across class hierarchy
+        var classMap: MutableMap<String, Any>? = null
+        var pcClass: Class<*>? = patchClassesObj.javaClass
+        while (pcClass != null && pcClass != Any::class.java) {
+            try {
+                // Check direct field named classMap
+                val namedField = pcClass.declaredFields.firstOrNull { it.name == "classMap" }
+                if (namedField != null) {
+                    namedField.isAccessible = true
+                    @Suppress("UNCHECKED_CAST")
+                    classMap = namedField.get(patchClassesObj) as? MutableMap<String, Any>
+                    if (classMap != null) break
+                }
+
+                // Fallback: search all Map fields whose values resemble ClassDefWrapper
+                for (field in pcClass.declaredFields) {
+                    if (Map::class.java.isAssignableFrom(field.type)) {
+                        field.isAccessible = true
+                        @Suppress("UNCHECKED_CAST")
+                        val map = field.get(patchClassesObj) as? MutableMap<String, Any>
+                        if (map != null && map.isNotEmpty()) {
+                            val sample = map.values.firstOrNull()
+                            if (sample != null && sample.javaClass.methods.any {
+                                it.name == "setClassDef" || it.name == "getClassDef" || it.name == "getMutableClass"
+                            }) {
+                                classMap = map
+                                break
+                            }
+                        }
+                    }
+                }
+                if (classMap != null) break
+            } catch (_: Throwable) {}
+            pcClass = pcClass.superclass
+        }
+
+        return Pair(patchClassesObj, classMap)
     }
 
     /**
@@ -863,6 +1030,26 @@ object PixelCameraPatchUtils {
                         """.trimIndent())
                         append("\n")
                     }
+                    if (!content.contains("pref_video_sharpness_title")) {
+                        append("""
+    <string name="pref_category_advanced_video_title">Advanced video settings</string>
+    <string name="pref_video_sharpness_title">Video edge sharpness</string>
+    <string name="pref_video_sharpness_entry_stock">Stock</string>
+    <string name="pref_video_sharpness_entry_stock_desc">Stock ISP edge enhancement</string>
+    <string name="pref_video_sharpness_entry_reduced">Reduced</string>
+    <string name="pref_video_sharpness_entry_reduced_desc">Reduced edge enhancement (Fast) for natural acutance</string>
+    <string name="pref_video_sharpness_entry_off">Off (Cinematic)</string>
+    <string name="pref_video_sharpness_entry_off_desc">Disables hardware edge sharpening to eliminate white halos</string>
+    <string name="pref_video_noise_reduction_title">Video noise reduction</string>
+    <string name="pref_video_noise_reduction_entry_stock">Stock</string>
+    <string name="pref_video_noise_reduction_entry_stock_desc">Standard spatial and temporal noise filtering</string>
+    <string name="pref_video_noise_reduction_entry_minimal">Minimal</string>
+    <string name="pref_video_noise_reduction_entry_minimal_desc">Minimal filtering (Fast) preserving fine texture</string>
+    <string name="pref_video_noise_reduction_entry_off">Off (Sensor Grain)</string>
+    <string name="pref_video_noise_reduction_entry_off_desc">Disables hardware noise reduction for organic sensor texture</string>
+                        """.trimIndent())
+                        append("\n")
+                    }
                     if (!content.contains("pref_category_advanced_settings_title")) {
                         append("""
     <string name="pref_category_advanced_settings_title">Advanced settings</string>
@@ -968,6 +1155,41 @@ object PixelCameraPatchUtils {
                         """.trimIndent())
                         append("\n")
                     }
+                    if (!content.contains("pref_video_sharpness_entries")) {
+                        append("""
+    <string-array name="pref_video_sharpness_entries">
+        <item>@string/pref_video_sharpness_entry_stock</item>
+        <item>@string/pref_video_sharpness_entry_reduced</item>
+        <item>@string/pref_video_sharpness_entry_off</item>
+    </string-array>
+    <string-array name="pref_video_sharpness_entrydescriptions">
+        <item>@string/pref_video_sharpness_entry_stock_desc</item>
+        <item>@string/pref_video_sharpness_entry_reduced_desc</item>
+        <item>@string/pref_video_sharpness_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_video_sharpness_entryvalues">
+        <item>stock</item>
+        <item>reduced</item>
+        <item>off</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entries">
+        <item>@string/pref_video_noise_reduction_entry_stock</item>
+        <item>@string/pref_video_noise_reduction_entry_minimal</item>
+        <item>@string/pref_video_noise_reduction_entry_off</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entrydescriptions">
+        <item>@string/pref_video_noise_reduction_entry_stock_desc</item>
+        <item>@string/pref_video_noise_reduction_entry_minimal_desc</item>
+        <item>@string/pref_video_noise_reduction_entry_off_desc</item>
+    </string-array>
+    <string-array name="pref_video_noise_reduction_entryvalues">
+        <item>stock</item>
+        <item>minimal</item>
+        <item>off</item>
+    </string-array>
+                        """.trimIndent())
+                        append("\n")
+                    }
                 }
                 if (arraysToInject.isNotBlank()) {
                     content = content.replace("<resources>", "<resources>\n    $arraysToInject")
@@ -1014,6 +1236,22 @@ object PixelCameraPatchUtils {
                     )
                     gm3File.writeText(content, Charsets.UTF_8)
                 }
+
+                if (!content.contains("pref_category_advanced_video")) {
+                    val videoGm3Category = """
+    <androidx.preference.PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
+        <com.google.android.apps.camera.ui.preference.ListWithDescriptionsPreferenceCompat android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+    </androidx.preference.PreferenceCategory>
+                    """.trimIndent()
+                    val videoCatMatch = Regex("""(<androidx\.preference\.PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</androidx\.preference\.PreferenceCategory>)""").find(content)
+                    content = if (videoCatMatch != null) {
+                        content.replace(videoCatMatch.value, "${videoCatMatch.value}\n    $videoGm3Category")
+                    } else {
+                        content.replace("</androidx.preference.PreferenceScreen>", "    $videoGm3Category\n</androidx.preference.PreferenceScreen>")
+                    }
+                    gm3File.writeText(content, Charsets.UTF_8)
+                }
             }
         } catch (_: Throwable) {}
 
@@ -1053,6 +1291,22 @@ object PixelCameraPatchUtils {
                         Regex("""<PreferenceCategory[^>]*key="pref_category_help_and_feedback"[^>]*>[\s\S]*?</PreferenceCategory>"""),
                         aboutCam
                     )
+                    camPrefFile.writeText(content, Charsets.UTF_8)
+                }
+
+                if (!content.contains("pref_category_advanced_video")) {
+                    val videoCamCategory = """
+    <PreferenceCategory android:title="@string/pref_category_advanced_video_title" android:key="pref_category_advanced_video">
+        <ListPreference android:icon="@drawable/gs_details_vd_theme_24" android:entries="@array/pref_video_sharpness_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_sharpness_title" android:key="pref_video_sharpness_key" android:summary="%s" android:order="1" android:defaultValue="stock" android:entryValues="@array/pref_video_sharpness_entryvalues" />
+        <ListPreference android:icon="@drawable/gs_texture_vd_theme_24" android:entries="@array/pref_video_noise_reduction_entries" android:layout="@layout/preference_with_margin" android:title="@string/pref_video_noise_reduction_title" android:key="pref_video_noise_reduction_key" android:summary="%s" android:order="2" android:defaultValue="stock" android:entryValues="@array/pref_video_noise_reduction_entryvalues" />
+    </PreferenceCategory>
+                    """.trimIndent()
+                    val videoCatMatch = Regex("""(<PreferenceCategory[^>]*key="pref_category_resolution_video"[^>]*>[\s\S]*?</PreferenceCategory>)""").find(content)
+                    content = if (videoCatMatch != null) {
+                        content.replace(videoCatMatch.value, "${videoCatMatch.value}\n    $videoCamCategory")
+                    } else {
+                        content.replace("</PreferenceScreen>", "    $videoCamCategory\n</PreferenceScreen>")
+                    }
                     camPrefFile.writeText(content, Charsets.UTF_8)
                 }
             }

@@ -3052,6 +3052,443 @@
     return v0
 .end method
 
+.method public static getVideoEdgeMode()I
+    .locals 2
+
+    :try_start_gvem
+    const-string v0, "pref_video_sharpness_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_vem_stock
+
+    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "off"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vem_off
+
+    const-string v1, "0"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_vem_check_reduced
+
+    :cond_vem_off
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_vem_check_reduced
+    const-string v1, "reduced"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vem_reduced
+
+    const-string v1, "fast"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vem_reduced
+
+    const-string v1, "1"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_vem_stock
+
+    :cond_vem_reduced
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_vem_stock
+    const/4 v0, -0x1
+
+    return v0
+    :try_end_gvem
+    .catch Ljava/lang/Throwable; {:try_start_gvem .. :try_end_gvem} :catch_gvem
+
+    :catch_gvem
+    const/4 v0, -0x1
+
+    return v0
+.end method
+
+.method public static getVideoNoiseReductionMode()I
+    .locals 2
+
+    :try_start_gvnr
+    const-string v0, "pref_video_noise_reduction_key"
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getPrefEntry(Ljava/lang/String;)Ljava/lang/Object;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_vnr_stock
+
+    invoke-virtual {v0}, Ljava/lang/Object;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v1, "off"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vnr_off
+
+    const-string v1, "0"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_vnr_check_min
+
+    :cond_vnr_off
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_vnr_check_min
+    const-string v1, "minimal"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vnr_min
+
+    const-string v1, "low"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vnr_min
+
+    const-string v1, "fast"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-nez v1, :cond_vnr_min
+
+    const-string v1, "1"
+
+    invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_vnr_stock
+
+    :cond_vnr_min
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_vnr_stock
+    const/4 v0, -0x1
+
+    return v0
+    :try_end_gvnr
+    .catch Ljava/lang/Throwable; {:try_start_gvnr .. :try_end_gvnr} :catch_gvnr
+
+    :catch_gvnr
+    const/4 v0, -0x1
+
+    return v0
+.end method
+
+.method public static filterVideoNoiseReductionMode(I)I
+    .locals 1
+
+    :try_start_fvnr
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoNoiseReductionMode()I
+
+    move-result v0
+
+    if-ltz v0, :cond_done
+
+    return v0
+
+    :cond_done
+    :try_end_fvnr
+    .catch Ljava/lang/Throwable; {:try_start_fvnr .. :try_end_fvnr} :catch_fvnr
+
+    :catch_fvnr
+    return p0
+.end method
+
+.method public static isVideoMode()Z
+    .locals 2
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v1, 0x2
+
+    if-ne v0, v1, :cond_chk_slow
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_chk_slow
+    const/4 v1, 0x5
+
+    if-ne v0, v1, :cond_chk_intent
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_chk_intent
+    const/4 v1, 0x7
+
+    if-ne v0, v1, :cond_chk_timelapse
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_chk_timelapse
+    const/16 v1, 0x9
+
+    if-ne v0, v1, :cond_ret_f
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_ret_f
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;)V
+    .locals 2
+
+    if-nez p0, :cond_chk_mode
+
+    return-void
+
+    :cond_chk_mode
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-nez v0, :cond_chk_edge
+
+    return-void
+
+    :cond_chk_edge
+    :try_start_avem
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoEdgeMode()I
+
+    move-result v0
+
+    if-ltz v0, :cond_chk_nr
+
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->EDGE_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    invoke-virtual {p0, v1, v0}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+    :try_end_avem
+    .catch Ljava/lang/Throwable; {:try_start_avem .. :try_end_avem} :catch_avem
+
+    :catch_avem
+    :cond_chk_nr
+    :try_start_avnr
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoNoiseReductionMode()I
+
+    move-result v0
+
+    if-ltz v0, :cond_done
+
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    invoke-virtual {p0, v1, v0}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+    :try_end_avnr
+    .catch Ljava/lang/Throwable; {:try_start_avnr .. :try_end_avnr} :catch_avnr
+
+    :catch_avnr
+    :cond_done
+    return-void
+.end method
+
+.method public static applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;I)V
+    .locals 1
+
+    const/4 v0, 0x3
+
+    if-eq p1, v0, :cond_apply
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_ret
+
+    :cond_apply
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;)V
+
+    :cond_ret
+    return-void
+.end method
+
+.method public static injectVideoIspParameters(Ljava/util/Set;)V
+    .locals 4
+
+    if-nez p0, :cond_start
+
+    return-void
+
+    :cond_start
+    :try_start_ivp
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoEdgeMode()I
+
+    move-result v0
+
+    if-ltz v0, :cond_check_nr
+
+    invoke-interface {p0}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
+
+    move-result-object v1
+
+    :cond_edge_loop
+    invoke-interface {v1}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_edge_add
+
+    invoke-interface {v1}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v2
+
+    instance-of v3, v2, Lvaz;
+
+    if-eqz v3, :cond_edge_loop
+
+    check-cast v2, Lvaz;
+
+    iget-object v2, v2, Lvaz;->a:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    sget-object v3, Landroid/hardware/camera2/CaptureRequest;->EDGE_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {v3, v2}, Landroid/hardware/camera2/CaptureRequest$Key;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-eqz v2, :cond_edge_loop
+
+    invoke-interface {v1}, Ljava/util/Iterator;->remove()V
+
+    goto :cond_edge_loop
+
+    :cond_edge_add
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->EDGE_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v1, v0}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    :cond_check_nr
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getVideoNoiseReductionMode()I
+
+    move-result v0
+
+    if-ltz v0, :cond_done
+
+    invoke-interface {p0}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
+
+    move-result-object v1
+
+    :cond_nr_loop
+    invoke-interface {v1}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_nr_add
+
+    invoke-interface {v1}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v2
+
+    instance-of v3, v2, Lvaz;
+
+    if-eqz v3, :cond_nr_loop
+
+    check-cast v2, Lvaz;
+
+    iget-object v2, v2, Lvaz;->a:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    sget-object v3, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {v3, v2}, Landroid/hardware/camera2/CaptureRequest$Key;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    if-eqz v2, :cond_nr_loop
+
+    invoke-interface {v1}, Ljava/util/Iterator;->remove()V
+
+    goto :cond_nr_loop
+
+    :cond_nr_add
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->NOISE_REDUCTION_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v0
+
+    new-instance v2, Lvaz;
+
+    invoke-direct {v2, v1, v0}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {p0, v2}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+    :try_end_ivp
+    .catch Ljava/lang/Throwable; {:try_start_ivp .. :try_end_ivp} :catch_ivp
+
+    :catch_ivp
+    :cond_done
+    return-void
+.end method
+
 .method public static getSharpnessFactor()F
     .locals 2
 

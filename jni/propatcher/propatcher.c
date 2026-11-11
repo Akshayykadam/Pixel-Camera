@@ -246,18 +246,18 @@ static void update_active_luts(int lookId) {
     }
 
     // Build Luminance-Weighted Split-Toning weights:
-    // Pure shadows (< 24): ramp from 0 to 256 (keeps blacks deep and ink-rich)
-    // Midtones (24..205): 256 (full rich photographic tone)
-    // Highlights (> 205): ramp down from 256 to 0 (specular whites stay clean)
+    // Pure shadows (< 24): ramp from 0 to 255 (keeps blacks deep and ink-rich)
+    // Midtones (24..205): 255 (full rich photographic tone)
+    // Highlights (> 205): ramp down from 255 to 0 (specular whites stay clean)
     for (int i = 0; i < 256; i++) {
-        int w = 256;
+        int w = 255;
         if (i < 24) {
-            w = (i * 256) / 24;
+            w = (i * 255) / 24;
         } else if (i > 205) {
-            w = ((255 - i) * 256) / 50;
+            w = ((255 - i) * 255) / 50;
         }
         if (w < 0) w = 0;
-        if (w > 256) w = 256;
+        if (w > 255) w = 255;
         s_tint_weight[i] = (uint8_t)w;
     }
 
@@ -490,52 +490,34 @@ static inline int is_skin_tone(int r, int g, int b, int luma) {
 }
 
 // Photographic color grading for RGB (3 channels) or RGBA (4 channels) frames with:
-// 1. Adaptive 2D Luma Laplacian Acutance / Sharpening & Micro-contrast
-// 2. Ratio-Preserving Luminance Scaling (eliminates blown highlights & color shifts)
-// 3. Filmic Highlight Roll-off (soft desaturation knee prevents harsh channel clipping)
-// 4. Smart Vibrance & Skin Tone Protection (preserves natural facial tones without sunburn)
-// 5. Luminance-Weighted Split-Toning (deep blacks & clean specular whites)
+// 1. Photographic Smart Vibrance & Skin Tone Protection (Fitzpatrick types I-VI)
+// 2. Luminance-Weighted Split-Toning (deep blacks & clean specular whites)
+// 3. Optional Film Grain Synthesis
+// Note: Base Look tone curves and fine-tuning (Contrast, Shadows, Highlights, Sharpness)
+// are applied natively in 16-bit linear RAW space by Gcam's neural HDR+ ISP via TomteMetadata.
+// Here we apply fine-tuning chroma shifts (Vibrance, Warmth, Tint) without double-grading tone curves.
 static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride,
-                                    const uint8_t lut_y[256], float sat, float shift_u, float shift_v, int is_monochrome,
-                                    float sharpness) {
+                                    float sat, float shift_u, float shift_v, int is_monochrome) {
     int s_q8 = (int)roundf(sat * 256.0f);
     int s_r = (int)roundf(shift_v * 1.402f);
     int s_g = (int)roundf(-0.344136f * shift_u - 0.714136f * shift_v);
     int s_b = (int)roundf(shift_u * 1.772f);
     int grain_on = s_grain_enabled;
-    int apply_sharpness = (fabsf(sharpness - 1.0f) >= 0.02f);
-    int sharp_mult = apply_sharpness ? (int)roundf((sharpness - 1.0f) * 160.0f) : 0;
+
+    // Fast neutral bypass: if not monochrome, no grain, and chroma is neutral
+    if (!is_monochrome && !grain_on && s_q8 == 256 && shift_u == 0.0f && shift_v == 0.0f) {
+        return;
+    }
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = data + y * stride;
-        const uint8_t* prev_row = (y > 0) ? (data + (y - 1) * stride) : row;
-        const uint8_t* next_row = (y + 1 < height) ? (data + (y + 1) * stride) : row;
         uint32_t y_offset = (y * 79) & 0xFF;
 
         if (is_monochrome) {
             for (uint32_t x = 0; x < width; x++) {
                 uint8_t* pix = row + x * channels;
                 uint8_t gray = (uint8_t)((pix[0]*77 + pix[1]*150 + pix[2]*29) >> 8);
-                int delta_sharp = 0;
-                if (apply_sharpness) {
-                    uint32_t left_x = (x > 0) ? (x - 1) : x;
-                    uint32_t right_x = (x + 1 < width) ? (x + 1) : x;
-                    const uint8_t* pix_up = prev_row + x * channels;
-                    const uint8_t* pix_down = next_row + x * channels;
-                    const uint8_t* pix_left = row + left_x * channels;
-                    const uint8_t* pix_right = row + right_x * channels;
-
-                    int l_up = (pix_up[0]*77 + pix_up[1]*150 + pix_up[2]*29) >> 8;
-                    int l_down = (pix_down[0]*77 + pix_down[1]*150 + pix_down[2]*29) >> 8;
-                    int l_left = (pix_left[0]*77 + pix_left[1]*150 + pix_left[2]*29) >> 8;
-                    int l_right = (pix_right[0]*77 + pix_right[1]*150 + pix_right[2]*29) >> 8;
-
-                    int laplacian = ((int)gray << 2) - l_up - l_down - l_left - l_right;
-                    delta_sharp = (laplacian * sharp_mult) >> 8;
-                    if (delta_sharp > 26) delta_sharp = 26;
-                    if (delta_sharp < -26) delta_sharp = -26;
-                }
-                uint8_t out = clamp_u8((int)lut_y[gray] + delta_sharp);
+                uint8_t out = gray;
                 if (grain_on) {
                     int n = s_noise_table[(y_offset + x) & 0xFF];
                     int mw = 255 - abs((int)gray * 2 - 255);
@@ -549,79 +531,31 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 int r = pix[0], g = pix[1], b = pix[2];
                 int luma = (r * 77 + g * 150 + b * 29) >> 8;
 
-                int delta_sharp = 0;
-                if (apply_sharpness) {
-                    uint32_t left_x = (x > 0) ? (x - 1) : x;
-                    uint32_t right_x = (x + 1 < width) ? (x + 1) : x;
-                    const uint8_t* pix_up = prev_row + x * channels;
-                    const uint8_t* pix_down = next_row + x * channels;
-                    const uint8_t* pix_left = row + left_x * channels;
-                    const uint8_t* pix_right = row + right_x * channels;
-
-                    int l_up = (pix_up[0]*77 + pix_up[1]*150 + pix_up[2]*29) >> 8;
-                    int l_down = (pix_down[0]*77 + pix_down[1]*150 + pix_down[2]*29) >> 8;
-                    int l_left = (pix_left[0]*77 + pix_left[1]*150 + pix_left[2]*29) >> 8;
-                    int l_right = (pix_right[0]*77 + pix_right[1]*150 + pix_right[2]*29) >> 8;
-
-                    int laplacian = (luma << 2) - l_up - l_down - l_left - l_right;
-                    delta_sharp = (laplacian * sharp_mult) >> 8;
-                    if (delta_sharp > 26) delta_sharp = 26;
-                    if (delta_sharp < -26) delta_sharp = -26;
-                }
-
-                int graded_luma = clamp_u8((int)lut_y[luma] + delta_sharp);
-
-                // 1. Ratio-Preserving Luminance Scaling
-                int r_tone, g_tone, b_tone;
-                if (luma == 0) {
-                    r_tone = graded_luma;
-                    g_tone = graded_luma;
-                    b_tone = graded_luma;
-                } else {
-                    r_tone = (r * graded_luma) / luma;
-                    g_tone = (g * graded_luma) / luma;
-                    b_tone = (b * graded_luma) / luma;
-
-                    // Filmic Highlight Roll-off (Soft desaturation knee if any channel overshoots 255)
-                    int max_c = r_tone;
-                    if (g_tone > max_c) max_c = g_tone;
-                    if (b_tone > max_c) max_c = b_tone;
-                    if (max_c > 255 && max_c > graded_luma) {
-                        int numer = max_c - 255;
-                        int denom = max_c - graded_luma;
-                        r_tone = r_tone - (numer * (r_tone - graded_luma)) / denom;
-                        g_tone = g_tone - (numer * (g_tone - graded_luma)) / denom;
-                        b_tone = b_tone - (numer * (b_tone - graded_luma)) / denom;
-                    }
-                }
-
-                // 2. Smart Vibrance & Skin Tone Protection
+                // 1. Smart Vibrance & Skin Tone Protection
                 int eff_sq8 = s_q8;
                 if (is_skin_tone(r, g, b, luma)) {
                     if (s_q8 > 256) {
-                        // Damp saturation boost by ~62% on human skin to prevent reddish/sunburnt faces
                         eff_sq8 = 256 + ((s_q8 - 256) * 3) / 8;
                     } else if (s_q8 < 256) {
-                        // Gentle desaturation on skin to avoid sickly/grey faces
                         eff_sq8 = 256 - ((256 - s_q8) * 5) / 8;
                     }
                 }
 
-                int r_sat = graded_luma + (((r_tone - graded_luma) * eff_sq8) >> 8);
-                int g_sat = graded_luma + (((g_tone - graded_luma) * eff_sq8) >> 8);
-                int b_sat = graded_luma + (((b_tone - graded_luma) * eff_sq8) >> 8);
+                int r_sat = luma + (((r - luma) * eff_sq8) >> 8);
+                int g_sat = luma + (((g - luma) * eff_sq8) >> 8);
+                int b_sat = luma + (((b - luma) * eff_sq8) >> 8);
 
-                // 3. Luminance-Weighted Split-Toning (Deep Blacks & Clean Whites)
-                int tw = s_tint_weight[graded_luma];
+                // 2. Luminance-Weighted Split-Toning (Deep Blacks & Clean Whites)
+                int tw = s_tint_weight[luma];
                 int tint_r = (s_r * tw) >> 8;
                 int tint_g = (s_g * tw) >> 8;
                 int tint_b = (s_b * tw) >> 8;
 
-                // 4. Optional Film Grain
+                // 3. Optional Film Grain
                 int gr = 0;
                 if (grain_on) {
                     int n = s_noise_table[(y_offset + x) & 0xFF];
-                    int mw = 255 - abs(graded_luma * 2 - 255);
+                    int mw = 255 - abs(luma * 2 - 255);
                     gr = (n * mw) >> 10;
                 }
 
@@ -633,8 +567,11 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
     }
 }
 
+// 128-bit ARM64 NEON vector grading for RGBA viewfinder buffers (Format AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM)
+// Provides bit-exact Tone Mapping (vqtbl4q_u8) + Chroma Grading (Vibrance, Warmth, Tint)
 static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t height, uint32_t stride,
-                                   const uint8_t lut[256], int is_monochrome) {
+                                   const uint8_t lut[256], int16_t scale_uv, int16_t shift_u, int16_t shift_v,
+                                   int is_monochrome) {
     uint8x16x4_t tab0 = vld1q_u8_x4(lut + 0);
     uint8x16x4_t tab1 = vld1q_u8_x4(lut + 64);
     uint8x16x4_t tab2 = vld1q_u8_x4(lut + 128);
@@ -642,6 +579,20 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
     uint8x16_t v64 = vdupq_n_u8(64);
     uint8x16_t v128 = vdupq_n_u8(128);
     uint8x16_t v192 = vdupq_n_u8(192);
+
+    int s_r = (int)roundf((float)shift_v * 1.402f);
+    int s_g = (int)roundf(-0.344136f * (float)shift_u - 0.714136f * (float)shift_v);
+    int s_b = (int)roundf((float)shift_u * 1.772f);
+
+    int apply_chroma = (!is_monochrome && (scale_uv != 256 || shift_u != 0 || shift_v != 0));
+
+    uint8x16x4_t tw0, tw1, tw2, tw3;
+    if (apply_chroma) {
+        tw0 = vld1q_u8_x4(s_tint_weight + 0);
+        tw1 = vld1q_u8_x4(s_tint_weight + 64);
+        tw2 = vld1q_u8_x4(s_tint_weight + 128);
+        tw3 = vld1q_u8_x4(s_tint_weight + 192);
+    }
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = data + y * stride;
@@ -653,7 +604,7 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
                 uint8_t out = lut[gray];
                 pix[0] = out; pix[1] = out; pix[2] = out;
             }
-        } else {
+        } else if (!apply_chroma) {
             for (; x + 16 <= width; x += 16) {
                 uint8x16x4_t rgba = vld4q_u8(row + x * 4);
 
@@ -682,6 +633,113 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
                 pix[0] = lut[pix[0]];
                 pix[1] = lut[pix[1]];
                 pix[2] = lut[pix[2]];
+            }
+        } else {
+            // Full Tone + Chroma Grading in RGBA with NEON SIMD
+            for (; x + 16 <= width; x += 16) {
+                uint8x16x4_t rgba = vld4q_u8(row + x * 4);
+
+                // 1. Tone map R, G, B channels
+                uint8x16_t r0 = vqtbl4q_u8(tab0, rgba.val[0]);
+                uint8x16_t r1 = vqtbl4q_u8(tab1, vsubq_u8(rgba.val[0], v64));
+                uint8x16_t r2 = vqtbl4q_u8(tab2, vsubq_u8(rgba.val[0], v128));
+                uint8x16_t r3 = vqtbl4q_u8(tab3, vsubq_u8(rgba.val[0], v192));
+                uint8x16_t r_tone = vorrq_u8(vorrq_u8(r0, r1), vorrq_u8(r2, r3));
+
+                uint8x16_t g0 = vqtbl4q_u8(tab0, rgba.val[1]);
+                uint8x16_t g1 = vqtbl4q_u8(tab1, vsubq_u8(rgba.val[1], v64));
+                uint8x16_t g2 = vqtbl4q_u8(tab2, vsubq_u8(rgba.val[1], v128));
+                uint8x16_t g3 = vqtbl4q_u8(tab3, vsubq_u8(rgba.val[1], v192));
+                uint8x16_t g_tone = vorrq_u8(vorrq_u8(g0, g1), vorrq_u8(g2, g3));
+
+                uint8x16_t b0 = vqtbl4q_u8(tab0, rgba.val[2]);
+                uint8x16_t b1 = vqtbl4q_u8(tab1, vsubq_u8(rgba.val[2], v64));
+                uint8x16_t b2 = vqtbl4q_u8(tab2, vsubq_u8(rgba.val[2], v128));
+                uint8x16_t b3 = vqtbl4q_u8(tab3, vsubq_u8(rgba.val[2], v192));
+                uint8x16_t b_tone = vorrq_u8(vorrq_u8(b0, b1), vorrq_u8(b2, b3));
+
+                // 2. Compute Luma for 16 pixels: Y = (77*R + 150*G + 29*B) >> 8
+                uint16x8_t luma_lo16 = vmull_u8(vget_low_u8(r_tone), vdup_n_u8(77));
+                luma_lo16 = vmlal_u8(luma_lo16, vget_low_u8(g_tone), vdup_n_u8(150));
+                luma_lo16 = vmlal_u8(luma_lo16, vget_low_u8(b_tone), vdup_n_u8(29));
+                uint8x8_t y_lo = vshrn_n_u16(luma_lo16, 8);
+
+                uint16x8_t luma_hi16 = vmull_u8(vget_high_u8(r_tone), vdup_n_u8(77));
+                luma_hi16 = vmlal_u8(luma_hi16, vget_high_u8(g_tone), vdup_n_u8(150));
+                luma_hi16 = vmlal_u8(luma_hi16, vget_high_u8(b_tone), vdup_n_u8(29));
+                uint8x8_t y_hi = vshrn_n_u16(luma_hi16, 8);
+                uint8x16_t y16 = vcombine_u8(y_lo, y_hi);
+
+                // 3. Lookup luminance-weighted tint factor for 16 pixels
+                uint8x16_t tw_r0 = vqtbl4q_u8(tw0, y16);
+                uint8x16_t tw_r1 = vqtbl4q_u8(tw1, vsubq_u8(y16, v64));
+                uint8x16_t tw_r2 = vqtbl4q_u8(tw2, vsubq_u8(y16, v128));
+                uint8x16_t tw_r3 = vqtbl4q_u8(tw3, vsubq_u8(y16, v192));
+                uint8x16_t tw16 = vorrq_u8(vorrq_u8(tw_r0, tw_r1), vorrq_u8(tw_r2, tw_r3));
+
+                // 4. Red channel saturation + tint
+                int16x8_t r_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(r_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
+                int16x8_t r_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
+                                               vshrq_n_s16(vmulq_n_s16(r_diff_lo, scale_uv), 8));
+                int16x8_t tint_r_lo = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(tw16))), (int16_t)s_r), 8);
+                int16x8_t r_out_lo = vaddq_s16(r_sat_lo, tint_r_lo);
+
+                int16x8_t r_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(r_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
+                int16x8_t r_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
+                                               vshrq_n_s16(vmulq_n_s16(r_diff_hi, scale_uv), 8));
+                int16x8_t tint_r_hi = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(tw16))), (int16_t)s_r), 8);
+                int16x8_t r_out_hi = vaddq_s16(r_sat_hi, tint_r_hi);
+                rgba.val[0] = vcombine_u8(vqmovun_s16(r_out_lo), vqmovun_s16(r_out_hi));
+
+                // 5. Green channel saturation + tint
+                int16x8_t g_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(g_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
+                int16x8_t g_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
+                                               vshrq_n_s16(vmulq_n_s16(g_diff_lo, scale_uv), 8));
+                int16x8_t tint_g_lo = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(tw16))), (int16_t)s_g), 8);
+                int16x8_t g_out_lo = vaddq_s16(g_sat_lo, tint_g_lo);
+
+                int16x8_t g_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(g_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
+                int16x8_t g_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
+                                               vshrq_n_s16(vmulq_n_s16(g_diff_hi, scale_uv), 8));
+                int16x8_t tint_g_hi = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(tw16))), (int16_t)s_g), 8);
+                int16x8_t g_out_hi = vaddq_s16(g_sat_hi, tint_g_hi);
+                rgba.val[1] = vcombine_u8(vqmovun_s16(g_out_lo), vqmovun_s16(g_out_hi));
+
+                // 6. Blue channel saturation + tint
+                int16x8_t b_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(b_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
+                int16x8_t b_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
+                                               vshrq_n_s16(vmulq_n_s16(b_diff_lo, scale_uv), 8));
+                int16x8_t tint_b_lo = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(tw16))), (int16_t)s_b), 8);
+                int16x8_t b_out_lo = vaddq_s16(b_sat_lo, tint_b_lo);
+
+                int16x8_t b_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(b_tone))),
+                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
+                int16x8_t b_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
+                                               vshrq_n_s16(vmulq_n_s16(b_diff_hi, scale_uv), 8));
+                int16x8_t tint_b_hi = vshrq_n_s16(vmulq_n_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(tw16))), (int16_t)s_b), 8);
+                int16x8_t b_out_hi = vaddq_s16(b_sat_hi, tint_b_hi);
+                rgba.val[2] = vcombine_u8(vqmovun_s16(b_out_lo), vqmovun_s16(b_out_hi));
+
+                vst4q_u8(row + x * 4, rgba);
+            }
+            for (; x < width; x++) {
+                uint8_t* pix = row + x * 4;
+                int r_tone = lut[pix[0]];
+                int g_tone = lut[pix[1]];
+                int b_tone = lut[pix[2]];
+                int luma = (r_tone * 77 + g_tone * 150 + b_tone * 29) >> 8;
+                int r_sat = luma + (((r_tone - luma) * (int)scale_uv) >> 8);
+                int g_sat = luma + (((g_tone - luma) * (int)scale_uv) >> 8);
+                int b_sat = luma + (((b_tone - luma) * (int)scale_uv) >> 8);
+                int tw = s_tint_weight[luma];
+                pix[0] = clamp_u8(r_sat + ((s_r * tw) >> 8));
+                pix[1] = clamp_u8(g_sat + ((s_g * tw) >> 8));
+                pix[2] = clamp_u8(b_sat + ((s_b * tw) >> 8));
             }
         }
     }
@@ -756,7 +814,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
         if (res == 0 && virt) {
             if (is_rgba) {
                 neon_grade_rgba((uint8_t*)virt, desc.width, desc.height, desc.stride * 4,
-                                lut_y, is_monochrome);
+                                lut_y, scale_uv, shift_u, shift_v, is_monochrome);
             } else {
                 uint32_t y_size = desc.stride * desc.height;
                 neon_grade_y((uint8_t*)virt, desc.width, desc.height, desc.stride, lut_y);
@@ -781,7 +839,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
 
     if (is_rgba) {
         neon_grade_rgba((uint8_t*)planes.planes[0].data, width, height,
-                        planes.planes[0].rowStride, lut_y, is_monochrome);
+                        planes.planes[0].rowStride, lut_y, scale_uv, shift_u, shift_v, is_monochrome);
     } else if (planes.planeCount == 1) {
         uint32_t y_size = planes.planes[0].rowStride * height;
         neon_grade_y((uint8_t*)planes.planes[0].data, width, height,
@@ -850,7 +908,7 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
                            fabsf(s_ft_warmth) > 0.01f ||
                            fabsf(s_ft_sharpness - 1.0f) > 0.02f);
 
-    if (lookId == 0 && !has_fine_tuning) {
+    if (lookId == 0 && !has_fine_tuning && !s_grain_enabled) {
         return;
     }
 
@@ -860,20 +918,18 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
 
     update_active_luts(lookId);
 
-    const uint8_t* lut_y = s_active_lut_y;
     const LookProfile* prof = (lookId >= 0 && lookId < 13) ? &s_look_profiles[lookId] : &s_look_profiles[0];
     int is_monochrome = prof->is_monochrome;
 
     float sat = s_active_saturation;
     float shift_u = s_active_shift_u;
     float shift_v = s_active_shift_v;
-    float sharpness = s_ft_sharpness;
 
-    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, U_shift=%.1f, V_shift=%.1f, Sharp=%.2f",
-         width, height, channels, stride, lookId, is_monochrome, sat, shift_u, shift_v, sharpness);
+    LOGI("ProPatcher: Grading Captured Photo: %dx%d (%d channels, stride=%d), Look=%d, Mono=%d, Sat=%.2f, U_shift=%.1f, V_shift=%.1f",
+         width, height, channels, stride, lookId, is_monochrome, sat, shift_u, shift_v);
 
     lut_grade_raster((uint8_t*)dataPtr, (uint32_t)width, (uint32_t)height, (uint32_t)channels, (uint32_t)stride,
-                     lut_y, sat, shift_u, shift_v, is_monochrome, sharpness);
+                     sat, shift_u, shift_v, is_monochrome);
 }
 
 

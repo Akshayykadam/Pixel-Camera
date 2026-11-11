@@ -90,7 +90,9 @@ class PatcherExecutionTest {
             assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_gm3_preferences.xml should contain pref_camera_noise_reduction_key")
             assertTrue(content.contains("pref_camera_raw_compression_key"), "camera_gm3_preferences.xml should contain pref_camera_raw_compression_key")
             assertTrue(content.contains("pref_camera_sharpness_key"), "camera_gm3_preferences.xml should contain pref_camera_sharpness_key")
-            println("Verified: camera_gm3_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, and sharpness keys")
+            assertTrue(content.contains("pref_video_sharpness_key"), "camera_gm3_preferences.xml should contain pref_video_sharpness_key")
+            assertTrue(content.contains("pref_video_noise_reduction_key"), "camera_gm3_preferences.xml should contain pref_video_noise_reduction_key")
+            println("Verified: camera_gm3_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, and video ISP keys")
         }
         val camXml = File(tmpDir, "apk/resources/package_1/res/xml/camera_preferences.xml")
         if (camXml.exists()) {
@@ -100,7 +102,9 @@ class PatcherExecutionTest {
             assertTrue(content.contains("pref_camera_noise_reduction_key"), "camera_preferences.xml should contain pref_camera_noise_reduction_key")
             assertTrue(content.contains("pref_camera_raw_compression_key"), "camera_preferences.xml should contain pref_camera_raw_compression_key")
             assertTrue(content.contains("pref_camera_sharpness_key"), "camera_preferences.xml should contain pref_camera_sharpness_key")
-            println("Verified: camera_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, and sharpness keys")
+            assertTrue(content.contains("pref_video_sharpness_key"), "camera_preferences.xml should contain pref_video_sharpness_key")
+            assertTrue(content.contains("pref_video_noise_reduction_key"), "camera_preferences.xml should contain pref_video_noise_reduction_key")
+            println("Verified: camera_preferences.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, and video ISP keys")
         }
         val stringsXml = File(tmpDir, "apk/resources/package_1/res/values/strings.xml")
         if (stringsXml.exists()) {
@@ -110,7 +114,9 @@ class PatcherExecutionTest {
             assertTrue(content.contains("pref_camera_noise_reduction_title"), "strings.xml should contain pref_camera_noise_reduction_title")
             assertTrue(content.contains("pref_camera_raw_compression_title"), "strings.xml should contain pref_camera_raw_compression_title")
             assertTrue(content.contains("pref_camera_sharpness_title"), "strings.xml should contain pref_camera_sharpness_title")
-            println("Verified: strings.xml contains brightness, jpeg quality, noise reduction, raw compression, and sharpness titles")
+            assertTrue(content.contains("pref_video_sharpness_title"), "strings.xml should contain pref_video_sharpness_title")
+            assertTrue(content.contains("pref_video_noise_reduction_title"), "strings.xml should contain pref_video_noise_reduction_title")
+            println("Verified: strings.xml contains brightness, jpeg quality, noise reduction, raw compression, sharpness, and video ISP titles")
         }
         val tabXml = File(tmpDir, "apk/resources/package_1/res/layout/options_bottomsheet_tab.xml")
         if (tabXml.exists()) {
