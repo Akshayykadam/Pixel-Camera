@@ -41,14 +41,14 @@ This repository provides **comprehensive reverse-engineering research**, **devic
 
 ---
 
-## ✨ Key Features Unlocked
+## Key Features Unlocked
 
 | Feature | Description | Supported Devices |
 | :--- | :--- | :---: |
 | **13 Camera Looks** | Pixel 11 signature color profiles with real-time live viewfinder OpenGL preview. | Pixel 6 → 10 |
 | **Pro Manual Controls** | Precision manual focus, GPU edge peaking, manual shutter speed (up to 1/8000s), manual ISO, and live viewfinder metrics. | Pixel 6 → 10 |
 | **10x Quick Zoom** | Discrete 1-tap 10x Super Res Zoom button on the viewfinder zoom strip. | Pixel 7P, 8P, 9P, 10P |
-| **⚡ Quick Access Slots** | Customizable Left/Right shortcut slots with interactive on-screen vertical slider for fast switching. | Pixel 6 → 10 |
+| **Quick Access Slots** | Customizable Left/Right shortcut slots with interactive on-screen vertical slider for fast switching. | Pixel 6 → 10 |
 | **Night Sight Tagging** | Official Google Photos `SpecialType-NIGHT` badge, animation, and auto-night session retention. | Pixel 6 → 10 |
 | **Separate RAW Folder** | In-app toggle to save DNG RAW photos to `Pictures/Raw/` to avoid eating Google Photos cloud storage. | Pixel 6 → 10 |
 | **Video Bitrates & Modes** | Custom bitrates (Stock, High, Ultra) and stabilization modes (Standard, OIS Only for cinematic handheld, Off for tripod). | Pixel 6 → 10 |
