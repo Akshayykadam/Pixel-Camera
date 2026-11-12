@@ -41,171 +41,54 @@ This repository provides **comprehensive reverse-engineering research**, **devic
 
 ---
 
-## Key Features Unlocked
+## ✨ Key Features Unlocked
 
-### 1. Thirteen Signature Camera Looks (Sauce & Tomte)
-Instant tone mapping, color matrix shifts, and organic film grain encoded into captures:
+| Feature | Description | Supported Devices |
+| :--- | :--- | :---: |
+| **🎨 13 Camera Looks** | Pixel 11 signature color profiles with real-time live viewfinder OpenGL preview. | Pixel 6 → 10 |
+| **🎛️ Pro Manual Controls** | Precision manual focus, GPU edge peaking, manual shutter speed (up to 1/8000s), manual ISO, and live viewfinder metrics. | Pixel 6 → 10 |
+| **🔍 10x Quick Zoom** | Discrete 1-tap 10x Super Res Zoom button on the viewfinder zoom strip. | Pixel 7P, 8P, 9P, 10P |
+| **⚡ Quick Access Slots** | Customizable Left/Right shortcut slots with interactive on-screen vertical slider for fast switching. | Pixel 6 → 10 |
+| **🌙 Night Sight Tagging** | Official Google Photos `SpecialType-NIGHT` badge, animation, and auto-night session retention. | Pixel 6 → 10 |
+| **📁 Separate RAW Folder** | In-app toggle to save DNG RAW photos to `Pictures/Raw/` to avoid eating Google Photos cloud storage. | Pixel 6 → 10 |
+| **🎥 Video Bitrates & Modes** | Custom bitrates (Stock, High, Ultra) and stabilization modes (Standard, OIS Only for cinematic handheld, Off for tripod). | Pixel 6 → 10 |
+| **🎞️ AV1 Video Encoding** | Next-generation 10-bit AV1 hardware video recording (~30% higher efficiency than HEVC). | Tensor G3 & G4 |
+| **💎 Pro Image Quality** | In-app JPEG Quality (100% Ultra, 98% High, 95% Stock) and Spatial Noise Reduction (Stock, Minimal, Off). | Pixel 6 → 10 |
+| **📸 True 50MP Capture** | Unbinned 50 MP full-resolution capture on Pro models (`8160 x 6144`, ~15–30 MB) with clean 12MP on non-Pro models. | Pro Pixels |
+| **☀️ 100% Display Backlight** | In-app toggle forcing full screen brightness during active viewfinder sessions for clear outdoor sunlight visibility. | Pixel 6 → 10 |
+| **🎬 Creator Suite** | Floating Teleprompter HUD with auto-scroll, live microphone VU visualizer, and composition framing guides (9:16, 1:1). | Pixel 6 → 10 |
+| **🌍 Native App Label** | Clean "Pixel Camera" app drawer title with native international localization across 124 languages. | Pixel 6 → 10 |
 
-| # | Look Preset | Internal Codename | Visual Characteristics |
-| :---: | :--- | :--- | :--- |
-| **0** | **Original** | `sauce_default_label` | Google's classic, true-to-life HDR+ computational look. |
-| **1** | **Natural** | `sauce_natural_label` | Subtle softening, neutral skin tones, restrained saturation. |
-| **2** | **Shadows** | `sauce_shadows_label` | Deepened, cinematic blacks and punchy moody contrast. |
-| **3** | **Vanilla** | `sauce_orange_label` | Warm, golden-hour radiance with soft ambient highlights. |
-| **4** | **Editorial** | `sauce_kodachrome_label` | Rich Kodachrome-inspired magazine colors and contrast. |
-| **5** | **Velvet** | `sauce_velvia_label` | High-saturation landscape tones reminiscent of Fuji Velvia. |
-| **6** | **Classic** | `sauce_portra_label` | Timeless analog film aesthetic inspired by Kodak Portra. |
-| **7** | **Digi** | `sauce_digicam_label` | Nostalgic early-2000s compact digital camera punch and flare. |
-| **8** | **Black Tie** | `sauce_black_and_white_label` | Fine-grain, high-contrast monochrome with deep dynamic range. |
-| **9** | **Minimal** | `sauce_minimal_label` | Clean, desaturated Scandinavian fine-art style. |
-| **10** | **Flat** | `sauce_pesto_label` | Low-contrast flat color profile with maximum dynamic range for color grading. |
-| **11** | **Buffalo** | `sauce_unflat_label` | Punchy, rich earth-tone saturation with expanded dynamic latitude. |
-| **12** | **Dijon** | `sauce_yellow_green_faded_label` | Warm vintage look with olive-tinted highlights and faded contrast. |
+<details>
+<summary><b>🎨 Click to view all 13 Camera Looks presets</b></summary>
 
-### 2. Customizable Viewfinder Quick Access Controls
-* **Interactive Viewfinder Slots**: Assign **Left** and **Right** quick access slots directly from the Camera settings.
-* **On-Screen Discrete Tick-Slider**: Tapping the viewfinder reveals vertical sliders—tap or scrub the 10-tick slider to switch Camera Looks in real time without opening the bottom drawer.
-* **Haptic Feedback**: Tick haptics on slider detents with persistent preference storage across restarts.
+| # | Look Preset | Visual Characteristics |
+| :---: | :--- | :--- |
+| **0** | **Original** | Google's classic true-to-life HDR+ computational look |
+| **1** | **Natural** | Subtle softening, neutral skin tones, restrained saturation |
+| **2** | **Shadows** | Deepened cinematic blacks and moody contrast |
+| **3** | **Vanilla** | Warm golden-hour radiance with soft ambient highlights |
+| **4** | **Editorial** | Rich Kodachrome-inspired magazine colors and contrast |
+| **5** | **Velvet** | High-saturation landscape tones inspired by Fuji Velvia |
+| **6** | **Classic** | Timeless analog film aesthetic inspired by Kodak Portra |
+| **7** | **Digi** | Nostalgic early-2000s compact digital camera punch and flare |
+| **8** | **Black Tie** | Fine-grain monochrome with deep dynamic contrast |
+| **9** | **Minimal** | Clean, desaturated fine-art Scandinavian look |
+| **10** | **Flat** | Low-contrast flat profile with maximum latitude for color grading |
+| **11** | **Buffalo** | Punchy earth-tone saturation with expanded dynamic latitude |
+| **12** | **Dijon** | Warm vintage look with olive-tinted highlights and faded contrast |
 
-### 3. Native Halide & Tomte Grain Engine
-* **Native C++ Fallback**: When vendor Camera HAL tags (`REQUEST_TOMTE_TYPE`) are absent on older Tensor SoCs, native routines in `libgcastartup.so` (`wireless/android/camera/tomte/tomte_tonemap.cc`) execute on GPU and CPU.
-* **Neural Style Fallback**: Fallback from TPU to CPU floating-point model (`looknet_v2.1_float.tflite`).
-* **Hardware Portrait Pipeline**: Fully integrated with Google's Gouda portrait segmentation pipeline for applying Looks to portrait captures.
-
-### 4. Pixel Camera Creator Suite
-* **Creator Drawer Tab (`granite`)**: A dedicated creation tool tab in the options menu alongside General settings.
-* **Teleprompter HUD (`biotite`)**: Floating viewfinder script presenter with auto-scrolling, customizable WPM speed, and Compose-based script editor.
-* **Live Audio Visualizer (`mica`)**: Real-time microphone VU level indicator rendered directly over the camera feed.
-* **Social Media Framing (`slate` / `basalt`)**: 9:16 vertical, 1:1 square, and custom aspect ratio composition guide overlays.
-* *(See [`creator-suite-research/`](creator-suite-research/) for full documentation and patches).*
-
-### 5. Dedicated 10x Quick Zoom Viewfinder Button
-* **1-Tap 10x Super Res Zoom**: Exposes the discrete **10x** quick-toggle button on the viewfinder zoom strip alongside `0.5x, 1x, 2x, 5x` on Pixel 7 Pro, 8 Pro, and 9 Pro.
-* **Zero Quality Loss**: Instantly activates Google's `NativeZoomPlus` and `NativeFusionZoom` computational pipelines at a single tap without requiring manual pinch-to-zoom gestures.
-* *(See [`pixel-camera-looks-research/PORTRAIT_RESEARCH.md`](pixel-camera-looks-research/PORTRAIT_RESEARCH.md) for full technical teardown).*
-
-### 6. Pro Manual Controls Backport
-* **Manual Focus & Focus Peaking**: Precision focus slider with real-time viewfinder GPU edge peaking highlights (`camera.ark_edge_hex`).
-* **Manual Shutter Speed & ISO**: Full manual exposure dials with dynamic sensor range negotiation (1/8000s up to hardware limit) and instant 1-tap "Reset to Auto".
-* **Live Viewfinder Readout Chips**: Real-time interactive badges over the camera feed displaying active manual exposure and focus metrics (`[1/250s]`, `[ISO 100]`, `[0.5m]`, `[Peaking active]`).
-* **Hardware Camera2 Compatibility**: Operates directly through standard Android Camera2 hardware interfaces (`SENSOR_EXPOSURE_TIME`, `SENSOR_SENSITIVITY`, `LENS_FOCUS_DISTANCE`), ensuring zero reliance on proprietary vendor HAL extensions.
-
-### 7. Permanent Portrait Mode Fix
-* **Universal Pure-TFLite Monocular Depth Pipeline**: Overrides hardware stereo disparity (`kStereoRgb` / `kRgbPd`) which crashes with EdgeTPU permission error `-8` on non-platform signed apps, preventing front camera subject-blur bug and flat rear camera portraits.
-* **Synchronous Model Init & Fallback**: Forces `PortraitSegmenterManager` fallback to stock `1c33c30c31a74d99b66f54c22014a27a...` segmenter model with automatic CPU/GPU retry.
-* *(See [`pixel-camera-looks-research/PORTRAIT_RESEARCH.md`](pixel-camera-looks-research/PORTRAIT_RESEARCH.md) for full teardown).*
-
-### 8. Pixel 10 12MP Photo Saving Fix
-* **Binned RAW Dimension Fallbacks**: Populates correct `khw.d, e, f, g` dimensions (`0x7f0`, `0x600`, `0x7e0`, `0x5e8`) in `hpq.aW` and `hpq.aX` for Pixel 10 and 10 Pro.
-* **Eclipse AE Neutralization**: Disables failing Eclipse AE (`camera.use_eclipse` / `kjq.bb = false`) and non-existent Milk hardware pipelines, restoring 100% reliable 12MP photo capture and saving.
-
-### 9. 100% Display Backlight / Max Screen Brightness Toggle
-* **Full-Power Display Backlight**: Directly forces maximum 100% screen brightness (`WindowManager.LayoutParams.screenBrightness = 1.0f`) across the camera viewfinder and settings menus for ultimate outdoor sunlight readability and accurate exposure evaluation.
-* **Instant Toggle Reaction**: Real-time preference interception updates the active window attribute the millisecond the toggle is clicked in Settings, with no app restart needed.
-* **Ambient Sensor Dimming Immunity**: Overrides the central display brightness funnel in `tcc.f(F)V` to prevent the device's ambient lux sensor (`tcc.d`) or mode resets from dimming or resetting the screen.
-* *(See [`CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md`](CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md#15-issue-15-100-display-backlight--max-screen-brightness-toggle-root-cause--restoration) for complete technical root cause analysis).*
-
-### 10. AV1 Video Hardware Encoding (Tensor G3 / G4)
-* **Dedicated Hardware AV1 Encoding**: Unlocks the 3-way format selector (`camcorder.jellybean_setting` and `camcorder_jellybean_feature`) in Video settings (**Settings > Video format > AVC, HEVC, AV1**), encoding ultra-efficient 10-bit AV1 video streams at ~30% higher compression efficiency than HEVC.
-* **Hardware-Gated Compatibility**: Supported on Google Tensor G3 (Pixel 8 / 8 Pro / 8a) and Tensor G4 (Pixel 9 / 9 Pro / 9 Pro XL / 9 Pro Fold) featuring dedicated multi-format video encoder blocks (`c2.google.av1.encoder`).
-* **Graceful Legacy Fallback**: On devices lacking hardware AV1 encoders (Tensor G1 / G2, Pixel 6 & 7 series), Google Camera's internal `MediaCodecInfo.isHardwareAccelerated()` safety gate automatically suppresses the AV1 option and defaults cleanly to standard HEVC/AVC toggles with zero crashes.
-* *(See [`Av1VideoEncodingPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Av1VideoEncodingPatch.kt) for implementation).*
-
-### 11. In-App Pro Image Quality (JPEG Quality & Spatial Noise Reduction)
-* **In-App Interactive Preference Menus**: Directly integrated into Camera Settings under **Photo / Resolution** (`pref_category_resolution_camera`), offering full in-app control similar to the Video Format menu.
-* **Permanent Selection Persistence**: Uses persistent `SharedPreferences` storage (`pref_camera_jpeg_quality_key` and `pref_camera_noise_reduction_key`) ensuring values stick across app restarts and device reboots until changed by the user.
-* **Selectable JPEG Quality Compression**:
-  * **100% (Maximum Quality)**: Disables aggressive DCT quantization; maximizes fine texture preservation, grass, and foliage fidelity with lossless quantization tables.
-  * **98% (High Quality)**: High visual fidelity with reduced compression artifacts and balanced file size.
-  * **95% (Stock)**: Default Google Camera compression standard.
-* **Configurable Spatial Noise Reduction**:
-  * **Stock (Standard)**: Standard Google Camera bilateral spatial smoothing (`CaptureRequest.NOISE_REDUCTION_MODE_FAST`).
-  * **Minimal**: Subtle noise reduction, retaining shadow textures and natural sensor grain (`CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL`).
-  * **Off (Full Detail)**: Disables aggressive spatial denoising (`CaptureRequest.NOISE_REDUCTION_MODE_OFF`), eliminating watercolor smearing and keeping microtextures 100% crisp.
-* **Dual-Pipeline Execution**: Seamlessly overrides both Camera2 capture requests (`CaptureRequest.JPEG_QUALITY` and `CaptureRequest.NOISE_REDUCTION_MODE` in `pbe.smali`) and Google's native Gcam C++ JPEG encoder (`JpgEncodeOptions` `<init>` and `b(I)V`).
-* *(See [`ProImageQualityPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quality/ProImageQualityPatch.kt) and [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) for implementation).*
-
-### 12. Visual App Name & Comprehensive International Localization (124 Locales)
-* **Clean Visual Branding**: Displays clean **"Pixel Camera"** in the app drawer and launcher without conflicting with internal component identifiers or Google system contracts.
-* **Native International Localization**: Accurately localized across 124 language locales:
-  * **German (`de`, `de-AT`, `de-CH`)**: **Pixel Kamera**
-  * **Spanish (`es`, `es-US`, Latin America `b+es+419`, `es-MX`, etc.)**: **Cámara Pixel**
-  * **French (`fr`, Canadian `fr-CA`, `fr-CH`)**: **Appareil photo Pixel**
-  * **Italian (`it`)**: **Fotocamera Pixel**
-  * **Portuguese (`pt-BR`, `pt-PT`)**: **Câmera Pixel** / **Câmara Pixel**
-  * **Dutch (`nl`)**: **Pixel Camera**
-  * **Polish (`pl`)**: **Aparat Pixel**
-  * **Russian & Ukrainian (`ru`, `uk`)**: **Камера Pixel**
-  * **Czech & Slovak (`cs`, `sk`)**: **Fotoaparát Pixel** / **Kamera Pixel**
-  * **Scandinavian (`sv`, `da`, `nb`, `fi`)**: **Pixel Kamera**
-  * **Asian & Global**: Japanese (**Pixel カメラ**), Korean (**Pixel 카메라**), Simplified/Traditional Chinese (**Pixel 相机** / **Pixel 相機**), Hindi (**Pixel कैमरा**), Arabic (**كاميرا Pixel**), etc.
-* **Launcher Activity Alias Alignment**: `com.android.camera.CameraLauncher` in `AndroidManifest.xml` explicitly carries `android:label="@string/app_name"` guaranteeing reliable display on OEM (Samsung OneUI, Xiaomi HyperOS, OnePlus OxygenOS) and third-party launchers (Nova, Lawnchair).
-* *(See [`PixelCameraClonePatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/clone/PixelCameraClonePatch.kt) for localized strings mapping).*
-
-### 13. Device-Aware Resolution Gating (Pro vs. Non-Pro Pixels) & True 50MP Capture
-* **True 50MP Capture on Pro Models (`8160 x 6144`, ~15–30 MB)**:
-  * Full 50MP resolution selector is preserved and fully functional in Pro Controls (`ons.smali`) and the Settings options drawer (`moo.smali`) on all Pro Pixel models (Pixel 6 Pro, 7 Pro, 8 Pro, 9 Pro, 9 Pro XL, 9 Pro Fold, 10 Pro).
-  * Neutralized automatic 12MP downsampling routines in `rdb.smali` (`C()` and `D()`) on Pro devices, ensuring captures taken in 50MP mode save at full **`8160 x 6144` (50.13 Megapixels)** unbinned resolution (~15–30 MB) rather than being downgraded to 12.5 MP.
-* **Smart 12MP Enforcement on Non-Pro Models**:
-  * Dynamically evaluates `TomteInitHelper.isProDevice()` based on `Build.MODEL`, `Build.DEVICE`, and `Build.PRODUCT`.
-  * On non-Pro models (Pixel 6, 6a, 7, 7a, 8, 8a, 9), the 50MP toggle and resolution menu row are cleanly hidden. Because non-Pro quad-bayer remosaicing hardware requires proprietary Google platform signatures and returns 12.5MP binned output even when queried, hiding the option enforces clean stock 12MP capture with zero placebo toggles or false expectations.
-* **Camera HAL Stream & Metadata Crash Safeguards**:
-  * Guarded missing `CameraCharacteristics` maximum resolution keys (`SENSOR_INFO_PIXEL_ARRAY_SIZE_MAXIMUM_RESOLUTION` and `SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE_MAXIMUM_RESOLUTION`) in `msr.smali` with safe fallback to primary sensor dimensions, preventing fatal `uwj: CameraMetadata missing value` startup crashes on devices with proprietary vendor extensions (e.g. Pixel 8 Pro).
-  * Preserved native Camera2 stream configurations and eliminated stream format collisions to guarantee 100% crash-free live viewfinder feeds.
-* *(See [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) and [`build_and_patch_pixelcamera.py`](build_and_patch_pixelcamera.py#L4200-L4335) for resolution gating logic).*
-
-### 14. Seamless Video Lens Switching & Zoom Smoothing (0.5x -> 1x -> 5x)
-* **Zero-Stutter Lens Transitions**: Completely eliminates the 100–250ms freezing and frame drop when zooming across the optical sensor thresholds ($0.5\times \to 1.0\times \to 5.0\times$).
-* **Fast-Out-Slow-In Bezier Curve Preset**: Overrides Google's lagging 200-sample LUT curve preset (`eib.smali`) with Android framework's native `fast_out_slow_in` cubic bezier curve (`camera.zoom_curve_control_preset = 8`), accelerating smoothly through digital crop ranges and snapping quickly onto the physical periscope without lingering softness.
-* **Cinematic 380ms Transition Timing**: Decreases discrete zoom tap duration (`camera.video_zoom_animation_duration`) from 700ms down to 380ms for responsive, movie-grade hand-offs.
-* **1 Euro Filter & Physics Spring Dynamics**: Activates Google's built-in 1 Euro filter (`Ltdg;`) and spring dynamics (`camera.video_smooth_zoom_filter` and `camera.video_smooth_zoom_spring`) with precision cutoff coefficients (`min_cutoff = 1.2f`, `beta = 0.008f`, `derivative_cutoff = 1.0f`) for jitter-free manual zoom slider scrubbing.
-* **Standby Sensor Pre-Warming**: Forces `camera.video_prewarm = true` to keep secondary physical sensors initialized with synchronized exposure and focus states, eliminating cold-start actuator delays.
-* **4K 60 FPS Multi-Camera Surface Sharing**: Unlocks multi-sensor stream sharing (`camcorder.scalable_vpipe`, `camcorder.surface_share`, `camcorder.peregrine`, `camcorder.osprey`, `camcorder.stokes_dyn`, `camcorder.4k60fps`), enabling smooth multi-lens zoom even during 4K 60 FPS recording.
-* *(See [`VideoLensSwitchingPatch.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/VideoLensSwitchingPatch.kt) and [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) for implementation).*
-
-### 15. Save RAW to Separate Folder (Prevent Google Photos Auto-Backup)
-* **Dedicated RAW Storage Location**: When enabled, RAW (DNG) captures are saved to `Pictures/Raw/` instead of `DCIM/Camera/`. Because Google Photos and other cloud backup tools automatically monitor the `DCIM/` folder, separating RAW files prevents heavy 25–50 MB DNG captures from burning through cloud storage.
-* **In-App Camera Settings Toggle**: Configurable switch in **Settings > Photo / Resolution** (`pref_camera_raw_separate_folder_key`). Users can freely choose between separate storage (`Pictures/Raw`, default) or unified storage (`DCIM/Camera`).
-* **Dynamic Framework Interception**: Intercepts Google Camera's internal `enable_camera_raw_folder_burst` flag across `TomteInitHelper` and `ksf.smali`. Synchronizes both physical file storage and the camera's built-in RAW explanatory bottom-sheet notice.
-* *(See [`TomteInitHelper.smali`](smali_patches/TomteInitHelper.smali) and [`PixelCameraPatchUtils.kt`](morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/PixelCameraPatchUtils.kt) for implementation).*
+</details>
 
 ---
 
-## ⚠️ Technical Limitations & Architectural Constraints
+## ⚠️ Known Hardware Limitations
 
-Running a modern Google Camera modded application without root privileges imposes physical hardware and operating system constraints. Below is a detailed breakdown of existing limitations and their underlying technical causes:
-
-### 1. Motion Blur (Action Pan & Long Exposure) Disabled
-* **Observed Behavior**: The Motion Blur mode tab (containing Action Pan and Long Exposure) is intentionally hidden and disabled from the camera mode carousel.
-* **Technical Reason**:
-  1. **SELinux Kernel Sandboxing (`/dev/gxp`)**: Cloned applications (e.g. `com.google.android.GoogleCameraEng`) execute in Android's unprivileged `untrusted_app` SELinux domain. Access to the Google Tensor EdgeTPU character device (`/dev/gxp` / `darwinn`) is restricted at the kernel level via DAC permissions (`0660`, `system:camera`) and SELinux MAC policy (`allow cameraserver gxp_device:chr_file`). Only system-signed, pre-installed apps signed with Google's platform release key can open or issue `ioctl()` commands to the TPU. Any attempt by an untrusted app results in `avc: denied { read write } for path="/dev/gxp"`.
-  2. **Proprietary EdgeTPU Microcode (`edgetpu-custom-op-2`)**: The motion vector and saliency estimation models (`motion-custom_op-p23.tflite.uncompressed` and `saliency-custom_op-p23.tflite.uncompressed`) are compiled exclusively for Tensor's hardware TPU matrix accelerator. They utilize Google proprietary custom operators (`edgetpu-custom-op-2`) that have no CPU or GPU OpenCL fallback implementations in `libgcastartup.so`.
-  3. **Capture Pipeline Hang**: Without TPU access, the native optical flow graph fails during session initialization. In user builds, this causes Action Pan and Long Exposure captures to fail silently or stall indefinitely without saving photos to disk.
-  4. **Architectural Resolution**: All `camera.lasagna` flags (`kkb.f`, `kkb.g`, `kkb.h`, `kkb.i`, `kkb.j`) are intercepted in `klm.smali` (`q()` and `x()`) to return `false`. Google Camera's internal mode manager (`sdo.smali`, `njn.smali`, `iyh.smali`) cleanly prunes Motion Blur from the UI, ensuring 100% crash-free stability for all working modes.
-
-### 2. Film Grain Dynamic Scaling Slider
-* **Observed Behavior**: Adjusting the grain intensity slider in settings has minimal visible effect on output images.
-* **Technical Reason**:
-  * Native film grain generation is powered by a dedicated neural model (`3cdbac706c98421a96e16fdbfd97a35f.tflite.uncompressed`) running alongside the RAW ISP pipeline.
-  * In the fallback GPU/CPU pipeline without physical `/dev/gxp` access, a consistent baseline organic film grain is applied according to the selected Look's pre-configured tone profile, but dynamic runtime variance weighting is constrained to prevent CPU cache thrashing.
-
-### 3. Creator Suite "Save to Project" (Project Album)
-* **Observed Behavior**: The "Save to Project" button in the Creator Suite drawer is neutralized and hidden.
-* **Technical Reason**:
-  * Project Album integration communicates with the Google Photos application via private cross-process gRPC calls (`pa_` / `pam_` in `kqc.smali`).
-  * Google Photos validates the calling package identity using signature verification (`PackageManager.hasSigningCertificate()`). Because cloned mods use an independent signing certificate to coexist with stock Camera, Google Photos rejects the gRPC connection with an authorization error. Hiding the entry prevents connection errors and UI crashes.
-
-### 4. Hardware Periscope Lens Dependency for 10x Quick Zoom
-* **Observed Behavior**: The 10x Quick Zoom button requires devices with a physical optical periscope lens (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
-* **Technical Reason**:
-  * The discrete 10x quick zoom button activates Google's Super Res Zoom and telephoto fusion pipeline directly leveraging the physical periscope telephoto sensor.
-  * Base and "a"-series Pixels (e.g. Pixel 6, 6a, 7, 7a, 8, 8a, 9) physically lack a periscope sensor, operating within standard digital zoom limits.
-
-### 5. Quad-Bayer Remosaicing Limitation on Non-Pro Pixels
-* **Observed Behavior**: The 50MP resolution selector is intentionally hidden on non-Pro Pixel models (Pixel 6, 6a, 7, 7a, 8, 8a, 9), defaulting to stock 12MP capture, while remaining fully active on Pro models.
-* **Technical Reason**:
-  * On non-Pro devices (e.g. Pixel 7 `panther`, Pixel 8 `shiba`), 50MP quad-bayer remosaicing requires private vendor Camera HAL keys and platform-signed permission grants (`android.permission.CAMERA_HEADLESS_SYSTEM_SERVICE`).
-  * In third-party and cloned applications, the hardware HAL intercepts full-res stream requests on non-Pro models and falls back to standard 12.5MP binned output frames. Rather than misleading users with a placebo 50MP option that generates 12.5MP files, the mod dynamically detects device tiers via `TomteInitHelper.isProDevice()` and cleanly enforces stock 12MP operation with full RAW+JPEG support on non-Pro phones.
+* **Motion Blur (Action Pan & Long Exposure)**: Intentionally hidden. Running as a non-root app cannot access Google's internal `/dev/gxp` TPU kernel driver, which would stall photo capture.
+* **50MP Capture**: Available on Pro models with physical 50MP sensor hardware. Non-Pro models cleanly default to 12MP binned capture.
+* **10x Quick Zoom Button**: Requires physical telephoto periscope hardware (Pixel 7 Pro, 8 Pro, 9 Pro, 10 Pro).
+* **Film Grain Slider**: Operates at a fixed natural baseline profile across all Looks; dynamic variance weighting is restricted to prevent GPU/CPU thrashing without EdgeTPU access.
+*(For deep engineering teardowns, smali hooks, and kernel analysis, see [CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md](CAMERA_ROOT_CAUSE_FIXES_AND_AUDIT.md)).*
 
 ---
 
