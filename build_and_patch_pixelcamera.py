@@ -127,17 +127,23 @@ def patch_manifest():
             '<activity-alias android:exported="true" android:label="@string/app_name" android:name="com.android.camera.CameraLauncher"'
         )
 
+    # 6b. Sanitize compileSdkVersion and codenames to avoid "There was a problem parsing the package" on older/production OS
+    content = re.sub(r'android:compileSdkVersion="[^"]*"', 'android:compileSdkVersion="35"', content)
+    content = re.sub(r'android:compileSdkVersionCodename="[^"]*"', 'android:compileSdkVersionCodename="15"', content)
+    content = re.sub(r'platformBuildVersionCode="[^"]*"', 'platformBuildVersionCode="35"', content)
+    content = re.sub(r'platformBuildVersionName="[^"]*"', 'platformBuildVersionName="15"', content)
+
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(content)
     print("    [+] AndroidManifest.xml successfully patched.")
 
-    # 7. Lower minSdkVersion in apktool.yml so APK can install on Android 14, 15, and 16
+    # 7. Lower minSdkVersion in apktool.yml so APK can install on Android 11, 12, 13, 14, 15, and 16
     apktool_yml_path = os.path.join(APKTOOL_DIR, "apktool.yml")
     if os.path.exists(apktool_yml_path):
         with open(apktool_yml_path, "r", encoding="utf-8") as f:
             yml_content = f.read()
-        yml_content = re.sub(r'minSdkVersion:\s*\d+', 'minSdkVersion: 34', yml_content)
-        yml_content = re.sub(r'targetSdkVersion:\s*\d+', 'targetSdkVersion: 36', yml_content)
+        yml_content = re.sub(r'minSdkVersion:\s*\d+', 'minSdkVersion: 30', yml_content)
+        yml_content = re.sub(r'targetSdkVersion:\s*\d+', 'targetSdkVersion: 35', yml_content)
         if "- uncompressed" not in yml_content:
             yml_content = yml_content.replace("doNotCompress:\n", "doNotCompress:\n- uncompressed\n- tflite\n")
 
@@ -162,7 +168,7 @@ def patch_manifest():
 
         with open(apktool_yml_path, "w", encoding="utf-8") as f:
             f.write(yml_content)
-        print(f"    [+] apktool.yml: minSdkVersion=34, targetSdkVersion=36.")
+        print(f"    [+] apktool.yml: minSdkVersion=30, targetSdkVersion=35.")
         if added_count:
             print(f"    [+] apktool.yml: Added {added_count} explicit asset paths to doNotCompress (apktool 3.0.3 bug workaround).")
 
@@ -10554,13 +10560,17 @@ def build_and_sign():
         sys.exit(1)
     print("    [+] zipalign succeeded.")
 
-    print("[*] Signing APK with apksigner...")
+    print("[*] Signing APK with apksigner (v1, v2, v3 schemes, min-sdk-version 30)...")
     sign_cmd = [
         APKSIGNER, "sign",
         "--ks", KEYSTORE,
         "--ks-pass", "pass:android",
         "--key-pass", "pass:android",
         "--ks-key-alias", "androiddebugkey",
+        "--min-sdk-version", "30",
+        "--v1-signing-enabled", "true",
+        "--v2-signing-enabled", "true",
+        "--v3-signing-enabled", "true",
         "--out", signed_apk,
         aligned_apk
     ]
@@ -10658,11 +10668,13 @@ def copy_to_desktop(signed_apk):
                 except Exception:
                     pass
 
-        # Exactly ONE APK on Desktop: PixelCamera-1.1.3.apk
+        # Copy APK to Desktop: PixelCamera-1.1.3.apk and SourceForge release name
         dest_apk = os.path.join(desktop_dir, "PixelCamera-1.1.3.apk")
         shutil.copy2(signed_apk, dest_apk)
+        dest_sf_apk = os.path.join(desktop_dir, "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk")
+        shutil.copy2(signed_apk, dest_sf_apk)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
-        print(f"    [+] Successfully copied single APK to Desktop: {dest_apk} ({size_mb:.2f} MB)")
+        print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_sf_apk} ({size_mb:.2f} MB)")
 
         # Exactly ONE Morphe .mpp patch file on Desktop: morphe-patches-pixelcamera-1.1.3.mpp
         mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.3.mpp")
