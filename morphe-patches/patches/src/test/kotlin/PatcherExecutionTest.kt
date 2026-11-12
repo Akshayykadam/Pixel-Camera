@@ -232,6 +232,7 @@ class PatcherExecutionTest {
 
         // Verify 50MP High Resolution session flag, Night Sight session, and SpecialTypesProvider hooks
         var foundOmsHiRes = false
+        var foundOmsCaptureSession = false
         var foundOmlHiRes = false
         var foundRbuNight = false
         var foundCcpBypass = false
@@ -253,6 +254,9 @@ class PatcherExecutionTest {
                         val insList = m.implementation?.instructions?.toList() ?: emptyList()
                         if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("isHighResShot") == true }) {
                             foundOmsHiRes = true
+                        }
+                        if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("createPhotoCaptureSession") == true }) {
+                            foundOmsCaptureSession = true
                         }
                     }
                 }
@@ -295,6 +299,7 @@ class PatcherExecutionTest {
             }
         }
         assertTrue(foundOmsHiRes, "oms must be hooked with isHighResShot(omw)")
+        assertTrue(foundOmsCaptureSession, "oms must be hooked with createPhotoCaptureSession")
         assertTrue(foundOmlHiRes, "oml must be hooked with isHighResShot(omw)")
         assertTrue(foundRbuNight, "rbu.j must be hooked with onNightSightSession")
         assertTrue(foundCcpBypass, "CameraContentProvider.a must return void to unblock Google Photos queries")

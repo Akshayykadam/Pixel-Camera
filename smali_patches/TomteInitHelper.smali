@@ -1299,12 +1299,12 @@
 
     if-nez v0, :cond_custom
 
-    const-wide/16 v0, 0x922
+    const-wide/16 v0, 0x933
 
     return-wide v0
 
     :cond_custom
-    const-wide/16 v0, 0x22
+    const-wide/16 v0, 0x33
 
     or-long/2addr p0, v0
 
@@ -9219,6 +9219,113 @@
     invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
 
     return-void
+.end method
+
+.method public static isAutoNightOrHiRes(Ljava/lang/Object;)Z
+    .locals 2
+
+    const/4 v0, 0x0
+
+    if-nez p0, :cond_0
+
+    return v0
+
+    :cond_0
+    :try_start_0
+    instance-of v1, p0, Lpcl;
+
+    if-nez v1, :cond_1
+
+    return v0
+
+    :cond_1
+    check-cast p0, Lpcl;
+
+    iget-boolean v1, p0, Lpcl;->l:Z
+
+    if-nez v1, :cond_yes
+
+    iget-boolean p0, p0, Lpcl;->k:Z
+
+    if-eqz p0, :cond_no
+
+    :cond_yes
+    const/4 v0, 0x1
+
+    :cond_no
+    return v0
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_all
+
+    :catch_all
+    return v0
+.end method
+
+.method public static createPhotoCaptureSession(Lrbu;JLjava/lang/Object;Z)Lrbs;
+    .locals 8
+
+    if-nez p0, :cond_0
+
+    const/4 p0, 0x0
+
+    return-object p0
+
+    :cond_0
+    :try_start_0
+    instance-of v0, p3, Lpcl;
+
+    if-eqz v0, :cond_fallback
+
+    check-cast p3, Lpcl;
+
+    iget-boolean v0, p3, Lpcl;->l:Z
+
+    if-eqz v0, :cond_check_hi_res
+
+    iget-boolean v0, p3, Lpcl;->k:Z
+
+    const-string v1, "PATCH_LOOKS"
+
+    const-string v2, "createPhotoCaptureSession: Auto Night Sight active -> calling rbu.j"
+
+    invoke-static {v1, v2}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    invoke-virtual {p0, p1, p2, p4, v0}, Lrbu;->j(JZZ)Lrbs;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_check_hi_res
+    iget-boolean p3, p3, Lpcl;->k:Z
+
+    if-eqz p3, :cond_fallback
+
+    invoke-virtual {p0, p1, p2, p4}, Lrbu;->c(JZ)Lrbs;
+
+    move-result-object p0
+
+    return-object p0
+
+    :cond_fallback
+    const/4 p0, 0x0
+
+    return-object p0
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catch_all
+
+    :catch_all
+    move-exception p0
+
+    const-string p1, "PATCH_LOOKS"
+
+    const-string p2, "createPhotoCaptureSession error"
+
+    invoke-static {p1, p2, p0}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+
+    const/4 p0, 0x0
+
+    return-object p0
 .end method
 
 .method public static isNightSightActive()Z

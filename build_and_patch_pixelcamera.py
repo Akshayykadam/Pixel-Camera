@@ -5516,6 +5516,51 @@ def patch_high_resolution_metadata():
         else:
             print(f"    [!] Warning: {os.path.basename(smali_path)} f(Z) target not found.")
 
+    # 1c. Photo capture session Night Sight & High-Res routing (createPhotoCaptureSession) in oms.smali
+    oms_path = os.path.join(APKTOOL_DIR, "smali", "oms.smali")
+    if os.path.exists(oms_path):
+        with open(oms_path, "r", encoding="utf-8") as f:
+            oms_content = f.read()
+        if "createPhotoCaptureSession" in oms_content:
+            print("    [+] oms.smali: already patched for createPhotoCaptureSession.")
+        else:
+            target_oms_session = (
+                "    :cond_12\n"
+                "    iget-boolean v4, v7, Lpcl;->k:Z\n\n"
+                "    if-eqz v4, :cond_13\n\n"
+                "    iget-object v3, v1, Loms;->x:Lrbu;\n\n"
+                "    invoke-virtual {v3, v12, v13, v15}, Lrbu;->c(JZ)Lrbs;\n\n"
+                "    move-result-object v3\n\n"
+                "    goto :goto_4\n\n"
+                "    :cond_13"
+            )
+            repl_oms_session = (
+                "    :cond_12\n"
+                "    invoke-static {v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isAutoNightOrHiRes(Ljava/lang/Object;)Z\n\n"
+                "    move-result v4\n\n"
+                "    if-eqz v4, :cond_13\n\n"
+                "    iget-object v3, v1, Loms;->x:Lrbu;\n\n"
+                "    invoke-static {v3, v12, v13, v7, v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->createPhotoCaptureSession(Lrbu;JLjava/lang/Object;Z)Lrbs;\n\n"
+                "    move-result-object v3\n\n"
+                "    goto :goto_4\n\n"
+                "    :cond_13"
+            )
+            if target_oms_session in oms_content:
+                oms_content = oms_content.replace(target_oms_session, repl_oms_session, 1)
+                with open(oms_path, "w", encoding="utf-8") as f:
+                    f.write(oms_content)
+                print("    [+] oms.smali: patched for createPhotoCaptureSession.")
+            else:
+                import re
+                m = re.search(r'(:cond_12\s+iget-boolean\s+\w+,\s+\w+,\s+Lpcl;->k:Z[\s\S]*?:cond_13)', oms_content)
+                if m:
+                    oms_content = oms_content[:m.start()] + repl_oms_session + oms_content[m.end():]
+                    with open(oms_path, "w", encoding="utf-8") as f:
+                        f.write(oms_content)
+                    print("    [+] oms.smali: regex patched for createPhotoCaptureSession.")
+                else:
+                    print("    [!] Warning: oms.smali capture session target not found.")
+
     # 2. rae.smali (JPEG saver metadata and XMP tag injection)
     rae_path = os.path.join(APKTOOL_DIR, "smali_classes2", "rae.smali")
     if os.path.exists(rae_path):
