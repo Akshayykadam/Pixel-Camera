@@ -1,4 +1,4 @@
-# Pixel Camera Smali Unified Patches (v1.0.9)
+# Pixel Camera Smali Unified Patches (v1.1.3)
 
 This directory contains standalone standard Unified Diffs (`.patch` / `.diff`) capturing all modifications made to Google Pixel Camera (`11.1.040.982810059.19` and `11.0.073.972752740.32`).
 
@@ -9,8 +9,8 @@ These patches allow exact git-style tracking and reproducible application onto c
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](../README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.3.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.3.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.3.mpp)
 * **Morphe Source & Kotlin Patches**: [morphe-patches/README.md](../morphe-patches/README.md)
 * **Smali Reference & Helper Classes**: [smali_patches/README.md](../smali_patches/README.md)
 * **Automated Python Builder**: [`build_and_patch_pixelcamera.py`](../build_and_patch_pixelcamera.py)

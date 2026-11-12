@@ -7,8 +7,8 @@ This repository contains the reverse-engineering analysis, compatibility assessm
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](../README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.3.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.3.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.3.mpp)
 * **Quick Access Patch Implementation**: [`QuickAccessPatch.kt`](../morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt)
 * **Unified Smali Patch**: [`patches/qhm_quick_access.patch`](../patches/qhm_quick_access.patch)
 * **Architecture & Dual-EV Teardown**: [docs/PIXEL_CAMERA_PATCHES_DOCUMENTATION.md](../docs/PIXEL_CAMERA_PATCHES_DOCUMENTATION.md)

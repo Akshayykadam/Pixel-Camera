@@ -9,8 +9,8 @@ Reference Implementation: **Google Pixel Camera `11.1.040.982810059.19` (Build `
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](../README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.3.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.3.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.3.mpp)
 * **Camera Looks Patch Source**: [`CameraLooksPatch.kt`](../morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt)
 * **Injected Neural Runtime Helper**: [`TomteInitHelper.smali`](../smali_patches/TomteInitHelper.smali)
 * **Material You Pro Panel**: [`TomteProSettingsPanel.smali`](../smali_patches/TomteProSettingsPanel.smali)

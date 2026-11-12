@@ -1,4 +1,4 @@
-# Pixel Camera Smali Patches Directory (v1.0.9)
+# Pixel Camera Smali Patches Directory (v1.1.3)
 
 This directory contains standalone, decompiled Smali bytecode reference implementations and injected helper classes for all functional modifications made in the Pixel Camera backport for Google Pixel devices (Pixel 6 through Pixel 10).
 
@@ -7,8 +7,8 @@ This directory contains standalone, decompiled Smali bytecode reference implemen
 ## 🔗 Quick Links & Navigation
 
 * **Master Guide**: [Root Project README](../README.md)
-* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.0.9.apk/download)
-* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.0.9 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.0.9.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.0.9.mpp)
+* **Pre-Patched Standalone APK**: [⬇️ Download Latest Patched APK v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/Camera-v11.1.040.982810059.19-patches-v1.1.3.apk/download)
+* **Morphe Patch Package**: [⬇️ Download Morphe Patch .mpp v1.1.3 (SourceForge)](https://sourceforge.net/projects/pixel-camera-patches/files/morphe-patches-pixelcamera-1.1.3.mpp/download) • [GitHub Raw](https://github.com/Akshayykadam/Pixel-Camera/raw/main/morphe-patches-pixelcamera-1.1.3.mpp)
 * **Morphe Kotlin Source**: [morphe-patches/README.md](../morphe-patches/README.md)
 * **Unified Smali Diffs**: [patches/README.md](../patches/README.md)
 * **Automated Python Builder**: [`build_and_patch_pixelcamera.py`](../build_and_patch_pixelcamera.py)
