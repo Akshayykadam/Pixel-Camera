@@ -830,3 +830,20 @@ This document tracks bugs, image tuning observations, and feature requests repor
   5. **Cross-Patcher Synchronization & Verification:**
      - Synchronized changes across `smali_patches/TomteInitHelper.smali`, `apktool_full/smali_classes4/.../TomteInitHelper.smali`, `apktool_full/smali/rbu.smali`, `build_and_patch_pixelcamera.py`, and Morphe bytecode patch `ProControlsPatch.kt`.
      - Reassembled `TomteInitHelper.dex` and verified all DEX bytecode assertions (`rbu.night=true`, `oms.hi_res=true`, `ccp.bypass=true`, etc.) in `PatcherExecutionTest.testPatcherRun` with Gradle `BUILD SUCCESSFUL`.
+
+
+### 27. Morphe Manager "Source Unavailable" on Adding Patch Source (#83)
+* **Status:** ✅ **Fixed**
+* **Issue:** [#83](https://github.com/Akshayykadam/Pixel-Camera/issues/83)
+* **Reporters:** `@Neelgodly`, `@Gullzway`
+* **Symptom:**
+  Adding the repository as a custom source in Morphe Manager (`https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera` or entering `Akshayykadam/Pixel-Camera`) reports "Source unavailable" / "The patch bundle could not be downloaded. The source URL may be incorrect or the file does not exist".
+* **Root Cause:**
+  1. **Premature Version Bump in `patches-bundle.json`:**
+     In commit `78c08f9`, `patches-bundle.json` and `patches-list.json` were bumped to version `1.1.3`, with `download_url` set to `https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.3/morphe-patches-pixelcamera-1.1.3.mpp`.
+  2. **Missing GitHub Release Asset (HTTP 404):**
+     Release `1.1.3` was never created or published on GitHub Releases (the current public release is `1.1.2`). When Morphe Manager pulled `patches-bundle.json` from `main` and attempted to fetch `download_url`, it received an `HTTP 404 Not Found` response, failing remote source validation.
+* **Resolution:**
+  - Reverted `patches-bundle.json`, `patches-list.json`, and `morphe-patches/patches/src/main/resources/patches-bundle.json` back to active release `1.1.2`.
+  - Restored `download_url` to `https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.2/morphe-patches-pixelcamera-1.1.2.mpp` (verified `HTTP 302/200 OK`).
+  - Restored `version` to `"1.1.2"` across metadata feeds and Gradle configurations until release `1.1.3` is officially published on GitHub Releases.

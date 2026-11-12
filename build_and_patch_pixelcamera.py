@@ -10706,13 +10706,23 @@ def install_and_launch(signed_apk):
     if not lines:
         print("[!] No ADB devices connected, skipping install.")
         return
-    # Pick physical device first
-    physical_devices = [d for d in lines if not d.startswith("emulator-")]
-    if physical_devices:
-        target_device = physical_devices[0]
+
+    target_device = os.environ.get("TARGET_DEVICE")
+    if target_device and target_device in lines:
+        pass
+    elif os.environ.get("USE_EMULATOR") == "1":
+        emulators = [d for d in lines if d.startswith("emulator-")]
+        target_device = emulators[0] if emulators else lines[0]
     else:
-        print("[!] No physical phone connected yet (only emulators detected). Skipping auto-install.")
-        return
+        # Pick physical device first
+        physical_devices = [d for d in lines if not d.startswith("emulator-")]
+        if physical_devices:
+            target_device = physical_devices[0]
+        elif lines:
+            target_device = lines[0]
+        else:
+            print("[!] No physical phone connected yet (only emulators detected). Skipping auto-install.")
+            return
     print(f"[*] Installing {signed_apk} on connected device {target_device}...")
     res = subprocess.run(["adb", "-s", target_device, "install", "-r", "-d", "-g", signed_apk], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(f"    {res.stdout.strip()}")
