@@ -832,21 +832,21 @@ This document tracks bugs, image tuning observations, and feature requests repor
      - Reassembled `TomteInitHelper.dex` and verified all DEX bytecode assertions (`rbu.night=true`, `oms.hi_res=true`, `ccp.bypass=true`, etc.) in `PatcherExecutionTest.testPatcherRun` with Gradle `BUILD SUCCESSFUL`.
 
 
-### 27. Morphe Manager "Source Unavailable" on Adding Patch Source (#83)
-* **Status:** ✅ **Fixed**
+### 27. Morphe Manager "Source Unavailable" / "Remote Metadata Unavailable" on Adding/Updating Patch Source (#83)
+* **Status:** ✅ **Fixed & Verified**
 * **Issue:** [#83](https://github.com/Akshayykadam/Pixel-Camera/issues/83)
 * **Reporters:** `@Neelgodly`, `@Gullzway`
 * **Symptom:**
-  Adding the repository as a custom source in Morphe Manager (`https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera` or entering `Akshayykadam/Pixel-Camera`) reports "Source unavailable" / "The patch bundle could not be downloaded. The source URL may be incorrect or the file does not exist".
-* **Root Cause:**
-  1. **Premature Version Bump in `patches-bundle.json`:**
-     In commit `78c08f9`, `patches-bundle.json` and `patches-list.json` were bumped to version `1.1.3`, with `download_url` set to `https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.3/morphe-patches-pixelcamera-1.1.3.mpp`.
-  2. **Missing GitHub Release Asset (HTTP 404):**
-     Release `1.1.3` was never created or published on GitHub Releases (the current public release is `1.1.2`). When Morphe Manager pulled `patches-bundle.json` from `main` and attempted to fetch `download_url`, it received an `HTTP 404 Not Found` response, failing remote source validation.
+  Adding the repository as a custom source or checking for updates in Morphe Manager (`https://morphe.software/add-source?github=Akshayykadam/Pixel-Camera` or entering `Akshayykadam/Pixel-Camera`) reports "Source unavailable" or displays a warning badge with "The remote metadata file is unavailable. Patching with the installed bundle still works, but auto-update is disabled for this source".
+* **Root Causes:**
+  1. **Initial Issue (Missing Release 1.1.3 Asset - HTTP 404):**
+     In commit `78c08f9`, `patches-bundle.json` and `patches-list.json` were bumped to version `1.1.3`, with `download_url` set to `https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.3/morphe-patches-pixelcamera-1.1.3.mpp` before GitHub Release `1.1.3` was created or uploaded. Morphe received an `HTTP 404 Not Found`. This was temporarily worked around by reverting to 1.1.2 in commit `086f8ba9`.
+  2. **Recurrence on v1.1.3 Bump (Malformed UTF-8 in `patches-bundle.json`):**
+     When bumping to `1.1.3` in commit `358c693`, two stray non-ASCII/corrupted bytes (`0xc2 0xa0 0xcc 0x91`, rendered as ` ̑`) were accidentally inserted at the start of line 4 before `"download_url"`. This caused standard JSON parsers (`org.json`, `kotlinx.serialization`, python `json.tool`) to fail parsing `https://raw.githubusercontent.com/Akshayykadam/Pixel-Camera/main/patches-bundle.json` with `Expecting property name enclosed in double quotes: line 4 column 1`. Consequently, Morphe Manager marked the remote metadata file as unavailable and disabled source auto-updates.
 * **Resolution:**
-  - Reverted `patches-bundle.json`, `patches-list.json`, and `morphe-patches/patches/src/main/resources/patches-bundle.json` back to active release `1.1.2`.
-  - Restored `download_url` to `https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.2/morphe-patches-pixelcamera-1.1.2.mpp` (verified `HTTP 302/200 OK`).
-  - Restored `version` to `"1.1.2"` across metadata feeds and Gradle configurations until release `1.1.3` is officially published on GitHub Releases.
+  - Removed the corrupted bytes `0xc2 0xa0 0xcc 0x91` from line 4 of root `patches-bundle.json`.
+  - Verified valid JSON syntax with `python3 -m json.tool patches-bundle.json`.
+  - Verified `download_url` points to published release `1.1.3` (`https://github.com/Akshayykadam/Pixel-Camera/releases/download/1.1.3/morphe-patches-pixelcamera-1.1.3.mpp`, `HTTP 200 OK`, 257,099 bytes).
 
 ### 28. Pixel 10 Pro Viewfinder Frame Drops & Sluggish Photo Saving
 * **Status:** ✅ **Fixed & Verified**
