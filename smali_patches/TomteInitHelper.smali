@@ -46,6 +46,12 @@
 
 .field public static sFineTuneGrain:F
 
+.field public static sHasCustomTone:Z
+
+.field public static sHasCustomColor:Z
+
+.field public static sHasCustomDetail:Z
+
 .field public static volatile lastExposureTimeNs:J
 
 .field public static sLastNightSightTimestamp:J
@@ -137,6 +143,9 @@
 .end method
 
 .method public static native nativeSetFineTuning(FFFFFFF)V
+.end method
+
+.method public static native nativeSetGrainEnabled(Z)V
 .end method
 
 .method public static native nativeProcessHardwareBuffer(Landroid/hardware/HardwareBuffer;I)V
@@ -570,6 +579,10 @@
     sput p1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneHighlights:F
 
     :cond_sync
+    const/4 v0, 0x1
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomTone:Z
+
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->syncFineTuningToNative()V
 
     return-void
@@ -601,6 +614,10 @@
     sput p1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
 
     :cond_sync
+    const/4 v0, 0x1
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomColor:Z
+
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->syncFineTuningToNative()V
 
     return-void
@@ -640,6 +657,10 @@
     invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeSetGrainEnabled(Z)V
 
     :cond_sync
+    const/4 v0, 0x1
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomDetail:Z
+
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->syncFineTuningToNative()V
 
     return-void
@@ -698,8 +719,12 @@
 
     const/4 v1, 0x0
 
+    :try_start_reset
     invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeSetGrainEnabled(Z)V
+    :try_end_reset
+    .catch Ljava/lang/Throwable; {:try_start_reset .. :try_end_reset} :catch_reset
 
+    :catch_reset
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->syncFineTuningToNative()V
 
     return-void
@@ -731,6 +756,12 @@
 
     const/4 v1, 0x0
 
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomTone:Z
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomColor:Z
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomDetail:Z
+
     invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeSetGrainEnabled(Z)V
 
     if-gtz p0, :cond_has_look
@@ -758,7 +789,7 @@
 
     move-result-object v1
 
-    if-eqz v1, :cond_check_aura
+    if-eqz v1, :cond_check_caps
 
     invoke-virtual {v1}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
@@ -774,7 +805,7 @@
 
     const/4 v3, 0x3
 
-    if-lt v2, v3, :cond_check_aura
+    if-lt v2, v3, :cond_check_caps
 
     const/4 v2, 0x0
 
@@ -806,12 +837,16 @@
 
     sput v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneHighlights:F
 
-    :cond_check_aura
+    const/4 v1, 0x1
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomTone:Z
+
+    :cond_check_caps
     new-instance v1, Ljava/lang/StringBuilder;
 
     invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
 
-    const-string v2, "pref_tomte_aura_key_"
+    const-string v2, "pref_tomte_caps_key_"
 
     invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
@@ -825,7 +860,7 @@
 
     move-result-object v1
 
-    if-eqz v1, :cond_check_caps
+    if-eqz v1, :cond_check_aura
 
     invoke-virtual {v1}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
@@ -839,9 +874,9 @@
 
     array-length v2, v1
 
-    const/4 v3, 0x2
+    const/4 v3, 0x3
 
-    if-lt v2, v3, :cond_check_caps
+    if-lt v2, v3, :cond_caps_check_legacy_detail
 
     const/4 v2, 0x0
 
@@ -863,13 +898,28 @@
 
     sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneTint:F
 
-    array-length v2, v1
-
-    const/4 v3, 0x3
-
-    if-lt v2, v3, :cond_check_caps
-
     const/4 v2, 0x2
+
+    aget-object v1, v1, v2
+
+    invoke-static {v1}, Ljava/lang/Float;->parseFloat(Ljava/lang/String;)F
+
+    move-result v1
+
+    sput v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
+
+    const/4 v1, 0x1
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomColor:Z
+
+    goto :cond_check_aura
+
+    :cond_caps_check_legacy_detail
+    const/4 v3, 0x2
+
+    if-ne v2, v3, :cond_check_aura
+
+    const/4 v2, 0x0
 
     aget-object v2, v1, v2
 
@@ -877,14 +927,28 @@
 
     move-result v2
 
-    sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
+    sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
 
-    :cond_check_caps
+    const/4 v2, 0x1
+
+    aget-object v1, v1, v2
+
+    invoke-static {v1}, Ljava/lang/Float;->parseFloat(Ljava/lang/String;)F
+
+    move-result v1
+
+    sput v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneGrain:F
+
+    const/4 v1, 0x1
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomDetail:Z
+
+    :cond_check_aura
     new-instance v1, Ljava/lang/StringBuilder;
 
     invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V
 
-    const-string v2, "pref_tomte_caps_key_"
+    const-string v2, "pref_tomte_aura_key_"
 
     invoke-virtual {v1, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
@@ -898,7 +962,7 @@
 
     move-result-object v1
 
-    if-eqz v1, :cond_done
+    if-eqz v1, :cond_check_grain_state
 
     invoke-virtual {v1}, Ljava/lang/Object;->toString()Ljava/lang/String;
 
@@ -912,10 +976,11 @@
 
     array-length v2, v1
 
-    const/4 v3, 0x1
+    const/4 v3, 0x3
 
-    if-lt v2, v3, :cond_done
+    if-lt v2, v3, :cond_aura_check_detail
 
+    # Legacy fallback: aura had color vector
     const/4 v2, 0x0
 
     aget-object v2, v1, v2
@@ -924,13 +989,56 @@
 
     move-result v2
 
-    sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
+    sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneVibrance:F
 
-    array-length v2, v1
+    const/4 v2, 0x1
+
+    aget-object v2, v1, v2
+
+    invoke-static {v2}, Ljava/lang/Float;->parseFloat(Ljava/lang/String;)F
+
+    move-result v2
+
+    sput v2, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneTint:F
+
+    const/4 v2, 0x2
+
+    aget-object v1, v1, v2
+
+    invoke-static {v1}, Ljava/lang/Float;->parseFloat(Ljava/lang/String;)F
+
+    move-result v1
+
+    sput v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
+
+    const/4 v1, 0x1
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomColor:Z
+
+    goto :cond_check_grain_state
+
+    :cond_aura_check_detail
+    const/4 v3, 0x1
+
+    if-lt v2, v3, :cond_check_grain_state
+
+    const/4 v3, 0x0
+
+    aget-object v3, v1, v3
+
+    invoke-static {v3}, Ljava/lang/Float;->parseFloat(Ljava/lang/String;)F
+
+    move-result v3
+
+    sput v3, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
+
+    const/4 v3, 0x1
+
+    sput-boolean v3, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomDetail:Z
 
     const/4 v3, 0x2
 
-    if-lt v2, v3, :cond_done
+    if-lt v2, v3, :cond_check_grain_state
 
     const/4 v2, 0x1
 
@@ -941,6 +1049,9 @@
     move-result v1
 
     sput v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneGrain:F
+
+    :cond_check_grain_state
+    sget v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneGrain:F
 
     const v2, 0x3d4ccccd    # 0.05f
 
@@ -1287,6 +1398,283 @@
     .catch Ljava/lang/Throwable; {:try_start_qwk .. :try_end_qwk} :catch_qwk
 
     :catch_qwk
+    return-object p0
+.end method
+
+.method public static applyEffectiveToneVector([F)[F
+    .registers 4
+
+    if-nez p0, :cond_check_tone_len
+
+    const/4 v0, 0x3
+
+    new-array p0, v0, [F
+
+    goto :cond_apply_tone
+
+    :cond_check_tone_len
+    array-length v0, p0
+
+    const/4 v1, 0x3
+
+    if-ge v0, v1, :cond_apply_tone
+
+    const/4 v0, 0x3
+
+    new-array v0, v0, [F
+
+    array-length v1, p0
+
+    const/4 v2, 0x0
+
+    invoke-static {p0, v2, v0, v2, v1}, Ljava/lang/System;->arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V
+
+    move-object p0, v0
+
+    :cond_apply_tone
+    sget-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomTone:Z
+
+    if-eqz v0, :cond_check_tone_fields
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneContrast:F
+
+    const/4 v1, 0x0
+
+    aput v0, p0, v1
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneShadows:F
+
+    const/4 v1, 0x1
+
+    aput v0, p0, v1
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneHighlights:F
+
+    const/4 v1, 0x2
+
+    aput v0, p0, v1
+
+    return-object p0
+
+    :cond_check_tone_fields
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneContrast:F
+
+    const/4 v1, 0x0
+
+    cmpl-float v2, v0, v1
+
+    if-eqz v2, :cond_check_s
+
+    const/4 v2, 0x0
+
+    aput v0, p0, v2
+
+    :cond_check_s
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneShadows:F
+
+    cmpl-float v2, v0, v1
+
+    if-eqz v2, :cond_check_hl
+
+    const/4 v2, 0x1
+
+    aput v0, p0, v2
+
+    :cond_check_hl
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneHighlights:F
+
+    cmpl-float v1, v0, v1
+
+    if-eqz v1, :cond_tone_done
+
+    const/4 v1, 0x2
+
+    aput v0, p0, v1
+
+    :cond_tone_done
+    return-object p0
+.end method
+
+.method public static applyEffectiveColorVector([F)[F
+    .registers 4
+
+    if-nez p0, :cond_check_color_len
+
+    const/4 v0, 0x4
+
+    new-array p0, v0, [F
+
+    goto :cond_apply_color
+
+    :cond_check_color_len
+    array-length v0, p0
+
+    const/4 v1, 0x4
+
+    if-ge v0, v1, :cond_apply_color
+
+    const/4 v0, 0x4
+
+    new-array v0, v0, [F
+
+    array-length v1, p0
+
+    const/4 v2, 0x0
+
+    invoke-static {p0, v2, v0, v2, v1}, Ljava/lang/System;->arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V
+
+    move-object p0, v0
+
+    :cond_apply_color
+    sget-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomColor:Z
+
+    if-eqz v0, :cond_check_color_fields
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneVibrance:F
+
+    const/4 v1, 0x0
+
+    aput v0, p0, v1
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneTint:F
+
+    const/4 v1, 0x1
+
+    aput v0, p0, v1
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
+
+    const/4 v1, 0x2
+
+    aput v0, p0, v1
+
+    return-object p0
+
+    :cond_check_color_fields
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneVibrance:F
+
+    const/4 v1, 0x0
+
+    cmpl-float v2, v0, v1
+
+    if-eqz v2, :cond_check_t
+
+    const/4 v2, 0x0
+
+    aput v0, p0, v2
+
+    :cond_check_t
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneTint:F
+
+    cmpl-float v2, v0, v1
+
+    if-eqz v2, :cond_check_w
+
+    const/4 v2, 0x1
+
+    aput v0, p0, v2
+
+    :cond_check_w
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneWarmth:F
+
+    cmpl-float v1, v0, v1
+
+    if-eqz v1, :cond_color_done
+
+    const/4 v1, 0x2
+
+    aput v0, p0, v1
+
+    :cond_color_done
+    return-object p0
+.end method
+
+.method public static applyEffectiveCapsVector([F)[F
+    .registers 4
+
+    if-nez p0, :cond_check_caps_len
+
+    const/4 v0, 0x2
+
+    new-array p0, v0, [F
+
+    goto :cond_apply_caps
+
+    :cond_check_caps_len
+    array-length v0, p0
+
+    const/4 v1, 0x2
+
+    if-ge v0, v1, :cond_apply_caps
+
+    const/4 v0, 0x2
+
+    new-array v0, v0, [F
+
+    array-length v1, p0
+
+    const/4 v2, 0x0
+
+    invoke-static {p0, v2, v0, v2, v1}, Ljava/lang/System;->arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V
+
+    move-object p0, v0
+
+    :cond_apply_caps
+    sget-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sHasCustomDetail:Z
+
+    if-eqz v0, :cond_check_caps_fields
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
+
+    const/4 v1, 0x0
+
+    aput v0, p0, v1
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneGrain:F
+
+    const/4 v1, 0x1
+
+    aput v0, p0, v1
+
+    return-object p0
+
+    :cond_check_caps_fields
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
+
+    const/high16 v1, 0x3f800000    # 1.0f
+
+    sub-float/2addr v0, v1
+
+    invoke-static {v0}, Ljava/lang/Math;->abs(F)F
+
+    move-result v0
+
+    const v1, 0x3c23d70a    # 0.01f
+
+    cmpl-float v0, v0, v1
+
+    if-lez v0, :cond_check_gr
+
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneSharpness:F
+
+    const/4 v1, 0x0
+
+    aput v0, p0, v1
+
+    :cond_check_gr
+    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sFineTuneGrain:F
+
+    const/4 v1, 0x0
+
+    cmpl-float v1, v0, v1
+
+    if-eqz v1, :cond_caps_done
+
+    const/4 v1, 0x1
+
+    aput v0, p0, v1
+
+    :cond_caps_done
     return-object p0
 .end method
 
@@ -4785,12 +5173,8 @@
 .method public static getEffectiveLookOrFallback(Lqvj;)Lqvj;
     .locals 2
 
-    # 1. If p0 is non-null and not Original (d > 0), return p0 directly
+    # 1. If p0 is non-null, return p0 directly (Original qux has d == 0 and is completely valid)
     if-eqz p0, :cond_check_fallback
-
-    iget v0, p0, Lqvj;->d:I
-
-    if-lez v0, :cond_check_fallback
 
     return-object p0
 
@@ -4800,17 +5184,13 @@
 
     if-eqz v0, :cond_check_id
 
-    iget v1, v0, Lqvj;->d:I
-
-    if-lez v1, :cond_check_id
-
     return-object v0
 
     :cond_check_id
     # 3. Check sSelectedLookId
     sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
 
-    if-lez v0, :cond_return_original
+    if-ltz v0, :cond_return_original
 
     const/16 v1, 0xc
 
@@ -4825,7 +5205,9 @@
     return-object v0
 
     :cond_return_original
-    return-object p0
+    sget-object v0, Lqux;->a:Lqux;
+
+    return-object v0
 .end method
 
 .method public static getFlagOverride(Ljava/lang/String;)I
@@ -4838,6 +5220,36 @@
     return v0
 
     :cond_check_mantis
+    const-string v0, "camera.gouda.use_darwinn_offline_compilation"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_tpu_override_false
+
+    const-string v0, "segmenter_use_darwinn_tpu_delegate"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_tpu_override_false
+
+    const-string v0, "use_tpu"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_mantis_policy
+
+    :cond_tpu_override_false
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_mantis_policy
     const-string v0, "camera.gouda.mantis"
 
     invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
@@ -5325,9 +5737,22 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_front_learned
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_front_learned
+    const-string v0, "camera.gouda.front_learned"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_check_physeter
 
-    const/4 v0, 0x0
+    const/4 v0, 0x1
 
     return v0
 
@@ -5546,7 +5971,7 @@
 
     move-result v0
 
-    if-eqz v0, :cond_not_found
+    if-eqz v0, :cond_check_gouda_opencl
 
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isRawSeparateFolderEnabled()Z
 
@@ -5559,6 +5984,84 @@
     return v0
 
     :cond_raw_separate_folder_disabled
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_gouda_opencl
+    const-string v0, "camera.gouda.depth_use_opencl"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_finish_raw_opencl
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_finish_raw_opencl
+    const-string v0, "gcam.enable_finish_raw_opencl"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_gpu_boost
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_gpu_boost
+    const-string v0, "portrait_enable_gpu_boost"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_cpu_boost
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_cpu_boost
+    const-string v0, "portrait_enable_cpu_boost"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_opencl_prewarm
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_opencl_prewarm
+    const-string v0, "gcam.enable_opencl_cache_prewarm"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_power_hint
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_power_hint
+    const-string v0, "power_hint"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_not_found
+
     const/4 v0, 0x0
 
     return v0
@@ -6000,9 +6503,22 @@
 
     move-result v1
 
-    if-eqz v1, :cond_check_gouda_segmenter_model
+    if-eqz v1, :cond_check_gouda_panoptic_model
 
     const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_panoptic_model
+    const-string v1, "camera.gouda.panoptic_segmenter_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_segmenter_model
+
+    const-string v0, "panoptic_segmenter_61586074_fp16_meta.tflite.uncompressed"
 
     return-object v0
 
@@ -6169,9 +6685,48 @@
 
     move-result v1
 
-    if-eqz v1, :cond_check_cottage_looknet_model
+    if-eqz v1, :cond_check_gouda_hair_matting_model
 
     const-string v0, "portrait_matting_mask_1024_768.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_hair_matting_model
+    const-string v1, "camera.gouda.hair_matting_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_hair_matting_front_model
+
+    const-string v0, "matting_v2_768.f16.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_hair_matting_front_model
+    const-string v1, "camera.gouda.hair_matting_front_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_hair_matting_single_pass_model
+
+    const-string v0, "matting_v2_768.f16.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_hair_matting_single_pass_model
+    const-string v1, "camera.gouda.hair_matting_single_pass_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_cottage_looknet_model
+
+    const-string v0, "matting_v2_768.f16.tflite.uncompressed"
 
     return-object v0
 
@@ -7446,123 +8001,12 @@
 .end method
 
 .method public static getViewfinderFragmentShader()Ljava/lang/String;
-    .locals 2
+    .locals 1
 
-    # Unsupported modes return default passthrough
-    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
-
-    const/4 v1, 0x2
-
-    if-eq v0, v1, :cond_default
-
-    const/4 v1, 0x4
-
-    if-eq v0, v1, :cond_default
-
-    const/16 v1, 0xe
-
-    if-eq v0, v1, :cond_default
-
-    const/16 v1, 0xf
-
-    if-eq v0, v1, :cond_default
-
-    sget v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sSelectedLookId:I
-
-    packed-switch v0, :pswitch_data_0
-
-    :cond_default
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  gl_FragColor = texture2D(uImgTex, texCoord);\n}"
+    # Retained for compatibility with older patch builds; native Tomte owns look preview.
+    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() { gl_FragColor = texture2D(uImgTex, texCoord); }"
 
     return-object v0
-
-    :pswitch_1
-    # Look 1: Natural (gentle contrast & natural vibrance)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 1.06 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.04), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_2
-    # Look 2: Minimal (subdued saturation, clean modern neutral)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 0.95 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 0.60), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_3
-    # Look 3: Shadows (deep moody shadows, cool shadow tone)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = pow(c, vec3(1.18));\n  c = clamp((c - 0.5) * 1.15 + 0.5, 0.0, 1.0);\n  c.b = clamp(c.b + (1.0 - l) * 0.04, 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_4
-    # Look 4: Vanilla (warm creamy highlights, golden glow)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.07 * l;\n  c.g += 0.03 * l;\n  c.b = max(0.0, c.b - 0.05 * l);\n  c = clamp((c - 0.5) * 1.05 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.08), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_5
-    # Look 5: Digi (Y2K cyber aesthetic, punchy cool tones)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.b += 0.05 * l;\n  c.g += 0.02 * l;\n  c = clamp((c - 0.5) * 1.20 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.30), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_6
-    # Look 6: Black Tie (B&W fine art, high contrast monochrome)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float m = dot(c, vec3(0.299, 0.587, 0.114));\n  m = smoothstep(0.04, 0.96, m);\n  gl_FragColor = vec4(vec3(m), src.a);\n}"
-
-    return-object v0
-
-    :pswitch_7
-    # Look 7: Dijon (yellow_green_faded, vintage 70s mustard fade)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.05 * l;\n  c.g += 0.06 * l;\n  c.b = max(0.0, c.b - 0.07 * l);\n  c = clamp((c - 0.5) * 0.94 + 0.53, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.08), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_8
-    # Look 8: Buffalo (rugged bronze tint, textural contrast)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r += 0.05 * (1.0 - l);\n  c.b = max(0.0, c.b - 0.03 * (1.0 - l));\n  c = clamp((c - 0.5) * 1.25 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.15), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_9
-    # Look 9: Flat (cinematic log, muted highlights, lifted shadows)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = c * 0.78 + 0.11;\n  c = clamp((c - 0.5) * 0.88 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 0.65), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_10
-    # Look 10: Classic (vintage film, lifted blacks, warm shadows)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = src.rgb;\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c = clamp((c - 0.5) * 0.94 + 0.5, 0.0, 1.0);\n  c.r += 0.04 * (1.0 - l);\n  c.g += 0.02 * (1.0 - l);\n  c = clamp(mix(vec3(l), c, 0.96), 0.0, 1.0);\n  gl_FragColor = vec4(clamp(c, 0.0, 1.0), src.a);\n}"
-
-    return-object v0
-
-    :pswitch_11
-    # Look 11: Editorial (high fashion contrast & punch, Kodachrome)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.r = pow(c.r, 0.90);\n  c.g = pow(c.g, 1.02);\n  c.b = pow(c.b, 1.08);\n  c = clamp((c - 0.5) * 1.22 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.12), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_12
-    # Look 12: Velvet (rich deep velvety tones, vibrant saturation, Velvia)
-    const-string v0, "#extension GL_OES_EGL_image_external : require\nprecision mediump float;\nuniform samplerExternalOES uImgTex;\nvarying vec2 texCoord;\nvoid main() {\n  vec4 src = texture2D(uImgTex, texCoord);\n  vec3 c = max(src.rgb, 0.0);\n  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n  c.g = pow(c.g, 0.94);\n  c.b = pow(c.b, 0.92);\n  c = clamp((c - 0.5) * 1.18 + 0.5, 0.0, 1.0);\n  c = clamp(mix(vec3(l), c, 1.38), 0.0, 1.0);\n  gl_FragColor = vec4(c, src.a);\n}"
-
-    return-object v0
-
-    :pswitch_data_0
-    .packed-switch 0x1
-        :pswitch_1
-        :pswitch_2
-        :pswitch_3
-        :pswitch_4
-        :pswitch_5
-        :pswitch_6
-        :pswitch_7
-        :pswitch_8
-        :pswitch_9
-        :pswitch_10
-        :pswitch_11
-        :pswitch_12
-    .end packed-switch
 .end method
 
 .method public static filterProPreferences(Ljava/lang/Object;)V

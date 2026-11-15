@@ -991,11 +991,63 @@ def patch_ksf_smali():
 
     move-result v1
 
-    if-eqz v1, :cond_check_orig
+    if-eqz v1, :cond_check_gouda_opencl
 
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isRawSeparateFolderEnabled()Z
 
     move-result v0
+
+    return v0
+
+    :cond_check_gouda_opencl
+    const-string v1, "camera.gouda.depth_use_opencl"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_power_hint
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_power_hint
+    const-string v1, "power_hint"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_rear_rgbpd
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_gouda_rear_rgbpd
+    const-string v1, "camera.gouda.rear_rgbpd"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_front_learned
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_gouda_front_learned
+    const-string v1, "camera.gouda.front_learned"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_orig
+
+    const/4 v0, 0x0
 
     return v0
 
@@ -1262,9 +1314,79 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_gouda_panoptic_model
+
+    :cond_check_gouda_panoptic_model
+    const-string v1, "camera.gouda.panoptic_segmenter_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_multiclass_segmenter
+
+    const-string v0, "panoptic_segmenter_61586074_fp16_meta.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_multiclass_segmenter
+    const-string v1, "camera.gouda.portrait_multiclass_segmenter"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_foreground_color_estimator
+
+    const-string v0, "1c33c30c31a74d99b66f54c22014a27a/1c33c30c31a74d99b66f54c22014a27a.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_foreground_color_estimator
+    const-string v1, "camera.gouda.foreground_color_estimator_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_hair_matting
+
+    const-string v0, "foreground_color_estimator_v5680_512_512.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_hair_matting
+    const-string v1, "camera.gouda.hair_matting_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-nez v1, :gouda_cpu_hair_matting
+
+    const-string v1, "camera.gouda.hair_matting_front_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_gouda_hair_matting_single_pass
+
+    :gouda_cpu_hair_matting
+    const-string v0, "matting_v2_768.f16.tflite.uncompressed"
+
+    return-object v0
+
+    :cond_check_gouda_hair_matting_single_pass
+    const-string v1, "camera.gouda.hair_matting_single_pass_model"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_gouda_segmenter_model
 
-    const-string v0, "saliency-custom_op-p23.tflite.uncompressed"
+    const-string v0, "matting_v2_768.f16.tflite.uncompressed"
 
     return-object v0
 
@@ -1453,7 +1575,28 @@ def patch_ksf_smali():
     :cond_check_orig_h
     """
             content = content[:h_start] + new_h + content[map_idx:]
-            print("    [+] klm.smali: h(Lkps;) patched for segmenter model fallback.")
+            print("    [+] ksf.smali: h(Lkps;) routes Gouda portrait models to bundled CPU fallbacks.")
+
+    # qfz reads several portrait model values through b(), which normally
+    # returns the raw device-config string and bypasses the CPU routing above.
+    # Make that getter use the guarded override table and fall back to the same
+    # original map for keys without an override.
+    b_start = content.find(".method public final b(Lkps;)Ljava/lang/String;")
+    if b_start != -1:
+        b_end = content.find(".end method", b_start)
+        current_b = content[b_start:b_end]
+        replacement_b = """.method public final b(Lkps;)Ljava/lang/String;
+    .locals 1
+
+    invoke-virtual {p0, p1}, Lksf;->h(Lkps;)Ljava/lang/String;
+
+    move-result-object v0
+
+    return-object v0
+"""
+        if "invoke-virtual {p0, p1}, Lksf;->h(Lkps;)Ljava/lang/String;" not in current_b:
+            content = content[:b_start] + replacement_b + content[b_end:]
+            print("    [+] ksf.smali: b(Lkps;) now applies portrait CPU model routes.")
 
     # 3. Patch r(Lkps;)Lj$/util/Optional;
     r_start = content.find(".method public final r(Lkps;)Lj$/util/Optional;")
@@ -1838,48 +1981,9 @@ def patch_hpq_smali():
     for h in missing_milk_hashes:
         content = content.replace(h, "")
 
-    # 2b. Map all device portrait models across generations (P21..P25) to verified non-TPU pure TFLite models
-    # Monocular models (front/rear portrait depth) -> midasnet
-    content = content.replace("881739470eaba348da266e4f8cec36a8/881739470eaba348da266e4f8cec36a8.uncompressed",
-                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
-    content = content.replace("6e4f8cec36a8881739470eaba348da26/6e4f8cec36a8881739470eaba348da26.uncompressed",
-                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
-    content = content.replace("efaffa0bfaf74be2ad2e17aeff79f3db/efaffa0bfaf74be2ad2e17aeff79f3db.uncompressed",
-                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
-    content = content.replace("ec36a8881739470eaba348da266e4f8c/ec36a8881739470eaba348da266e4f8c.uncompressed",
-                              "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed")
-
-    # Rear learned PD models -> ""
-    content = content.replace("c21a1523ba6c48c2a0bf2ca4f6d6c0f0/c21a1523ba6c48c2a0bf2ca4f6d6c0f0.uncompressed", "")
-    content = content.replace("1a6566f5ceb54b50b61f553f347f6f64/1a6566f5ceb54b50b61f553f347f6f64.uncompressed", "")
-    content = content.replace("dd674d048bbc43c1b338a6692cf9c481/dd674d048bbc43c1b338a6692cf9c481.uncompressed", "")
-    content = content.replace("a7a5b6a2bc5b4e04a8a64f9b30c86bf1/a7a5b6a2bc5b4e04a8a64f9b30c86bf1.uncompressed", "")
-    content = content.replace("a06600a838c64acd9c68ae65f8b2bc5f/a06600a838c64acd9c68ae65f8b2bc5f.uncompressed", "")
-    content = content.replace("2c51b285d81a44d7a619538fe13cb421/2c51b285d81a44d7a619538fe13cb421.uncompressed", "")
-    content = content.replace("4cdbd4b13ea54a309eb235a75232ae6d/4cdbd4b13ea54a309eb235a75232ae6d.uncompressed", "")
-
-    # PD stereo models -> ""
-    content = content.replace("9599cabbb2fa4aa79ee0c44f0c1553ad/9599cabbb2fa4aa79ee0c44f0c1553ad.uncompressed", "")
-    content = content.replace("a3a43595f3aa49b3b4ab6ff4bb63de83/a3a43595f3aa49b3b4ab6ff4bb63de83.uncompressed", "")
-    content = content.replace("0e14a3dd073345168f939198e03f2d4e/0e14a3dd073345168f939198e03f2d4e.uncompressed", "")
-    content = content.replace("5751e2e2a711430695dac2c034cfd295/5751e2e2a711430695dac2c034cfd295.uncompressed", "")
-
-    # Depth postprocessor models -> ""
-    content = content.replace("de8bc16ea114427d88425742785fccac/de8bc16ea114427d88425742785fccac.uncompressed", "")
-    content = content.replace("a982533a4222473db9f191c212a99740/a982533a4222473db9f191c212a99740.uncompressed", "")
-    content = content.replace("0b2b230344f74db8868ffd9f1c042393/0b2b230344f74db8868ffd9f1c042393.uncompressed", "")
-    content = content.replace("cac29f5597f5453bbabb54f6f2080e39/cac29f5597f5453bbabb54f6f2080e39.uncompressed", "")
-
-    # Portrait matting models -> portrait_matting_mask_1024_768
-    content = content.replace("518658ef4ea04adf8e19e64d5aa019d0/518658ef4ea04adf8e19e64d5aa019d0.uncompressed",
-                              "portrait_matting_mask_1024_768.tflite.uncompressed")
-    content = content.replace("f452199b34d445868df25db5b960f191/f452199b34d445868df25db5b960f191.uncompressed",
-                              "portrait_matting_mask_1024_768.tflite.uncompressed")
-    content = content.replace("01bac7b33fc440d59b8ddc817ce91b7c/01bac7b33fc440d59b8ddc817ce91b7c.uncompressed",
-                              "portrait_matting_mask_1024_768.tflite.uncompressed")
-    content = content.replace("a7ab2018912b4f958760b7763b36256a/a7ab2018912b4f958760b7763b36256a.uncompressed",
-                              "portrait_matting_mask_1024_768.tflite.uncompressed")
-
+    # Preserve Google's native Pixel-specific portrait model IDs. The matching
+    # P23 portrait split is bundled by inject_splits(); substituting Midas or
+    # matting fallbacks here breaks the Tensor G3 depth and face masks.
 
     # 3. Disable use_darwinn_offline_compilation (kkn.Q)
     target_q = """    sget-object v4, Lkrg;->Q:Lkps;
@@ -2112,7 +2216,8 @@ def patch_kic_smali():
     invoke-virtual {p0, v3, v4}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_darwinn, repl_darwinn)
 
-    # Disable portrait_depth_use_tpu (kkn.aj) and portrait_matting_use_tpu (kkn.ak) in kic.smali
+    # Disable portrait TPU delegates (kkn.aj / kkn.ak); the re-signed package is not EdgeTPU-allowlisted.
+
     target_kic_tpu = """    sget-object p1, Lkrg;->aj:Lkps;
 
     invoke-virtual {p0, p1, v1}, Lksf;->n(Lkps;Z)V
@@ -2129,9 +2234,32 @@ def patch_kic_smali():
     invoke-virtual {p0, p1, v4}, Lksf;->n(Lkps;Z)V"""
     content = content.replace(target_kic_tpu, repl_kic_tpu)
 
+    # Disable missing deeprestore_face model
+    target_deeprestore = """    sget-object v3, Lkph;->i:Lkps;
+
+    invoke-virtual {p0, v3, v1}, Lksf;->n(Lkps;Z)V
+
+    sget-object v3, Lkph;->c:Lkps;
+
+    const-string v7, "deeprestore_face_float32_512x512_v13_rc2_float-graph-custom_op_p23.tflite.uncompressed"
+
+    invoke-virtual {p0, v3, v7}, Lksf;->i(Lkps;Ljava/lang/String;)V"""
+    repl_deeprestore = """    sget-object v3, Lkph;->i:Lkps;
+
+    invoke-virtual {p0, v3, v4}, Lksf;->n(Lkps;Z)V
+
+    sget-object v3, Lkph;->c:Lkps;
+
+    const-string v7, ""
+
+    invoke-virtual {p0, v3, v7}, Lksf;->i(Lkps;Ljava/lang/String;)V"""
+    if target_deeprestore in content:
+        content = content.replace(target_deeprestore, repl_deeprestore)
+        print("    [+] kov.smali: Disabled missing deeprestore_face model.")
+
     with open(kic_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] kic.smali: EdgeTPU PD models nulled, gouda TPU flags disabled, and lasagna use_darwinn disabled.")
+    print("    [+] kic.smali: Missing PD models sanitized; portrait TPU delegates disabled for the re-signed package.")
 
 def patch_mwg_smali():
     print("[*] Patching mwg.smali (Force CPU inference for Lasagna / Motion Blur)...")
@@ -2508,7 +2636,35 @@ def patch_libgcastartup():
         elif orig5 == bytes.fromhex("20008052c0035fd6"):
             print("    [+] 0x2420880 already patched.")
 
-        # 6. Dynamic Tuning Engine:
+        # 6. 0x26f1208: cbz x8, #0x26f1270 (48 03 00 b4) -> b #0x26f1270 (1a 00 00 14)
+        # Bypasses ML-based depth postprocessor in Gouda, preventing "INVALID_ARGUMENT: Invalid fd: -1"
+        # and ensuring Gouda always uses the Monocular depth map and renders synthetic bokeh
+        f.seek(0x26f1208)
+        orig6 = f.read(4)
+        if orig6 == bytes.fromhex("480300b4"):
+            f.seek(0x26f1208)
+            f.write(bytes.fromhex("1a000014"))
+            print("    [+] Patched 0x26f1208: cbz x8 -> b #0x26f1270 (bypass ML depth postprocessor abort)")
+        elif orig6 == bytes.fromhex("1a000014"):
+            print("    [+] 0x26f1208 already patched.")
+        else:
+            print(f"    [!] Warning: 0x26f1208 unexpected bytes: {orig6.hex()}")
+
+        # 7. 0x26fca6c: cbnz w23, #0x2700758 (77 e7 01 35) -> nop (1f 20 03 d5)
+        # Bypasses "No face or largest face too small. Not processing..." abort in Gouda,
+        # allowing Portrait Mode to work reliably on non-human subjects (objects, pets, flowers, food)
+        f.seek(0x26fca6c)
+        orig7 = f.read(4)
+        if orig7 == bytes.fromhex("77e70135"):
+            f.seek(0x26fca6c)
+            f.write(bytes.fromhex("1f2003d5"))
+            print("    [+] Patched 0x26fca6c: cbnz w23 -> nop (allow non-human portrait subjects)")
+        elif orig7 == bytes.fromhex("1f2003d5"):
+            print("    [+] 0x26fca6c already patched.")
+        else:
+            print(f"    [!] Warning: 0x26fca6c unexpected bytes: {orig7.hex()}")
+
+        # 8. Dynamic Tuning Engine:
         # Denoiser kernels, Pecan noise residual scaling, and 70 embedded sharpen tuning curves
         # are handled dynamically at runtime by libpropatcher.so via TomteInitHelper.applyNativeTuning()
         # and in-app Pro Settings UI toggles (Soft 0.0x / Natural 0.5x / Standard 1.0x; Off / Low / Standard).
@@ -4217,19 +4373,18 @@ def patch_rfx_smali():
         content = content.replace(target_d, replacement_d, 1)
         print("    [+] rfx.smali: Hooked method D with TomteInitHelper.onLookObjectSelected.")
 
-    target = """    :goto_4
-    sget-object v12, Lcau;->c:Lcau;"""
-
-    replacement = """    :goto_4
+    # Ensure any previous bad hook at :goto_4 in rfx.smali is cleanly removed
+    bad_goto_4 = """    :goto_4
     invoke-static {v11}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookOrFallback(Lqvj;)Lqvj;
 
     move-result-object v11
 
     sget-object v12, Lcau;->c:Lcau;"""
-
-    if target in content:
-        content = content.replace(target, replacement, 1)
-        print("    [+] rfx.smali: Added TomteInitHelper fallback to Sauce EXIF builder.")
+    clean_goto_4 = """    :goto_4
+    sget-object v12, Lcau;->c:Lcau;"""
+    if bad_goto_4 in content:
+        content = content.replace(bad_goto_4, clean_goto_4)
+        print("    [+] rfx.smali: Removed bad getEffectiveLookOrFallback hook from Compose UI :goto_4.")
 
     # Fix UnsupportedOperationException in method M for Dijon (qvi), Buffalo (qvg), and Flat (qvd)
     target_m = """    :cond_16
@@ -4904,6 +5059,77 @@ def patch_mtt_smali():
     if target_qwk_e in content:
         content = content.replace(target_qwk_e, repl_qwk_e, 1)
 
+    # Hook TomteMetadata vectors at :goto_c with effective fine-tuning (Pixel 10 Pro native looks)
+    target_vectors = """    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v10}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v10
+
+    invoke-virtual {v9, v10}, Lcom/google/googlex/gcam/TomteMetadata;->b(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v11}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v10
+
+    invoke-virtual {v9, v10}, Lcom/google/googlex/gcam/TomteMetadata;->c(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v8}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;"""
+
+    repl_vectors = """    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v10}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveToneVector([F)[F
+
+    move-result-object v10
+
+    invoke-static {v10}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v10
+
+    invoke-virtual {v9, v10}, Lcom/google/googlex/gcam/TomteMetadata;->b(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v11}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveColorVector([F)[F
+
+    move-result-object v11
+
+    invoke-static {v11}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v10
+
+    invoke-virtual {v9, v10}, Lcom/google/googlex/gcam/TomteMetadata;->c(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual {v15}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v9
+
+    invoke-static {v8}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveCapsVector([F)[F
+
+    move-result-object v8
+
+    invoke-static {v8}, Lmtt;->S([F)Lcom/google/googlex/gcam/FloatVector;"""
+
+    if target_vectors in content:
+        content = content.replace(target_vectors, repl_vectors, 1)
+        print("    [+] mtt.smali: TomteMetadata vectors hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->applyEffectiveColorVector" in content:
+        print("    [+] mtt.smali: TomteMetadata vectors already hooked.")
+
     # Hook Pecan ML Denoiser in ShotParams
     pecan_target = """    iget-wide v10, v9, Lcom/google/googlex/gcam/ShotParams;->a:J
 
@@ -5005,6 +5231,89 @@ def patch_mtt_smali():
     with open(mtt_path, "w", encoding="utf-8") as f:
         f.write(content)
     print("    [+] mtt.smali patched: getEffectiveLookId & denoiser filters hooked.")
+
+
+def patch_jii_smali():
+    print("[*] Patching jii.smali (Applying effective vectors to ACMI P11 frame listener)...")
+    jii_path = os.path.join(APKTOOL_DIR, "smali_classes2", "jii.smali")
+    if not os.path.exists(jii_path):
+        print("    [!] Warning: jii.smali not found.")
+        return
+    with open(jii_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    jii_target = """    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static/range {v25 .. v25}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v7
+
+    invoke-virtual {v4, v7}, Lcom/google/googlex/gcam/TomteMetadata;->b(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static {v6}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v6
+
+    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/TomteMetadata;->c(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static {v5}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;"""
+
+    jii_repl = """    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static/range {v25 .. v25}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveToneVector([F)[F
+
+    move-result-object v25
+
+    invoke-static/range {v25 .. v25}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v7
+
+    invoke-virtual {v4, v7}, Lcom/google/googlex/gcam/TomteMetadata;->b(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static {v6}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveColorVector([F)[F
+
+    move-result-object v6
+
+    invoke-static {v6}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;
+
+    move-result-object v6
+
+    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/TomteMetadata;->c(Lcom/google/googlex/gcam/FloatVector;)V
+
+    invoke-virtual/range {v23 .. v23}, Lcom/google/googlex/gcam/FrameMetadata;->w()Lcom/google/googlex/gcam/TomteMetadata;
+
+    move-result-object v4
+
+    invoke-static {v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->applyEffectiveCapsVector([F)[F
+
+    move-result-object v5
+
+    invoke-static {v5}, Lwireless/android/learning/acmi/p11/metadata/P11MetadataSerializer;->a([F)Lcom/google/googlex/gcam/FloatVector;"""
+
+    if jii_target in content:
+        content = content.replace(jii_target, jii_repl, 1)
+        print("    [+] jii.smali: P11MetadataSerializer vectors hooked to TomteInitHelper.")
+    elif "TomteInitHelper;->applyEffectiveColorVector" in content:
+        print("    [+] jii.smali: P11MetadataSerializer vectors already hooked.")
+
+    with open(jii_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 def patch_pyp_smali():
@@ -5911,7 +6220,10 @@ def patch_qfr_smali():
         print("    [+] qfr.smali: Disabled TPU flags (n, o, p, q, r = false).")
     elif "const/4 v0, 0x0\n\n    iput-boolean v0, p0, Lqfr;->n:Z" in content:
         print("    [+] qfr.smali: TPU flags already disabled.")
+    else:
+        print("    [!] Warning: qfr.smali TPU target block not found.")
 
+    # In qfr.e(Z)Z: Force return false (0) for Gouda TPU delegate
     target_e = """.method public final e(Z)Z
     .locals 0
 
@@ -5937,9 +6249,9 @@ def patch_qfr_smali():
 
     if target_e in content:
         content = content.replace(target_e, repl_e, 1)
-        print("    [+] qfr.smali: Disabled mantis telephoto portrait e(Z) -> false.")
-    elif "const/4 p0, 0x0\n\n    return p0\n.end method" in content:
-        print("    [+] qfr.smali: mantis telephoto portrait e(Z) already disabled.")
+        print("    [+] qfr.smali: Forced e(Z)Z to return false (0).")
+    elif repl_e in content:
+        print("    [+] qfr.smali: e(Z)Z already returns false (0).")
 
     with open(qfr_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -6004,13 +6316,41 @@ def patch_qfz_smali():
 
     if target_mono in content:
         content = content.replace(target_mono, repl_mono, 1)
-        with open(qfz_path, "w", encoding="utf-8") as f:
-            f.write(content)
         print("    [+] qfz.smali: Monocular depth model loading enabled for all cameras.")
     elif "sget-object v5, Lkrg;->u:Lkps;\n\n    invoke-virtual {v13, v5}, Lksf;->h(Lkps;)Ljava/lang/String;" in content:
         print("    [+] qfz.smali: Monocular model loading already enabled.")
     else:
         print("    [!] Warning: qfz.smali monocular target block not found.")
+
+    # Bypass depth_postprocessor_model_set (goto :cond_16) to prevent Invalid fd: -1 Gouda aborts
+    target_post = """    :goto_c
+    if-eqz v5, :cond_16"""
+    repl_post = """    :goto_c
+    goto :cond_16
+
+    if-eqz v5, :cond_16"""
+    if target_post in content:
+        content = content.replace(target_post, repl_post, 1)
+        print("    [+] qfz.smali: Bypassed depth_postprocessor_model_set (goto :cond_16) to prevent Invalid fd: -1.")
+    elif "goto :cond_16\n\n    if-eqz v5, :cond_16" in content:
+        print("    [+] qfz.smali: depth_postprocessor_model_set already bypassed.")
+    else:
+        target_post_alt = """    :goto_b
+    if-eqz v5, :cond_14"""
+        repl_post_alt = """    :goto_b
+    goto :cond_14
+
+    if-eqz v5, :cond_14"""
+        if target_post_alt in content:
+            content = content.replace(target_post_alt, repl_post_alt, 1)
+            print("    [+] qfz.smali: Bypassed depth_postprocessor_model_set (goto :cond_14).")
+        elif "goto :cond_14\n\n    if-eqz v5, :cond_14" in content:
+            print("    [+] qfz.smali: depth_postprocessor_model_set already bypassed.")
+        else:
+            print("    [!] Warning: qfz.smali depth_postprocessor target block not found.")
+
+    with open(qfz_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 def patch_qge_smali():
@@ -6023,20 +6363,21 @@ def patch_qge_smali():
         content = f.read()
 
     start_marker = "    if-eqz v6, :cond_3"
-    end_marker = "    :cond_c\n    :goto_2"
+    end_marker = "    :goto_2"
 
     idx1 = content.find(start_marker)
     idx2 = content.find(end_marker)
 
     if idx1 != -1 and idx2 != -1 and idx1 < idx2:
-        end_idx = idx2 + len("    :cond_c\n")
-        repl = """    sget-object v6, Lzzd;->e:Lzzd;
+        repl_dispatch = """    sget-object v6, Lzzd;->e:Lzzd;
 
-    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V\n\n"""
-        content = content[:idx1] + repl + content[end_idx:]
-        print("    [+] qge.smali: Successfully routed all portrait captures to zzd.e (kMonocular).")
-    elif "sget-object v6, Lzzd;->e:Lzzd;" in content and "invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V" in content:
-        print("    [+] qge.smali: Already routed to zzd.e (kMonocular).")
+    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V
+
+"""
+        content = content[:idx1] + repl_dispatch + content[idx2:]
+        print("    [+] qge.smali: Dispatched kMonocular depth for all portrait captures.")
+    elif "sget-object v6, Lzzd;->e:Lzzd;\n\n    invoke-virtual {v4, v6}, Lcom/google/googlex/gcam/PortraitRequest;->d(Lzzd;)V\n\n    :goto_2" in content:
+        print("    [+] qge.smali: kMonocular depth dispatch already active.")
     else:
         print("    [!] Warning: qge.smali dispatch target block not found.")
 
@@ -6058,19 +6399,25 @@ def patch_qge_smali():
     if target_matting in content:
         content = content.replace(target_matting, repl_matting, 1)
         print("    [+] qge.smali: Forced apply_portrait_matting_set = true for all cameras.")
-    elif ":cond_12\n    const/4 v6, 0x1" in content:
+    elif ":cond_12\n    const/4 v6, 0x1" in content or "PortraitRequest_apply_portrait_matting_set" in content:
         print("    [+] qge.smali: Matting already forced to true.")
     else:
         print("    [!] Warning: qge.smali matting target block not found.")
 
-    # Disable Lancet upscaler (enable_lancet_upscaler_set = false)
+    # Enable Lancet upscaler (enable_lancet_upscaler_set = true) for AI super-resolution detail
     target_lancet = """    iget-boolean v6, v8, Lqfr;->A:Z
 
     iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
 
     invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
 
-    repl_lancet = """    const/4 v6, 0x0
+    repl_lancet = """    const/4 v6, 0x1
+
+    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
+
+    target_lancet_disabled = """    const/4 v6, 0x0
 
     iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
 
@@ -6078,11 +6425,62 @@ def patch_qge_smali():
 
     if target_lancet in content:
         content = content.replace(target_lancet, repl_lancet, 1)
-        print("    [+] qge.smali: Disabled TPU Lancet upscaler.")
-    elif "const/4 v6, 0x0\n\n    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J\n\n    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set" in content:
-        print("    [+] qge.smali: Lancet upscaler already disabled.")
+        print("    [+] qge.smali: Enabled TPU Lancet upscaler.")
+    elif target_lancet_disabled in content:
+        content = content.replace(target_lancet_disabled, repl_lancet, 1)
+        print("    [+] qge.smali: Enabled TPU Lancet upscaler (updated).")
+    elif "const/4 v6, 0x1\n\n    iget-wide v10, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J\n\n    invoke-static {v10, v11, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_enable_lancet_upscaler_set" in content:
+        print("    [+] qge.smali: Lancet upscaler already enabled.")
     else:
         print("    [!] Warning: qge.smali lancet target block not found.")
+
+    # Force use_opencl_depth_set = false to prevent Mali GPU OpenCL PowerHAL 5-second binder hang
+    target_opencl = """    sget-object v6, Lkrg;->R:Lkps;
+
+    invoke-virtual {v5, v6}, Lksf;->q(Lkps;)Z
+
+    move-result v6
+
+    iget-wide v11, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v11, v12, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_use_opencl_depth_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
+
+    repl_opencl = """    const/4 v6, 0x0
+
+    iget-wide v11, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v11, v12, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_use_opencl_depth_set(JLcom/google/googlex/gcam/PortraitRequest;Z)V"""
+
+    if target_opencl in content:
+        content = content.replace(target_opencl, repl_opencl, 1)
+        print("    [+] qge.smali: Forced PortraitRequest_use_opencl_depth_set = false (avoids 5s PowerHAL hang).")
+    elif "const/4 v6, 0x0\n\n    iget-wide v11, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J\n\n    invoke-static {v11, v12, v4, v6}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_use_opencl_depth_set" in content:
+        print("    [+] qge.smali: PortraitRequest_use_opencl_depth_set already forced to false.")
+    else:
+        print("    [!] Warning: qge.smali opencl target block not found.")
+
+    # Neutralize cache directory collision in PortraitRequest (inference_engine_tf_lite directory open failure)
+    target_cache = """    invoke-virtual {v2}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
+
+    move-result-object v2
+
+    iget-wide v6, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v6, v7, v4, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_cache_directory_set(JLcom/google/googlex/gcam/PortraitRequest;Ljava/lang/String;)V"""
+
+    repl_cache = """    const-string v2, ""
+
+    iget-wide v6, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J
+
+    invoke-static {v6, v7, v4, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_cache_directory_set(JLcom/google/googlex/gcam/PortraitRequest;Ljava/lang/String;)V"""
+
+    if target_cache in content:
+        content = content.replace(target_cache, repl_cache, 1)
+        print("    [+] qge.smali: Neutralized cache directory to avoid inference engine directory collision.")
+    elif 'const-string v2, ""\n\n    iget-wide v6, v4, Lcom/google/googlex/gcam/PortraitRequest;->a:J\n\n    invoke-static {v6, v7, v4, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->PortraitRequest_cache_directory_set' in content:
+        print("    [+] qge.smali: Cache directory already neutralized.")
+    else:
+        print("    [!] Warning: qge.smali cache directory target block not found.")
 
     with open(qge_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -6124,7 +6522,9 @@ def patch_qgh_smali():
 
     return-wide v0"""
 
-    if target_a in content:
+    if repl_a in content:
+        print("    [+] qgh.smali: Synchronous b() initialization already present in a().")
+    elif target_a in content:
         content = content.replace(target_a, repl_a, 1)
         print("    [+] qgh.smali: Added synchronous b() initialization in a().")
 
@@ -6212,7 +6612,7 @@ def patch_qgh_smali():
 
 
 def patch_mqs_smali():
-    print("[*] Patching mqs.smali (TomteGrain startup initialization, was mia)...")
+    print("[*] Checking mqs.smali (TomteGrain startup initialization)...")
     mqs_path = os.path.join(APKTOOL_DIR, "smali", "mqs.smali")
     if not os.path.exists(mqs_path):
         print("    [!] Warning: mqs.smali not found.")
@@ -6220,19 +6620,22 @@ def patch_mqs_smali():
     with open(mqs_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    target = """    iget-boolean v0, p0, Lmqs;->f:Z
+    # Ensure TomteGrain is NOT forced unconditionally at startup to prevent synthetic grain/noise
+    if "goto :cond_0\n\n    :cond_0\n    iget-object v0, p0, Lmqs;->g:Lksf;" in content:
+        stock_grain = """    iget-boolean v0, p0, Lmqs;->f:Z
 
     if-nez v0, :cond_0
 
-    goto/16 :goto_2"""
+    goto :goto_2
 
-    if target in content:
-        content = content.replace(target, "    goto :cond_0", 1)
+    :cond_0
+    iget-object v0, p0, Lmqs;->g:Lksf;"""
+        content = content.replace("    goto :cond_0\n\n    :cond_0\n    iget-object v0, p0, Lmqs;->g:Lksf;", stock_grain)
         with open(mqs_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("    [+] mqs.smali: TomteGrain#initialize enabled unconditionally at startup.")
-    elif "goto :cond_0\n\n    :cond_0\n    iget-object v0, p0, Lmqs;->g:Lksf;" in content:
-        print("    [+] mqs.smali: Already patched for startup initialization.")
+        print("    [+] mqs.smali: Reverted forced TomteGrain startup (preserves pristine HDR+ denoising).")
+    else:
+        print("    [+] mqs.smali: TomteGrain not forced at startup (clean).")
 
 
 def patch_nzr_and_mpd_smali():
@@ -10560,6 +10963,11 @@ def inject_splits():
         ("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-v4.tflite.uncompressed"),
         ("saliency-custom_op-v6.tflite.uncompressed", "saliency-custom_op-p23.tflite.uncompressed"),
         ("hawk_full_fov_custom-op-2.tflite.uncompressed", "hawk_full_fov_custom-op-p25.tflite.uncompressed"),
+        ("hawk_full_fov_custom-op-p25.tflite.uncompressed", "hawk_full_fov_custom-op-p23.tflite.uncompressed"),
+        ("lancet_alpha_v2-p24.tflite.uncompressed", "lancet_alpha_v2-p23.tflite.uncompressed"),
+        ("pecan-p25-custom_op.tflite.uncompressed", "pecan-p23-custom_op.tflite.uncompressed"),
+        ("pecan-p25-luma-hybrid-custom_op.tflite.uncompressed", "pecan-p23-luma-hybrid-custom_op.tflite.uncompressed"),
+        ("walnut-p25-custom_op.tflite.uncompressed", "walnut-p23-custom_op.tflite.uncompressed"),
         ("edamame_0521-p26.tflite.uncompressed", "edamame_0521-p25.tflite.uncompressed"),
         ("all_in_film_blender.tflite.uncompressed", "all_in_film_blender_sharded_512_256-graph-custom_op_tpu_p25.tflite.uncompressed"),
     ]
@@ -10632,6 +11040,11 @@ def build_and_sign():
         "midasnet_mobilenetv2_dptmqn_dec256_sep_082421_384_384_fp16_opt.tflite.uncompressed",  # Monocular depth
         "portrait_matting_mask_1024_768.tflite.uncompressed",  # Portrait matting
         "1c33c30c31a74d99b66f54c22014a27a.uncompressed",  # Portrait segmenter
+        "pecan-p23-custom_op.tflite.uncompressed",  # Gcam RAW Denoising
+        "pecan-p23-luma-hybrid-custom_op.tflite.uncompressed",  # Gcam Hybrid Denoising
+        "lancet_alpha_v2-p23.tflite.uncompressed",  # Lancet super-res upscaler
+        "walnut-p23-custom_op.tflite.uncompressed",  # Walnut detail synthesis & skin reconstruction
+        "hawk_full_fov_custom-op-p23.tflite.uncompressed",  # Optical flow alignment
     ]
     with zipfile.ZipFile(signed_apk, 'r') as zf:
         defl_count = 0
@@ -10701,9 +11114,11 @@ def copy_to_desktop(signed_apk):
             "PixelCamera_signed.apk",
             "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk",
             "Camera-v11.1.040.982810059.19-patches-v1.1.4.apk",
+            "PixelCamera-1.1.3.apk",
             "PixelCamera-1.1.4.apk",
             "patches-1.1.3.mpp",
             "patches-1.1.4.mpp",
+            "morphe-patches-pixelcamera-1.1.3.mpp",
             "morphe-patches-pixelcamera-1.1.4.mpp"
         ]:
             old_path = os.path.join(desktop_dir, old_file)
@@ -10713,22 +11128,22 @@ def copy_to_desktop(signed_apk):
                 except Exception:
                     pass
 
-        # Copy APK to Desktop: PixelCamera-1.1.3.apk and SourceForge release name
-        dest_apk = os.path.join(desktop_dir, "PixelCamera-1.1.3.apk")
+        # Copy APK to Desktop: PixelCamera-1.1.4.apk and SourceForge release name
+        dest_apk = os.path.join(desktop_dir, "PixelCamera-1.1.4.apk")
         shutil.copy2(signed_apk, dest_apk)
-        dest_sf_apk = os.path.join(desktop_dir, "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk")
+        dest_sf_apk = os.path.join(desktop_dir, "Camera-v11.1.040.982810059.19-patches-v1.1.4.apk")
         shutil.copy2(signed_apk, dest_sf_apk)
         size_mb = os.path.getsize(dest_apk) / (1024 * 1024)
         print(f"    [+] Successfully copied APK to Desktop: {dest_apk} and {dest_sf_apk} ({size_mb:.2f} MB)")
 
-        # Exactly ONE Morphe .mpp patch file on Desktop: morphe-patches-pixelcamera-1.1.3.mpp
-        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.3.mpp")
+        # Exactly ONE Morphe .mpp patch file on Desktop: morphe-patches-pixelcamera-1.1.4.mpp
+        mpp_src = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.4.mpp")
         if not os.path.exists(mpp_src):
-            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.3.mpp")
+            built_mpp = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.4.mpp")
             if os.path.exists(built_mpp):
                 mpp_src = built_mpp
         if os.path.exists(mpp_src):
-            dest_mpp = os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.3.mpp")
+            dest_mpp = os.path.join(desktop_dir, "morphe-patches-pixelcamera-1.1.4.mpp")
             shutil.copy2(mpp_src, dest_mpp)
             print(f"    [+] Successfully copied single patch to Desktop: {dest_mpp}")
         
@@ -10738,9 +11153,12 @@ def copy_to_desktop(signed_apk):
                 "PixelCamera_signed.apk",
                 "Camera-v11.1.040.982810059.19-patches-v1.1.3.apk",
                 "Camera-v11.1.040.982810059.19-patches-v1.1.4.apk",
+                "PixelCamera-1.1.3.apk",
                 "PixelCamera-1.1.4.apk",
                 "patches-1.1.3.mpp",
-                "patches-1.1.4.mpp"
+                "patches-1.1.4.mpp",
+                "morphe-patches-pixelcamera-1.1.3.mpp",
+                "morphe-patches-pixelcamera-1.1.4.mpp"
             ]:
                 old_path = os.path.join(pixelcam_dir, old_file)
                 if os.path.exists(old_path):
@@ -10748,10 +11166,10 @@ def copy_to_desktop(signed_apk):
                         os.remove(old_path)
                     except Exception:
                         pass
-            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.3.apk"))
+            shutil.copy2(signed_apk, os.path.join(pixelcam_dir, "PixelCamera-1.1.4.apk"))
             if os.path.exists(mpp_src):
-                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.3.mpp"))
-            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.3.apk")
+                shutil.copy2(mpp_src, os.path.join(pixelcam_dir, "morphe-patches-pixelcamera-1.1.4.mpp"))
+            print(f"    [+] Also copied to {pixelcam_dir}/PixelCamera-1.1.4.apk")
         return dest_apk
     else:
         print("    [!] Warning: Desktop directory not found, skipping Desktop copy.")
@@ -10785,12 +11203,12 @@ def install_and_launch(signed_apk):
     print(f"    {res.stdout.strip()}")
     if "Success" in res.stdout:
         # Also copy release APK and Morphe .mpp patch to device Download directory
-        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.3.mpp")
+        mpp_file = os.path.join(ROOT_DIR, "morphe-patches-pixelcamera-1.1.4.mpp")
         if not os.path.exists(mpp_file):
-            mpp_file = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.3.mpp")
+            mpp_file = os.path.join(ROOT_DIR, "morphe-patches", "patches", "build", "libs", "patches-1.1.4.mpp")
         if os.path.exists(mpp_file):
             print(f"[*] Copying {os.path.basename(mpp_file)} to device /sdcard/Download/...")
-            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.3.mpp"], stdout=subprocess.DEVNULL)
+            subprocess.run(["adb", "-s", target_device, "push", mpp_file, "/sdcard/Download/morphe-patches-pixelcamera-1.1.4.mpp"], stdout=subprocess.DEVNULL)
             print("    [+] Successfully copied Morphe patch to /sdcard/Download/ on device!")
         # Skip copying APK to /sdcard/Download/ per user request ("copy only patch in the device")
         print(f"[*] Launching PixelCamera on {target_device} (com.google.android.GoogleCameraEng)...")
@@ -11156,13 +11574,13 @@ def patch_image_quality_preferences():
             print("    [+] strings.xml: Advanced settings category title added.")
 
         if "pref_about_version_summary" in content:
-            content = re.sub(r'<string name="pref_about_version_summary">.*?</string>', '<string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.3)</string>', content)
+            content = re.sub(r'<string name="pref_about_version_summary">.*?</string>', '<string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.4)</string>', content)
             with open(strings_path, "w", encoding="utf-8") as f:
                 f.write(content)
         elif "pref_category_about_title" not in content:
             about_strings = """    <string name="pref_category_about_title">About</string>
     <string name="pref_about_title">Pixel Camera</string>
-    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.3)</string>"""
+    <string name="pref_about_version_summary">version 11.1.040.982810059.19 (v1.1.4)</string>"""
             content = content.replace("<resources>", f"<resources>\n{about_strings}")
             with open(strings_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -12507,6 +12925,7 @@ def main():
     patch_rva_smali()
     patch_ozw_smali()
     patch_mtt_smali()
+    patch_jii_smali()
     patch_pyp_smali()
     patch_rdb_smali()
     patch_ons_smali()

@@ -265,6 +265,83 @@ val cameraLooksPatch = bytecodePatch(
                         break
                     }
                 }
+
+                // Also hook TomteMetadata vectors at :goto_c for native Look capture (e.g. Pixel 10 Pro)
+                try {
+                    val sCalls = impl.instructions.mapIndexedNotNull { index, ins ->
+                        val r = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if ((ins.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_STATIC || ins.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_STATIC_RANGE) &&
+                            r.contains("->S([F)Lcom/google/googlex/gcam/FloatVector;")) {
+                            index to ins
+                        } else null
+                    }
+                    if (sCalls.size == 3) {
+                        val vectorHooks = listOf(
+                            "applyEffectiveCapsVector",
+                            "applyEffectiveColorVector",
+                            "applyEffectiveToneVector"
+                        )
+                        for (j in sCalls.indices.reversed()) {
+                            val (sIdx, sIns) = sCalls[j]
+                            val reg = when (sIns) {
+                                is com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction -> sIns.registerA
+                                is com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction3rc -> sIns.startRegister
+                                else -> null
+                            } ?: continue
+                            val methodName = vectorHooks[2 - j]
+                            val hSmali = """
+                                invoke-static {v$reg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->$methodName([F)[F
+                                move-result-object v$reg
+                            """.trimIndent()
+                            val hInstructions = hSmali.toInstructions(method)
+                            var p = sIdx
+                            for (ins in hInstructions) {
+                                impl.addInstruction(p++, ins)
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // Also hook jii.is for frame listener metadata serialization
+        mutableClassDefByOrNull("Ljii;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "is" }?.let { method ->
+                val impl = method.implementation ?: return@let
+                try {
+                    val p11Calls = impl.instructions.mapIndexedNotNull { index, ins ->
+                        val r = (ins as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString() ?: ""
+                        if ((ins.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_STATIC || ins.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_STATIC_RANGE) &&
+                            r.contains("P11MetadataSerializer;->a([F)")) {
+                            index to ins
+                        } else null
+                    }
+                    if (p11Calls.size == 3) {
+                        val vectorHooks = listOf(
+                            "applyEffectiveCapsVector",
+                            "applyEffectiveColorVector",
+                            "applyEffectiveToneVector"
+                        )
+                        for (j in p11Calls.indices.reversed()) {
+                            val (sIdx, sIns) = p11Calls[j]
+                            val reg = when (sIns) {
+                                is com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction -> sIns.registerA
+                                is com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction3rc -> sIns.startRegister
+                                else -> null
+                            } ?: continue
+                            val methodName = vectorHooks[2 - j]
+                            val hSmali = """
+                                invoke-static {v$reg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->$methodName([F)[F
+                                move-result-object v$reg
+                            """.trimIndent()
+                            val hInstructions = hSmali.toInstructions(method)
+                            var p = sIdx
+                            for (ins in hInstructions) {
+                                impl.addInstruction(p++, ins)
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {}
             }
         }
 
@@ -422,7 +499,7 @@ val cameraLooksPatch = bytecodePatch(
         // via TomteInitHelper.applyTomteImageFinalizer. msr.a() must NOT be mutated to preserve exact ART
         // register verification state and eliminate any VerifyError [0xA] non-reference type Conflict on Android 17/targetSdk 37.
 
-        // ── 17. Hook ndf / muh for TomteInitHelper.initTomteGrain before applyTomteImageFinalizer ──
+        // ── 17. Initialize native Tomte grain before the stock image finalizer ──
         (mutableClassDefByOrNull("Lndf;") ?: mutableClassDefByOrNull("Lmuh;"))?.let { clazz ->
             clazz.methods.firstOrNull {
                 it.name == "a" &&
@@ -431,18 +508,6 @@ val cameraLooksPatch = bytecodePatch(
                 it.parameterTypes[1].contains("ShotMetadata")
             }?.let { method ->
                 val impl = method.implementation ?: return@let
-
-                // Hook processInterleavedImage at entry of method a for still photo look & warmth/vibrance grading
-                val hookProcessSmali = """
-                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V
-                """.trimIndent()
-                try {
-                    val processIns = hookProcessSmali.toInstructions(method)
-                    var p = 0
-                    for (ins in processIns) {
-                        impl.addInstruction(p++, ins)
-                    }
-                } catch (_: Throwable) {}
 
                 val finalizerIdx = impl.instructions.indexOfFirst {
                     (it as? ReferenceInstruction)?.reference?.toString()?.contains("applyTomteImageFinalizer") == true
@@ -614,44 +679,9 @@ val cameraLooksPatch = bytecodePatch(
             }
         }
 
-        // ── 23. Real-Time Viewfinder Look Preview via GL Fragment Shader Injection (wlo.smali) ──
-        mutableClassDefByOrNull("Lwlo;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "c" && it.parameterTypes == listOf("Lwlp;", "Z") }?.let { method ->
-                val impl = method.implementation ?: return@let
-                val constStrIdx = impl.instructions.indexOfFirst { ins ->
-                    ins.opcode == Opcode.CONST_STRING &&
-                    (ins as? ReferenceInstruction)?.reference?.toString()?.contains("samplerExternalOES") == true
-                }
-                if (constStrIdx != -1) {
-                    val hookSmali = """
-                        invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getViewfinderFragmentShader()Ljava/lang/String;
-                        move-result-object p1
-                    """.trimIndent()
-                    try {
-                        val insList = hookSmali.toInstructions(method)
-                        impl.replaceInstruction(constStrIdx, insList[0])
-                        impl.addInstruction(constStrIdx + 1, insList[1])
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
-
-        // ── 24. Live Viewfinder HardwareBuffer Grading Hook (SurfaceControlBufferFlinger.d) ──
-        mutableClassDefByOrNull("Lcom/google/android/apps/camera/viewfindereffects/bufferflinger/SurfaceControlBufferFlinger;")?.let { clazz ->
-            clazz.methods.firstOrNull { it.name == "d" }?.let { method ->
-                val impl = method.implementation ?: return@let
-                val monitorIdx = impl.instructions.indexOfFirst { it.opcode == Opcode.MONITOR_ENTER }
-                if (monitorIdx != -1) {
-                    val hookSmali = """
-                        invoke-static/range {p1 .. p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processHardwareBuffer(Landroid/hardware/HardwareBuffer;)V
-                    """.trimIndent()
-                    try {
-                        val insList = hookSmali.toInstructions(method)
-                        impl.addInstruction(monitorIdx + 1, insList[0])
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
+        // Keep the stock GL viewfinder shader. Camera Look preview and still capture are already
+        // rendered by the native Tomte pipeline; an extra fragment shader makes preview colors
+        // diverge from the saved photo and can apply the selected Look a second time.
 
         // ── 25. Ensure CPU Write Usage on Viewfinder ImageReader (vhw.smali) ──
         mutableClassDefByOrNull("Lvhw;")?.let { clazz ->

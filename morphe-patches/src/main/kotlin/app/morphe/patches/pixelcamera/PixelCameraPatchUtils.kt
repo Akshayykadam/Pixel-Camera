@@ -390,8 +390,8 @@ object PixelCameraPatchUtils {
     }
 
     /**
-     * Intercepts klm.h(Lkps;)Ljava/lang/String; to route portrait segmenter, monocular, and matting
-     * models to verified pure-TFLite models (midasnet, portrait_matting_mask, 1c33c30c...).
+     * Intercepts klm.h(Lkps;)Ljava/lang/String; to provide verified portrait segmenter,
+     * monocular fallback, and matting asset paths when Google's selected model needs a fallback.
      * Renames original to original_h and injects delegation to TomteInitHelper.interceptFlagH.
      */
     fun hookKlmFlagH(clazz: MutableClass?) {
@@ -423,6 +423,76 @@ object PixelCameraPatchUtils {
         }
 
         clazz.methods.add(newH)
+    }
+
+    /**
+     * Routes Gouda's panoptic segmenter to the bundled CPU model. The P26
+     * default is a TPU model and cannot run on the Tensor G3 (P23) Pixel 8 Pro.
+     */
+    fun hookKlmFlagD(clazz: MutableClass?) {
+        if (clazz == null) return
+        if (clazz.methods.any { it.name == "original_d" }) return
+        val dMethod = clazz.methods.firstOrNull {
+            it.name == "d" &&
+            it.parameterTypes == listOf("Lkps;", "Ljava/lang/String;") &&
+            it.returnType == "V"
+        } ?: return
+
+        val newD = MutableMethod(dMethod)
+        dMethod.name = "original_d"
+        val smaliD = """
+            if-eqz p1, :cond_call_original
+            sget-object v0, Lkrg;->h:Lkps;
+            if-ne p1, v0, :cond_call_original
+            const-string p2, "panoptic_segmenter_61586074_fp16_meta.tflite.uncompressed"
+            :cond_call_original
+            invoke-virtual {p0, p1, p2}, Lksf;->original_d(Lkps;Ljava/lang/String;)V
+            return-void
+        """.trimIndent()
+        val dInstructions = smaliD.toInstructions(newD)
+        val dImpl = newD.implementation ?: return
+        clearTryBlocks(dImpl)
+        while (dImpl.instructions.isNotEmpty()) {
+            dImpl.removeInstruction(0)
+        }
+        for (ins in dInstructions) {
+            dImpl.addInstruction(ins)
+        }
+        clazz.methods.add(newD)
+    }
+
+    /**
+     * Enables Gouda's Mermaid V2 panoptic path for portrait requests. In GCam 11.1
+     * qfr.w carries camera.gouda.enable_mermaid_v2; qge forwards it to the native
+     * PortraitRequest, and qfz supplies the device-compatible bundled CPU model.
+     */
+    fun enablePortraitPanopticSegmentation(clazz: MutableClass?): Boolean {
+        if (clazz == null) return false
+        val constructor = clazz.methods.firstOrNull {
+            it.name == "<init>" && it.parameterTypes == listOf("Lksf;", "Lyis;")
+        } ?: return false
+        val impl = constructor.implementation ?: return false
+        val instructions = impl.instructions.toList()
+        val fieldIndex = instructions.indexOfFirst { instruction ->
+            val reference = (instruction as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
+                ?.reference?.toString() ?: ""
+            reference.contains("Lqfr;->w:Z")
+        }
+        if (fieldIndex <= 0) return false
+
+        val resultInstruction = instructions[fieldIndex - 1]
+        if (resultInstruction.opcode == Opcode.CONST_4) {
+            return (resultInstruction as? com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction)
+                ?.narrowLiteral == 1
+        }
+        if (resultInstruction.opcode != Opcode.MOVE_RESULT) return false
+        val register = (resultInstruction as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)
+            ?.registerA ?: return false
+        impl.replaceInstruction(
+            fieldIndex - 1,
+            "const/4 v$register, 0x1".toInstructions(constructor).first()
+        )
+        return true
     }
 
     /**

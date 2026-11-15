@@ -474,23 +474,8 @@ static inline void neon_grade_uv_nv12(uint8_t* uv_data, uint32_t width, uint32_t
     }
 }
 
-// Human skin tone detection in sRGB space across Fitzpatrick types I-VI
-static inline int is_skin_tone(int r, int g, int b, int luma) {
-    if (luma < 25 || luma > 230) return 0;
-    if (r > g && g >= b) {
-        int rg = r - g;
-        int gb = g - b;
-        int rb = r - b;
-        // Melanin hue locus: warm red-dominant, bounded green-blue separation
-        if (rg >= 8 && rg <= 95 && gb >= 4 && gb <= 85 && rb >= 14 && rb <= 150) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 // Photographic color grading for RGB (3 channels) or RGBA (4 channels) frames with:
-// 1. Photographic Smart Vibrance & Skin Tone Protection (Fitzpatrick types I-VI)
+// 1. Uniform Saturation Scaling (prevents high-frequency thresholding noise/grain)
 // 2. Luminance-Weighted Split-Toning (deep blacks & clean specular whites)
 // 3. Optional Film Grain Synthesis
 // Note: Base Look tone curves and fine-tuning (Contrast, Shadows, Highlights, Sharpness)
@@ -509,13 +494,6 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
         return;
     }
 
-    int skin_sq8 = s_q8;
-    if (s_q8 > 256) {
-        skin_sq8 = 256 + ((s_q8 - 256) * 3) / 8;
-    } else if (s_q8 < 256) {
-        skin_sq8 = 256 - ((256 - s_q8) * 5) / 8;
-    }
-
     uint8x16x4_t tw0 = vld1q_u8_x4(s_tint_weight + 0);
     uint8x16x4_t tw1 = vld1q_u8_x4(s_tint_weight + 64);
     uint8x16x4_t tw2 = vld1q_u8_x4(s_tint_weight + 128);
@@ -525,10 +503,6 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
     uint8x16_t v192 = vdupq_n_u8(192);
 
     int16x8_t v_sq8_base = vdupq_n_s16((int16_t)s_q8);
-    int16x8_t v_sq8_skin = vdupq_n_s16((int16_t)skin_sq8);
-    int16x8_t v_sr = vdupq_n_s16((int16_t)s_r);
-    int16x8_t v_sg = vdupq_n_s16((int16_t)s_g);
-    int16x8_t v_sb = vdupq_n_s16((int16_t)s_b);
 
     for (uint32_t y = 0; y < height; y++) {
         uint8_t* row = data + y * stride;
@@ -551,7 +525,7 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                     uint8_t* pix = row + x * channels;
                     int r = pix[0], g = pix[1], b = pix[2];
                     int luma = (r * 77 + g * 150 + b * 29) >> 8;
-                    int eff_sq8 = is_skin_tone(r, g, b, luma) ? skin_sq8 : s_q8;
+                    int eff_sq8 = s_q8;
                     int r_sat = luma + (((r - luma) * eff_sq8) >> 8);
                     int g_sat = luma + (((g - luma) * eff_sq8) >> 8);
                     int b_sat = luma + (((b - luma) * eff_sq8) >> 8);
@@ -638,24 +612,9 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 uint8x8_t y_hi = vshrn_n_u16(luma_hi16, 8);
                 uint8x16_t y16 = vcombine_u8(y_lo, y_hi);
 
-                // 2. Branchless Vector Fitzpatrick Skin Tone Detector
-                uint8x16_t mask_rg = vcgtq_u8(r, g);
-                uint8x16_t mask_gb = vcgeq_u8(g, b);
-                uint8x16_t rg = vsubq_u8(r, g);
-                uint8x16_t gb = vsubq_u8(g, b);
-                uint8x16_t rb = vsubq_u8(r, b);
-
-                uint8x16_t m_rg = vandq_u8(vcgeq_u8(rg, vdupq_n_u8(8)), vcleq_u8(rg, vdupq_n_u8(95)));
-                uint8x16_t m_gb = vandq_u8(vcgeq_u8(gb, vdupq_n_u8(4)), vcleq_u8(gb, vdupq_n_u8(85)));
-                uint8x16_t m_rb = vandq_u8(vcgeq_u8(rb, vdupq_n_u8(14)), vcleq_u8(rb, vdupq_n_u8(150)));
-                uint8x16_t m_lum = vandq_u8(vcgeq_u8(y16, vdupq_n_u8(25)), vcleq_u8(y16, vdupq_n_u8(230)));
-                uint8x16_t is_skin = vandq_u8(vandq_u8(mask_rg, mask_gb),
-                                             vandq_u8(vandq_u8(m_rg, m_gb), vandq_u8(m_rb, m_lum)));
-
-                int16x8_t eff_sq8_lo = vbslq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(is_skin))),
-                                                 v_sq8_skin, v_sq8_base);
-                int16x8_t eff_sq8_hi = vbslq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(is_skin))),
-                                                 v_sq8_skin, v_sq8_base);
+                // 2. Uniform Saturation Scaling (eliminates high-frequency thresholding noise)
+                int16x8_t eff_sq8_lo = v_sq8_base;
+                int16x8_t eff_sq8_hi = v_sq8_base;
 
                 // 3. Lookup luminance-weighted split-toning tint weights
                 uint8x16_t tw_r0 = vqtbl4q_u8(tw0, y16);
@@ -667,53 +626,79 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 int16x8_t tw_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(tw16)));
                 int16x8_t tw_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(tw16)));
 
-                int16x8_t tint_r_lo = vshrq_n_s16(vmulq_s16(tw_lo, v_sr), 8);
-                int16x8_t tint_r_hi = vshrq_n_s16(vmulq_s16(tw_hi, v_sr), 8);
-                int16x8_t tint_g_lo = vshrq_n_s16(vmulq_s16(tw_lo, v_sg), 8);
-                int16x8_t tint_g_hi = vshrq_n_s16(vmulq_s16(tw_hi, v_sg), 8);
-                int16x8_t tint_b_lo = vshrq_n_s16(vmulq_s16(tw_lo, v_sb), 8);
-                int16x8_t tint_b_hi = vshrq_n_s16(vmulq_s16(tw_hi, v_sb), 8);
+                int32x4_t tint_r_lo0 = vmull_n_s16(vget_low_s16(tw_lo), (int16_t)s_r);
+                int32x4_t tint_r_lo1 = vmull_n_s16(vget_high_s16(tw_lo), (int16_t)s_r);
+                int16x8_t tint_r_lo = vcombine_s16(vshrn_n_s32(tint_r_lo0, 8), vshrn_n_s32(tint_r_lo1, 8));
 
-                // 4. Red saturation + tint
-                int16x8_t r_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(r))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t r_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(r_diff_lo, eff_sq8_lo), 8));
-                int16x8_t r_out_lo = vaddq_s16(r_sat_lo, tint_r_lo);
+                int32x4_t tint_r_hi0 = vmull_n_s16(vget_low_s16(tw_hi), (int16_t)s_r);
+                int32x4_t tint_r_hi1 = vmull_n_s16(vget_high_s16(tw_hi), (int16_t)s_r);
+                int16x8_t tint_r_hi = vcombine_s16(vshrn_n_s32(tint_r_hi0, 8), vshrn_n_s32(tint_r_hi1, 8));
 
-                int16x8_t r_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(r))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t r_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(r_diff_hi, eff_sq8_hi), 8));
-                int16x8_t r_out_hi = vaddq_s16(r_sat_hi, tint_r_hi);
+                int32x4_t tint_g_lo0 = vmull_n_s16(vget_low_s16(tw_lo), (int16_t)s_g);
+                int32x4_t tint_g_lo1 = vmull_n_s16(vget_high_s16(tw_lo), (int16_t)s_g);
+                int16x8_t tint_g_lo = vcombine_s16(vshrn_n_s32(tint_g_lo0, 8), vshrn_n_s32(tint_g_lo1, 8));
+
+                int32x4_t tint_g_hi0 = vmull_n_s16(vget_low_s16(tw_hi), (int16_t)s_g);
+                int32x4_t tint_g_hi1 = vmull_n_s16(vget_high_s16(tw_hi), (int16_t)s_g);
+                int16x8_t tint_g_hi = vcombine_s16(vshrn_n_s32(tint_g_hi0, 8), vshrn_n_s32(tint_g_hi1, 8));
+
+                int32x4_t tint_b_lo0 = vmull_n_s16(vget_low_s16(tw_lo), (int16_t)s_b);
+                int32x4_t tint_b_lo1 = vmull_n_s16(vget_high_s16(tw_lo), (int16_t)s_b);
+                int16x8_t tint_b_lo = vcombine_s16(vshrn_n_s32(tint_b_lo0, 8), vshrn_n_s32(tint_b_lo1, 8));
+
+                int32x4_t tint_b_hi0 = vmull_n_s16(vget_low_s16(tw_hi), (int16_t)s_b);
+                int32x4_t tint_b_hi1 = vmull_n_s16(vget_high_s16(tw_hi), (int16_t)s_b);
+                int16x8_t tint_b_hi = vcombine_s16(vshrn_n_s32(tint_b_hi0, 8), vshrn_n_s32(tint_b_hi1, 8));
+
+                int16x8_t y_lo_16 = vreinterpretq_s16_u16(vmovl_u8(y_lo));
+                int16x8_t y_hi_16 = vreinterpretq_s16_u16(vmovl_u8(y_hi));
+
+                // 4. Red widening saturation + tint (32-bit math prevents 16-bit signed overflow artifacts)
+                int16x8_t r_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(r))), y_lo_16);
+                int16x8_t r_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(r))), y_hi_16);
+
+                int32x4_t r_p_lo0 = vmull_s16(vget_low_s16(r_diff_lo), vget_low_s16(eff_sq8_lo));
+                int32x4_t r_p_lo1 = vmull_s16(vget_high_s16(r_diff_lo), vget_high_s16(eff_sq8_lo));
+                int16x8_t r_delta_lo = vcombine_s16(vshrn_n_s32(r_p_lo0, 8), vshrn_n_s32(r_p_lo1, 8));
+                int16x8_t r_out_lo = vaddq_s16(vaddq_s16(y_lo_16, r_delta_lo), tint_r_lo);
+
+                int32x4_t r_p_hi0 = vmull_s16(vget_low_s16(r_diff_hi), vget_low_s16(eff_sq8_hi));
+                int32x4_t r_p_hi1 = vmull_s16(vget_high_s16(r_diff_hi), vget_high_s16(eff_sq8_hi));
+                int16x8_t r_delta_hi = vcombine_s16(vshrn_n_s32(r_p_hi0, 8), vshrn_n_s32(r_p_hi1, 8));
+                int16x8_t r_out_hi = vaddq_s16(vaddq_s16(y_hi_16, r_delta_hi), tint_r_hi);
+
                 uint8x16_t r_final = vcombine_u8(vqmovun_s16(r_out_lo), vqmovun_s16(r_out_hi));
 
-                // 5. Green saturation + tint
-                int16x8_t g_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(g))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t g_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(g_diff_lo, eff_sq8_lo), 8));
-                int16x8_t g_out_lo = vaddq_s16(g_sat_lo, tint_g_lo);
+                // 5. Green widening saturation + tint
+                int16x8_t g_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(g))), y_lo_16);
+                int16x8_t g_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(g))), y_hi_16);
 
-                int16x8_t g_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(g))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t g_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(g_diff_hi, eff_sq8_hi), 8));
-                int16x8_t g_out_hi = vaddq_s16(g_sat_hi, tint_g_hi);
+                int32x4_t g_p_lo0 = vmull_s16(vget_low_s16(g_diff_lo), vget_low_s16(eff_sq8_lo));
+                int32x4_t g_p_lo1 = vmull_s16(vget_high_s16(g_diff_lo), vget_high_s16(eff_sq8_lo));
+                int16x8_t g_delta_lo = vcombine_s16(vshrn_n_s32(g_p_lo0, 8), vshrn_n_s32(g_p_lo1, 8));
+                int16x8_t g_out_lo = vaddq_s16(vaddq_s16(y_lo_16, g_delta_lo), tint_g_lo);
+
+                int32x4_t g_p_hi0 = vmull_s16(vget_low_s16(g_diff_hi), vget_low_s16(eff_sq8_hi));
+                int32x4_t g_p_hi1 = vmull_s16(vget_high_s16(g_diff_hi), vget_high_s16(eff_sq8_hi));
+                int16x8_t g_delta_hi = vcombine_s16(vshrn_n_s32(g_p_hi0, 8), vshrn_n_s32(g_p_hi1, 8));
+                int16x8_t g_out_hi = vaddq_s16(vaddq_s16(y_hi_16, g_delta_hi), tint_g_hi);
+
                 uint8x16_t g_final = vcombine_u8(vqmovun_s16(g_out_lo), vqmovun_s16(g_out_hi));
 
-                // 6. Blue saturation + tint
-                int16x8_t b_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(b))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t b_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(b_diff_lo, eff_sq8_lo), 8));
-                int16x8_t b_out_lo = vaddq_s16(b_sat_lo, tint_b_lo);
+                // 6. Blue widening saturation + tint
+                int16x8_t b_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(b))), y_lo_16);
+                int16x8_t b_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(b))), y_hi_16);
 
-                int16x8_t b_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(b))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t b_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(b_diff_hi, eff_sq8_hi), 8));
-                int16x8_t b_out_hi = vaddq_s16(b_sat_hi, tint_b_hi);
+                int32x4_t b_p_lo0 = vmull_s16(vget_low_s16(b_diff_lo), vget_low_s16(eff_sq8_lo));
+                int32x4_t b_p_lo1 = vmull_s16(vget_high_s16(b_diff_lo), vget_high_s16(eff_sq8_lo));
+                int16x8_t b_delta_lo = vcombine_s16(vshrn_n_s32(b_p_lo0, 8), vshrn_n_s32(b_p_lo1, 8));
+                int16x8_t b_out_lo = vaddq_s16(vaddq_s16(y_lo_16, b_delta_lo), tint_b_lo);
+
+                int32x4_t b_p_hi0 = vmull_s16(vget_low_s16(b_diff_hi), vget_low_s16(eff_sq8_hi));
+                int32x4_t b_p_hi1 = vmull_s16(vget_high_s16(b_diff_hi), vget_high_s16(eff_sq8_hi));
+                int16x8_t b_delta_hi = vcombine_s16(vshrn_n_s32(b_p_hi0, 8), vshrn_n_s32(b_p_hi1, 8));
+                int16x8_t b_out_hi = vaddq_s16(vaddq_s16(y_hi_16, b_delta_hi), tint_b_hi);
+
                 uint8x16_t b_final = vcombine_u8(vqmovun_s16(b_out_lo), vqmovun_s16(b_out_hi));
 
                 if (channels == 3) {
@@ -731,7 +716,7 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 uint8_t* pix = row + x * channels;
                 int r = pix[0], g = pix[1], b = pix[2];
                 int luma = (r * 77 + g * 150 + b * 29) >> 8;
-                int eff_sq8 = is_skin_tone(r, g, b, luma) ? skin_sq8 : s_q8;
+                int eff_sq8 = s_q8;
                 int r_sat = luma + (((r - luma) * eff_sq8) >> 8);
                 int g_sat = luma + (((g - luma) * eff_sq8) >> 8);
                 int b_sat = luma + (((b - luma) * eff_sq8) >> 8);
@@ -801,7 +786,6 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
     int s_b = (int)roundf((float)shift_u * 1.772f);
     int apply_chroma = (scale_uv != 256 || shift_u != 0 || shift_v != 0);
 
-    int16x8_t v_scale = vdupq_n_s16(scale_uv);
     int16x8_t v_sr = vdupq_n_s16((int16_t)s_r);
     int16x8_t v_sg = vdupq_n_s16((int16_t)s_g);
     int16x8_t v_sb = vdupq_n_s16((int16_t)s_b);
@@ -861,46 +845,55 @@ static inline void neon_grade_rgba(uint8_t* data, uint32_t width, uint32_t heigh
                 luma_hi16 = vmlal_u8(luma_hi16, vget_high_u8(rgba.val[2]), vdup_n_u8(29));
                 uint8x8_t y_hi = vshrn_n_u16(luma_hi16, 8);
 
-                // Red channel saturation + tint
-                int16x8_t r_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[0]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t r_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(r_diff_lo, v_scale), 8));
-                int16x8_t r_out_lo = vaddq_s16(r_sat_lo, v_sr);
+                int16x8_t y_lo_16 = vreinterpretq_s16_u16(vmovl_u8(y_lo));
+                int16x8_t y_hi_16 = vreinterpretq_s16_u16(vmovl_u8(y_hi));
 
-                int16x8_t r_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[0]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t r_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(r_diff_hi, v_scale), 8));
-                int16x8_t r_out_hi = vaddq_s16(r_sat_hi, v_sr);
+                // Red channel widening saturation + tint (32-bit math prevents 16-bit signed overflow artifacts)
+                int16x8_t r_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[0]))), y_lo_16);
+                int16x8_t r_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[0]))), y_hi_16);
+
+                int32x4_t r_p_lo0 = vmull_n_s16(vget_low_s16(r_diff_lo), scale_uv);
+                int32x4_t r_p_lo1 = vmull_n_s16(vget_high_s16(r_diff_lo), scale_uv);
+                int16x8_t r_delta_lo = vcombine_s16(vshrn_n_s32(r_p_lo0, 8), vshrn_n_s32(r_p_lo1, 8));
+                int16x8_t r_out_lo = vaddq_s16(vaddq_s16(y_lo_16, r_delta_lo), v_sr);
+
+                int32x4_t r_p_hi0 = vmull_n_s16(vget_low_s16(r_diff_hi), scale_uv);
+                int32x4_t r_p_hi1 = vmull_n_s16(vget_high_s16(r_diff_hi), scale_uv);
+                int16x8_t r_delta_hi = vcombine_s16(vshrn_n_s32(r_p_hi0, 8), vshrn_n_s32(r_p_hi1, 8));
+                int16x8_t r_out_hi = vaddq_s16(vaddq_s16(y_hi_16, r_delta_hi), v_sr);
+
                 rgba.val[0] = vcombine_u8(vqmovun_s16(r_out_lo), vqmovun_s16(r_out_hi));
 
-                // Green channel saturation + tint
-                int16x8_t g_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[1]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t g_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(g_diff_lo, v_scale), 8));
-                int16x8_t g_out_lo = vaddq_s16(g_sat_lo, v_sg);
+                // Green channel widening saturation + tint
+                int16x8_t g_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[1]))), y_lo_16);
+                int16x8_t g_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[1]))), y_hi_16);
 
-                int16x8_t g_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[1]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t g_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(g_diff_hi, v_scale), 8));
-                int16x8_t g_out_hi = vaddq_s16(g_sat_hi, v_sg);
+                int32x4_t g_p_lo0 = vmull_n_s16(vget_low_s16(g_diff_lo), scale_uv);
+                int32x4_t g_p_lo1 = vmull_n_s16(vget_high_s16(g_diff_lo), scale_uv);
+                int16x8_t g_delta_lo = vcombine_s16(vshrn_n_s32(g_p_lo0, 8), vshrn_n_s32(g_p_lo1, 8));
+                int16x8_t g_out_lo = vaddq_s16(vaddq_s16(y_lo_16, g_delta_lo), v_sg);
+
+                int32x4_t g_p_hi0 = vmull_n_s16(vget_low_s16(g_diff_hi), scale_uv);
+                int32x4_t g_p_hi1 = vmull_n_s16(vget_high_s16(g_diff_hi), scale_uv);
+                int16x8_t g_delta_hi = vcombine_s16(vshrn_n_s32(g_p_hi0, 8), vshrn_n_s32(g_p_hi1, 8));
+                int16x8_t g_out_hi = vaddq_s16(vaddq_s16(y_hi_16, g_delta_hi), v_sg);
+
                 rgba.val[1] = vcombine_u8(vqmovun_s16(g_out_lo), vqmovun_s16(g_out_hi));
 
-                // Blue channel saturation + tint
-                int16x8_t b_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[2]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_lo)));
-                int16x8_t b_sat_lo = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_lo)),
-                                               vshrq_n_s16(vmulq_s16(b_diff_lo, v_scale), 8));
-                int16x8_t b_out_lo = vaddq_s16(b_sat_lo, v_sb);
+                // Blue channel widening saturation + tint
+                int16x8_t b_diff_lo = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(rgba.val[2]))), y_lo_16);
+                int16x8_t b_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[2]))), y_hi_16);
 
-                int16x8_t b_diff_hi = vsubq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(rgba.val[2]))),
-                                                vreinterpretq_s16_u16(vmovl_u8(y_hi)));
-                int16x8_t b_sat_hi = vaddq_s16(vreinterpretq_s16_u16(vmovl_u8(y_hi)),
-                                               vshrq_n_s16(vmulq_s16(b_diff_hi, v_scale), 8));
-                int16x8_t b_out_hi = vaddq_s16(b_sat_hi, v_sb);
+                int32x4_t b_p_lo0 = vmull_n_s16(vget_low_s16(b_diff_lo), scale_uv);
+                int32x4_t b_p_lo1 = vmull_n_s16(vget_high_s16(b_diff_lo), scale_uv);
+                int16x8_t b_delta_lo = vcombine_s16(vshrn_n_s32(b_p_lo0, 8), vshrn_n_s32(b_p_lo1, 8));
+                int16x8_t b_out_lo = vaddq_s16(vaddq_s16(y_lo_16, b_delta_lo), v_sb);
+
+                int32x4_t b_p_hi0 = vmull_n_s16(vget_low_s16(b_diff_hi), scale_uv);
+                int32x4_t b_p_hi1 = vmull_n_s16(vget_high_s16(b_diff_hi), scale_uv);
+                int16x8_t b_delta_hi = vcombine_s16(vshrn_n_s32(b_p_hi0, 8), vshrn_n_s32(b_p_hi1, 8));
+                int16x8_t b_out_hi = vaddq_s16(vaddq_s16(y_hi_16, b_delta_hi), v_sb);
+
                 rgba.val[2] = vcombine_u8(vqmovun_s16(b_out_lo), vqmovun_s16(b_out_hi));
 
                 vst4q_u8(row + x * 4, rgba);
