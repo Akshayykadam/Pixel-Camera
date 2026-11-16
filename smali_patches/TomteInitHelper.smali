@@ -5210,6 +5210,33 @@
     return-object v0
 .end method
 
+.method public static shouldEnableAddMe(Ljava/lang/String;)Z
+    .locals 2
+
+    const-string v0, "camera.cottage_enabled"
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v0
+    if-eqz v0, :done
+
+    sget-object v1, Landroid/os/Build;->DEVICE:Ljava/lang/String;
+    const-string v0, "husky"
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v0
+    if-nez v0, :done
+
+    const-string v0, "shiba"
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v0
+    if-nez v0, :done
+
+    const-string v0, "akita"
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v0
+
+    :done
+    return v0
+.end method
+
 .method public static getFlagOverride(Ljava/lang/String;)I
     .locals 2
 
@@ -5220,6 +5247,12 @@
     return v0
 
     :cond_check_mantis
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->shouldEnableAddMe(Ljava/lang/String;)Z
+    move-result v0
+    if-eqz v0, :check_gouda
+    return v0
+
+    :check_gouda
     const-string v0, "camera.gouda.use_darwinn_offline_compilation"
 
     invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z

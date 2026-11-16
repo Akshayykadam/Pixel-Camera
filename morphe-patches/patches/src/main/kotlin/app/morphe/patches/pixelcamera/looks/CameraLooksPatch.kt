@@ -13,7 +13,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 
 val cameraLooksPatch = bytecodePatch(
     name = "Camera Looks Backport",
-    description = "Enables Google Pixel 11's 13 signature Camera Looks (Sauce & Tomte including Flat, Buffalo, Dijon) on Pixel 6 through Pixel 10, fixes Portrait Mode blur on all cameras, and resolves Pixel 10 photo saving.",
+    description = "Enables Google Pixel 11's 13 signature Camera Looks (Sauce & Tomte including Flat, Buffalo, Dijon) on Pixel 6 through Pixel 10, fixes Portrait Mode blur on all cameras, resolves Pixel 10 photo saving, and enables Add Me on Pixel 8, 8 Pro, and 8a.",
     default = true
 ) {
     extendWith("TomteInitHelper.dex")

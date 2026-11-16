@@ -34,7 +34,7 @@ Official Morphe Patch definitions to unlock Google Pixel 11 **Camera Looks**, **
 
 | Patch Name | Type | Implementation | Description |
 | :--- | :---: | :--- | :--- |
-| **Camera Looks Backport** | `BytecodePatch` | [`CameraLooksPatch.kt`](patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) | Unlocks 13 hardware-gated Camera Looks (Sauce/Tomte) across Tensor G1–G5 and fixes photo saving. |
+| **Camera Looks Backport** | `BytecodePatch` | [`CameraLooksPatch.kt`](patches/src/main/kotlin/app/morphe/patches/pixelcamera/looks/CameraLooksPatch.kt) | Unlocks 13 hardware-gated Camera Looks (Sauce/Tomte) across Tensor G1–G5 and fixes photo saving. Source builds also enable Add Me on Pixel 8, 8 Pro, and 8a. Confirmed on Pixel 8 Pro. |
 | **Viewfinder Quick Access** | `BytecodePatch` | [`QuickAccessPatch.kt`](patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt) | Enables customizable Left/Right viewfinder quick-access slots, interactive Dual/Single EV sliders, and mode-aware sync. |
 | **10x Viewfinder Quick Zoom** | `BytecodePatch` | [`TelephotoPortraitAndZoomPatch.kt`](patches/src/main/kotlin/app/morphe/patches/pixelcamera/portrait/TelephotoPortraitAndZoomPatch.kt) | Discrete 10x zoom on Photo mode, dynamic 1x focal cycling (1.0x -> 1.2x -> 1.5x), and automatic focal memory. |
 | **Permanent Portrait Mode Fix** | `BytecodePatch` | [`PortraitModeFixPatch.kt`](patches/src/main/kotlin/app/morphe/patches/pixelcamera/portrait/PortraitModeFixPatch.kt) | Preserves native portrait depth and matting selection and enables the P23-compatible CPU panoptic model for non-human subjects. |
