@@ -45,6 +45,7 @@ This repository provides **comprehensive reverse-engineering research**, **devic
 
 | Feature | Description | Supported Devices |
 | :--- | :--- | :---: |
+| **Add Me (source builds)** | Combine two shots so both photographers appear in one group photo. Included in Camera Looks Backport. | Pixel 8 Pro (confirmed), 8 and 8a (untested) |
 | **13 Camera Looks** | Pixel 11 signature color profiles with real-time live viewfinder OpenGL preview. | Pixel 6 → 10 |
 | **Pro Manual Controls** | Precision manual focus, GPU edge peaking, manual shutter speed (up to 1/8000s), manual ISO, and live viewfinder metrics. | Pixel 6 → 10 |
 | **10x Quick Zoom** | Discrete 1-tap 10x Super Res Zoom button on the viewfinder zoom strip. | Pixel 7P, 8P, 9P, 10P |
@@ -129,7 +130,7 @@ Tested on physical hardware and verified through Dalvik bytecode and native bina
 - [ ] **Photos App Project Album Integration**: Neutralized to prevent signature mismatch gRPC authentication exceptions with Google Photos.
 
 ### Future Scope
-- [ ] **Add Me & Best Take** backporting research.
+- [ ] **Best Take** backporting research.
 
 ---
 

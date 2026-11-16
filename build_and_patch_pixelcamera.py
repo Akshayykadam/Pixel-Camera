@@ -400,6 +400,12 @@ def patch_ksf_smali():
 
     if-eqz v0, :cond_check_orig
 
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->shouldEnableAddMe(Ljava/lang/String;)Z
+    move-result v1
+    if-eqz v1, :check_lasagna
+    return v1
+
+    :check_lasagna
     const-string v1, "camera.lasagna"
 
     invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
@@ -1121,6 +1127,12 @@ def patch_ksf_smali():
 
     if-eqz v0, :cond_check_orig_x
 
+    invoke-static {{v0}}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->shouldEnableAddMe(Ljava/lang/String;)Z
+    move-result v1
+    if-eqz v1, :check_lasagna_x
+    return v1
+
+    :check_lasagna_x
     const-string v1, "camera.lasagna"
 
     invoke-virtual {{v0, v1}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
