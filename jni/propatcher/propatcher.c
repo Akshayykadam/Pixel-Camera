@@ -1100,4 +1100,117 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessRasterIma
                      sat, shift_u, shift_v, is_monochrome);
 }
 
+// -----------------------------------------------------------------------------
+// Front Camera Backlight / Melanin Revival & Apple iPhone Skin Tone Engine
+// -----------------------------------------------------------------------------
+static uint8_t s_selfie_luma_lut[256];
+static int s_selfie_lut_inited = 0;
+
+static inline uint8_t clamp_u8_fast(int v) {
+    if (v < 0) return 0;
+    if (v > 255) return 255;
+    return (uint8_t)v;
+}
+
+static void init_selfie_luma_lut(void) {
+    if (s_selfie_lut_inited) return;
+    for (int y = 0; y < 256; y++) {
+        // Luminance lift: in backlit scenes, faces are underexposed into y in [25..150].
+        // We lift shadow/lower-midtones smoothly with an asymmetrical bell curve:
+        // y = 0: lift = 0 (deep blacks preserved)
+        // y in [1..25]: subtle smooth toe lift 0..+3
+        // y in [25..130]: sculpted lift up to +18 (peak around y=75-85)
+        // y in [130..195]: smooth taper back to 0
+        // y in [195..255]: 0 (highlights stay clean)
+        float lift = 0.0f;
+        if (y > 0 && y < 200) {
+            float norm = (float)y / 200.0f; // 0..1
+            lift = 18.0f * sinf(norm * 3.14159265f);
+        }
+        int new_y = (int)roundf((float)y + lift);
+        if (new_y < 0) new_y = 0;
+        if (new_y > 255) new_y = 255;
+        s_selfie_luma_lut[y] = (uint8_t)new_y;
+    }
+    s_selfie_lut_inited = 1;
+}
+
+static void grade_front_backlight_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride) {
+    if (!data || width == 0 || height == 0 || (channels != 3 && channels != 4) || stride == 0) return;
+    init_selfie_luma_lut();
+
+    for (uint32_t y = 0; y < height; y++) {
+        uint8_t* row = data + y * stride;
+        for (uint32_t x = 0; x < width; x++) {
+            uint8_t* pix = row + x * channels;
+            int r = pix[0];
+            int g = pix[1];
+            int b = pix[2];
+
+            int luma = (r * 77 + g * 150 + b * 29) >> 8;
+            if (luma > 0) {
+                int luma_lifted = (int)s_selfie_luma_lut[luma];
+                if (luma_lifted != luma) {
+                    r = clamp_u8_fast((r * luma_lifted) / luma);
+                    g = clamp_u8_fast((g * luma_lifted) / luma);
+                    b = clamp_u8_fast((b * luma_lifted) / luma);
+                    luma = luma_lifted;
+                }
+            }
+
+            // Detect skin tones or backlit-damaged ashy skin
+            int is_normal_skin = (luma >= 25 && luma <= 235 && r > g && g >= (b - 15) && (r - luma) >= 2 && (b - luma) <= 15);
+            int is_ashy_skin = (luma >= 25 && luma <= 175 && r >= (g - 6) && g >= (b - 16) && b <= (r + 10) && (abs(r - g) + abs(g - b)) < 52 && (r - luma) <= 12 && (r - luma) >= -6);
+
+            if (is_ashy_skin) {
+                // Melanin Revival: inject natural warm hemoglobin/melanin perfusion into collapsed shadows
+                r = clamp_u8_fast(r + 16);
+                g = clamp_u8_fast(g + 4);
+                b = clamp_u8_fast(b - 8);
+                // Recompute after revival to flow into warm apple skin curve
+                is_normal_skin = 1;
+            }
+
+            if (is_normal_skin) {
+                // Apple iPhone Warm Memory Color Target:
+                // Peach/amber hue bias + local chroma expansion
+                int r_sat = luma + (((r - luma) * 295) >> 8);
+                int g_sat = luma + (((g - luma) * 280) >> 8);
+                int b_sat = luma + (((b - luma) * 240) >> 8);
+                r = clamp_u8_fast(r_sat + 5);
+                g = clamp_u8_fast(g_sat + 1);
+                b = clamp_u8_fast(b_sat - 3);
+            }
+
+            // Filmic Highlight Soft Shoulder for strong background light sources (sun, window, lamps)
+            if (luma > 225) {
+                if (r > 235) r = 235 + (((r - 235) * 13) / 20);
+                if (g > 235) g = 235 + (((g - 235) * 13) / 20);
+                if (b > 235) b = 235 + (((b - 235) * 13) / 20);
+            }
+
+            pix[0] = (uint8_t)r;
+            pix[1] = (uint8_t)g;
+            pix[2] = (uint8_t)b;
+        }
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessFrontBacklightImage(
+    JNIEnv *env, jclass clazz, jlong dataPtr, jint width, jint height, jint channels, jint stride) {
+    (void)env; (void)clazz;
+    if (dataPtr == 0 || width <= 0 || height <= 0 || (channels != 3 && channels != 4) || stride <= 0) {
+        LOGE("nativeProcessFrontBacklightImage: invalid arguments (ptr=0x%lx, w=%d, h=%d, ch=%d, stride=%d)",
+             (unsigned long)dataPtr, width, height, channels, stride);
+        return;
+    }
+
+    LOGI("ProPatcher: Applying Front Camera Backlight / Apple Skin Tone Grading: %dx%d (%d channels, stride=%d)",
+         width, height, channels, stride);
+
+    grade_front_backlight_raster((uint8_t*)dataPtr, (uint32_t)width, (uint32_t)height, (uint32_t)channels, (uint32_t)stride);
+}
+
+
 

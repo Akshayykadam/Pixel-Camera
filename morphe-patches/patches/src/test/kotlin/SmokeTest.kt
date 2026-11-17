@@ -1045,5 +1045,50 @@ class SmokeTest {
         assertTrue(patch.name == "Seamless Video Lens Switching & Zoom Smoothing", "Patch name must match")
         println("Verified: Seamless Video Lens Switching & Zoom Smoothing patch and TomteInitHelper bytecode verified successfully.")
     }
+
+    @Test
+    fun testFrontCameraBacklightFix() {
+        val rootDir = if (java.io.File("../../smali_patches").exists()) java.io.File("../..") else java.io.File("..")
+        val helperSmali = java.io.File(rootDir, "smali_patches/TomteInitHelper.smali")
+        assertTrue(helperSmali.exists(), "smali_patches/TomteInitHelper.smali must exist")
+        val content = helperSmali.readText()
+
+        assertTrue(content.contains("pref_camera_front_backlight_fix_key"), "Must contain PREF_FRONT_BACKLIGHT_FIX")
+        assertTrue(content.contains("sIsFrontCamera"), "Must contain sIsFrontCamera")
+        assertTrue(content.contains("onCameraFacingChanged(Ljava/lang/Object;)V"), "Must contain onCameraFacingChanged")
+        assertTrue(content.contains("isFrontCameraActive()Z"), "Must contain isFrontCameraActive")
+        assertTrue(content.contains("isFrontBacklightFixEnabled()Z"), "Must contain isFrontBacklightFixEnabled")
+        assertTrue(content.contains("isFrontBacklightFixActive()Z"), "Must contain isFrontBacklightFixActive")
+        assertTrue(content.contains("nativeProcessFrontBacklightImage(JIIII)V"), "Must contain nativeProcessFrontBacklightImage")
+
+        // Verify native library exists and contains the JNI export
+        val libFile = java.io.File(rootDir, "apktool_full/lib/arm64-v8a/libpropatcher.so")
+        assertTrue(libFile.exists(), "libpropatcher.so must exist")
+        assertTrue(libFile.length() > 20000, "libpropatcher.so size must be > 20KB")
+
+        val loaderSmali = java.io.File(rootDir, "smali_patches/TomteProPatcherLoader.smali").readText()
+        val hexSize = "0x" + libFile.length().toString(16)
+        assertTrue(loaderSmali.contains(hexSize), "TomteProPatcherLoader must have EXPECTED_SIZE matching libpropatcher.so ($hexSize)")
+
+        println("Verified: Front Camera Backlight Fix & Apple Skin Tone Engine bytecode and JNI library verified successfully.")
+    }
+
+    @Test
+    fun testHdr10BitVideoPatch() {
+        val rootDir = if (java.io.File("../../smali_patches").exists()) java.io.File("../..") else java.io.File("..")
+        val helperSmali = java.io.File(rootDir, "smali_patches/TomteInitHelper.smali")
+        assertTrue(helperSmali.exists(), "smali_patches/TomteInitHelper.smali must exist")
+        val content = helperSmali.readText()
+
+        assertTrue(content.contains("camcorder.glimmerix"), "TomteInitHelper must contain camcorder.glimmerix")
+        assertTrue(content.contains("camcorder.halifax"), "TomteInitHelper must contain camcorder.halifax")
+        assertTrue(content.contains("camcorder.amethyst"), "TomteInitHelper must contain camcorder.amethyst")
+        assertTrue(content.contains("camcorder.amethyst_opt"), "TomteInitHelper must contain camcorder.amethyst_opt")
+        assertTrue(content.contains("camcorder.zenthoria"), "TomteInitHelper must contain camcorder.zenthoria")
+
+        val patch = app.morphe.patches.pixelcamera.video.hdr10BitVideoPatch
+        assertTrue(patch.name == "4K 60 FPS 10-bit HDR & Log Video", "Patch name must match")
+        println("Verified: 4K 60 FPS 10-bit HDR & Log Video patch and TomteInitHelper bytecode verified successfully.")
+    }
 }
 

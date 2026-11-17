@@ -240,6 +240,25 @@ val cameraLooksPatch = bytecodePatch(
                         }
                     }
                 } catch (_: Throwable) {}
+
+                // Hook camera facing in mtt.K (where Lvgr.m()Lvhd is invoked)
+                try {
+                    val mIdx = impl.instructions.indexOfFirst {
+                        (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("Lvgr;->m()Lvhd;") == true
+                    }
+                    if (mIdx != -1 && mIdx + 1 < impl.instructions.size) {
+                        val moveIns = impl.instructions[mIdx + 1]
+                        val facingReg = (moveIns as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)?.registerA ?: 13
+                        val facingSmali = """
+                            invoke-static {v$facingReg}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onCameraFacingChanged(Ljava/lang/Object;)V
+                        """.trimIndent()
+                        val facingInstructions = facingSmali.toInstructions(method)
+                        var fPos = mIdx + 2
+                        for (fIns in facingInstructions) {
+                            impl.addInstruction(fPos++, fIns)
+                        }
+                    }
+                } catch (_: Throwable) {}
             }
 
             // Hook mtt.q to intercept qwk TomteMetadata with effective fine-tuning
@@ -299,6 +318,23 @@ val cameraLooksPatch = bytecodePatch(
                                 impl.addInstruction(p++, ins)
                             }
                         }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // ── 7b. Hook camera facing in jue (jue.g and jue.m) ─────────────────────────
+        mutableClassDefByOrNull("Ljue;")?.let { clazz ->
+            clazz.methods.filter { (it.name == "g" || it.name == "m") && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lvhd;" }.forEach { method ->
+                val impl = method.implementation ?: return@forEach
+                val facingHookSmali = """
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onCameraFacingChanged(Ljava/lang/Object;)V
+                """.trimIndent()
+                try {
+                    val instructions = facingHookSmali.toInstructions(method)
+                    var pos = 0
+                    for (ins in instructions) {
+                        impl.addInstruction(pos++, ins)
                     }
                 } catch (_: Throwable) {}
             }
@@ -508,6 +544,18 @@ val cameraLooksPatch = bytecodePatch(
                 it.parameterTypes[1].contains("ShotMetadata")
             }?.let { method ->
                 val impl = method.implementation ?: return@let
+
+                // Hook processInterleavedImage at method entry for captured photo grading
+                val procHookSmali = """
+                    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->processInterleavedImage(Lcom/google/googlex/gcam/InterleavedWriteViewU8;)V
+                """.trimIndent()
+                try {
+                    val pInstructions = procHookSmali.toInstructions(method)
+                    var pPos = 0
+                    for (pIns in pInstructions) {
+                        impl.addInstruction(pPos++, pIns)
+                    }
+                } catch (_: Throwable) {}
 
                 val finalizerIdx = impl.instructions.indexOfFirst {
                     (it as? ReferenceInstruction)?.reference?.toString()?.contains("applyTomteImageFinalizer") == true

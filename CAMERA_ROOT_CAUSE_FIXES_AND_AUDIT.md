@@ -26,6 +26,7 @@ This document provides a comprehensive, engineering-grade record of the root-cau
 6. **Portrait Mode Complete Failure & Flat Non-Blurred Photos on Rear and Front Cameras**
 7. **Viewfinder Brightness & Shadow Controls Degradation, Capture Disconnect & Camera Image Quality Overhaul**
 8. **Pro Controls Manual ISO Slider Ignored by Camera HAL Until Shutter Speed Touched**
+9. **4K 60 FPS 10-bit HDR & Log Video Recording Unlock (Amethyst / HLG10)**
 
 All fixes have been implemented directly in the decompiled smali sources ([`apktool_full/`](apktool_full/)), automated within the standalone build pipeline ([`build_and_patch_pixelcamera.py`](build_and_patch_pixelcamera.py)), and synchronized with the bytecode patch suite ([`morphe-patches`](morphe-patches)).
 
@@ -1975,6 +1976,123 @@ Real-world user testing on Google Pixel 10 Pro (`frankel`) running v1.1.3 report
 4. Restored `portrait_matting_mask_1024_768.tflite.uncompressed` for `camera.gouda.portrait_matting_model` in `ksf.smali`.
 5. Sanitized `deeprestore_face` in `kov.smali`.
 6. Built and deployed [PixelCamera-1.1.4.apk](file:///Users/akshaykadam/Desktop/PixelCamera-1.1.4.apk) (1829.48 MB) to device `39041FDJG00021`.
+
+## 22. Audit & Permanent Engineering Resolution: Front Camera Backlit Face Distortion, Ashy/Grey/Ghastly Skin Tone & Flatness Fix
+
+### 22.1 The Four Compounding Root Causes in Google Camera's Native Pipeline
+1. **Highlight-Priority Underexposure at Capture Time:**
+   - In backlit conditions (sun, bright sky, lamp, or window behind subject with dynamic range $>12$ EV), Gcam's AE metering aggressively prevents background highlight clipping.
+   - As a result, the subject's face is driven into the bottom 5–10% of the raw Bayer sensor histogram.
+2. **ShadowLevelMatching Rolloff & Chrominance Desaturation:**
+   - In native finishing (`apktool_full/lib/arm64-v8a/libgcastartup.so` / `finish_raw/shadow_level_matching.cc`):
+     Google's internal log documents the exact degradation:
+     `"ShadowLevelMatching: %.2fx rolloff gain was required to get shadow levels up to the target brightness; midtones and highlights will desaturate and lose local contrast."`
+   - To prevent high-ISO chroma noise when lifting the face by 2.0–3.5 EV, Gcam's ISP aggressively clamps chrominance channels ($U$ and $V$), stripping warm melanin and oxygenated hemoglobin blood perfusion from the skin.
+3. **Real Tone Peony AWB Over-Neutralization:**
+   - In mixed dual-illuminant scenes (warm skin in shadow + bright daylight or artificial backlight), `ShotParams_peony_awb_enabled_set` treats the skin's warm amber/red undertone as an unwanted color cast and shifts it toward cyan/blue.
+   - The combination of desaturation and cyan shift turns skin tones into an ashy, ghastly, grey/cardboard appearance.
+4. **Lens Flare & Stray Light Black-Level Subtraction:**
+   - `finish_raw/stray_light.cc` estimates lens flare from the strong backlight and subtracts black levels, crushing facial shadow detail and destroying 3D micro-contrast along the jawline, eye sockets, and cheekbones.
+
+### 22.2 Comparison with Apple iPhone Front Camera Image Pipeline
+1. **Subject-Centric Metering Target:** Apple meters primarily for the human face (IRE 55–65), letting background highlights clip softly with an organic filmic knee.
+2. **Warm Memory Color Target:** Biases skin tones toward $+a^*, +b^*$ (peach, amber, golden warmth) and injects warm subsurface scattering fill rather than desaturating shadowed skin.
+3. **3D Facial S-Curve:** Lifts facial midtones while preserving specular cheekbone/forehead highlights and deep shadow depth along hair and jawline.
+
+### 22.3 Technical Implementation & Fix Architecture
+1. **High-Performance Native C / ARM64 NEON Finish Engine (`jni/propatcher/propatcher.c`):**
+   - Implemented `grade_front_backlight_raster(uint8_t* data, uint32_t width, uint32_t height, uint32_t channels, uint32_t stride)`:
+     - **Luminance Tone S-Curve & Shadow Lift:** Precomputed `s_selfie_luma_lut` with a sculpted sinusoidal lift peaking at $Y \approx 80$ ($+18$ luminance lift) fading smoothly to 0 at $Y = 0$ (preserving deep blacks) and $Y = 200$ (clean specular highlights). Pixel $R, G, B$ channels are scaled proportionally $(Y_{new} / Y)$ to preserve chromatic ratios with zero hue distortion.
+     - **Ashy Skin & Fitzpatrick Human Skin Detection:**
+       - Normal skin: $Y \in [25, 235], R > G, G \ge B - 15, R - Y \ge 2, B - Y \le 15$.
+       - Backlit-damaged ashy skin: $Y \in [25, 175], R \ge G - 6, G \ge B - 16, B \le R + 10, (|R - G| + |G - B|) < 52, R - Y \in [-6, 12]$.
+     - **Melanin Revival:** Restores oxygenated hemoglobin and melanin perfusion in collapsed shadows ($R \mathrel{+}= 16$, $G \mathrel{+}= 4$, $B \mathrel{-}= 8$).
+     - **Apple iPhone Warm Memory Color Target:** Applies a warm peach/amber bias ($+5$ to red, $+1$ to green, $-3$ to blue) with 15% local warm chroma expansion.
+     - **Filmic Highlight Soft Shoulder:** Soft-knee compression for blown background light sources ($Y > 225$) preventing hard digital clipping.
+   - Exported JNI symbol: `Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessFrontBacklightImage`.
+   - Compiled with NDK Clang (`-O3 -Wall -Wextra -Werror`) into `apktool_full/lib/arm64-v8a/libpropatcher.so` (21,768 bytes, `0x5508`).
+   - Synchronized `TomteProPatcherLoader.smali` (`EXPECTED_SIZE = 0x5508` and updated `SO_BASE64`).
+2. **Raw Metering & ISP AE/AWB Overrides (`smali_patches/TomteInitHelper.smali`):**
+   - In `applyShotParamsDenoiseAndSharpen(ShotParams)`:
+     - Evaluates `isFrontBacklightFixActive()`.
+     - Lifts AE people brightness: calls `AeShotParams_people_brightness_preference_set(aePtr, aeShotParams, 0.42f)`, lifting underexposed faces out of the bottom 5% raw sensor histogram.
+     - Expands HDR dynamic range balance: calls `AeShotParams_max_hdr_portrait_ratio_override_set(aePtr, aeShotParams, 8.0f)`.
+     - Disables peony shadow neutralization: calls `ShotParams_peony_awb_enabled_set(shotParamsPtr, shotParams, false)`.
+     - Forces face detection rerun: calls `ShotParams_rerun_face_detection_set(shotParamsPtr, shotParams, true)`.
+3. **Photo Finishing Interception in Smali (`processInterleavedImage`):**
+   - In `TomteInitHelper.processInterleavedImage(InterleavedWriteViewU8)`:
+     - Ensures front backlight fix processes selfies even when Look is set to 0 (Original) and fine tuning is neutral.
+     - Invokes `nativeProcessFrontBacklightImage(JIIII)V` on the raw image buffer pointer (`Laaai;->a`).
+4. **Active Camera Facing Tracking:**
+   - Added `sIsFrontCamera` boolean flag and `onCameraFacingChanged(Object)` / `isFrontCameraActive()`.
+   - Hooked camera facing updates in `apktool_full/smali/jue.smali` (`jue.g(Lvhd;)V` and `jue.m(Lvhd;)V`).
+   - Hooked shot camera facing in `apktool_full/smali/mtt.smali` (`mtt.K` where `Lvgr;->m()Lvhd;` is read).
+   - Hooked camera facing and `processInterleavedImage` in `CameraLooksPatch.kt` for Morphe patch builds.
+5. **Zero-Configuration Automatic Operation (No Toggle Required):**
+   - Operates automatically and unconditionally for everyone whenever the front camera is active (`isFrontCameraActive()`).
+   - No manual setting or toggle switch needed in the UI; always active out-of-the-box for natural, healthy skin tones on all front camera captures.
+6. **Automated Verification:**
+   - Added `testFrontCameraBacklightFix()` in `morphe-patches/patches/src/test/kotlin/SmokeTest.kt`.
+   - Built and reassembled `TomteInitHelper.dex` (93,480 bytes).
+   - All 21 unit tests passed with exit code 0 (`BUILD SUCCESSFUL`).
+
+---
+
+## 9. Feature 9: 4K 60 FPS 10-bit HDR & Log Video Recording Unlock (Amethyst / HLG10)
+
+### 9.1 Overview & Motivation
+Pixel Camera possesses native support for 10-bit HDR video recording (HLG10 / Rec.2020 transfer function, codenamed internally as `amethyst`), which encodes high-dynamic-range footage with a wide color gamut and soft logarithmic knee compression. However, on stock Google Camera 11.1:
+1. **Artificial Capability Gating:** 4K 60 FPS 10-bit HDR is restricted exclusively to the latest top-tier Pro devices (Pixel 9 Pro `caiman` and Pixel 9 Pro XL `komodo`).
+2. **Hidden User Interface Toggle:** On non-Pro or prior generation devices (such as Pixel 8, Pixel 8 Pro `husky`, Pixel 7 Pro `cheetah`, Pixel Fold `felix`, and Pixel 9 base `tokay`), the 10-bit HDR toggle (`pref_video_amethyst_key`) is removed from Camera Settings at initialization time.
+3. **Hardcoded Mode Rejection:** When switching the camcorder resolution to 4K (`RES_2160P`) and framerate to 60 FPS (`FPS_60`), bytecode gating in `jbw.smali` forces the camcorder pipeline to reject 10-bit HDR unless device tier flag `camcorder.glimmerix` is active.
+
+### 9.2 Reverse Engineering & Bytecode Tracing
+Through deep decompilation of the video recording pipeline across `jbw.smali`, `rdj.smali`, `rex.smali`, `fue.smali`, `vku.smali`, and `obg.java`:
+1. **The Amethyst Flag Family:**
+   - `Lkqj;->a:Lkps;` = `"camcorder.amethyst"` (Master 10-bit video pipeline toggle).
+   - `Lkqj;->b:Lkps;` = `"camcorder.amethyst_opt"` (Hardware optimization toggle; if false, `rex.smali:345` strips `pref_video_amethyst_key` from Settings UI).
+   - `Lkqj;->c:Lkps;` = `"camcorder.halifax"` (Gating for 1080p 60 FPS 10-bit HDR in `jbw.smali:1667`).
+   - `Lkqj;->d:Lkps;` = `"camcorder.zenthoria"` (Alternative camcorder 10-bit HDR pipeline toggle).
+   - `Lkqj;->f:Lkps;` = `"camcorder.glimmerix"` (Gating for 4K 60 FPS 10-bit HDR in `jbw.smali:1682`).
+2. **Device Hardware Tier Check:**
+   - In [`apktool_full/smali/vku.smali`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/vku.smali), method `f()Z` checks if the device is `Z` (`caiman` 9 Pro) or `aa` (`komodo` 9 Pro XL).
+   - In [`apktool_full/smali/fue.smali:11304`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/apktool_full/smali/fue.smali#L11304), `vku.f()` directly sets `camcorder.glimmerix` (`kqj.f`).
+   - Devices with full 4K60 10-bit hardware capabilities (such as Tensor G3 `husky`, Tensor G4 `tokay`/`comet`, and Tensor G5) were artificially gated off by this check.
+3. **MediaCodec Encoding Pipeline:**
+   - In [`decompiled_src/sources/defpackage/obg.java`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/decompiled_src/sources/defpackage/obg.java), the encoder configures `MediaFormat`:
+     - MIME type: `video/hevc`
+     - Profile: `HEVCProfileMain10` (`2`)
+     - Level: `HEVCHighTierLevel51` (`65536`)
+     - `color-standard`: `6` (`COLOR_STANDARD_BT2020`)
+     - `color-transfer`: `6` (`COLOR_TRANSFER_HLG`)
+     - `color-range`: `2` (`COLOR_RANGE_LIMITED`)
+4. **AV1 Fallback Logic:**
+   - In `fzf.smali`, AV1 hardware encoding gracefully falls back to HEVC Main 10 for 10-bit HDR recording via `patch_fzf_smali()`, ensuring hardware codec stability across all Tensor generations.
+
+### 9.3 Implementation Details
+1. **Helper Flag Interception (`smali_patches/TomteInitHelper.smali` & `apktool_full/.../TomteInitHelper.smali`):**
+   - In `.method public static getFlagOverride(Ljava/lang/String;)I`:
+     - Intercepts `"camcorder.glimmerix"` -> returns `1` (`true`).
+     - Intercepts `"camcorder.halifax"` -> returns `1` (`true`).
+     - Intercepts `"camcorder.amethyst"` -> returns `1` (`true`).
+     - Intercepts `"camcorder.amethyst_opt"` -> returns `1` (`true`).
+     - Intercepts `"camcorder.zenthoria"` -> returns `1` (`true`).
+2. **Standalone Build Pipeline (`build_and_patch_pixelcamera.py`):**
+   - In `patch_vku_smali()`:
+     - Forces `vku.f()Z` to return `true` (`const/4 v0, 0x1; return v0`).
+   - In `patch_ksf_smali()`:
+     - In method `q(Lkps;)Z`: Intercepts `camcorder.glimmerix`, `camcorder.halifax`, `camcorder.amethyst`, `camcorder.amethyst_opt`, and `camcorder.zenthoria`.
+     - In `flags_x`: Registered all 5 camcorder flags in the fast-path map.
+3. **Morphe Bytecode Patch (`Hdr10BitVideoPatch.kt`):**
+   - Created [`morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Hdr10BitVideoPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Hdr10BitVideoPatch.kt) and [`morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Hdr10BitVideoPatch.kt`](file:///Users/akshaykadam/Documents/Apps/Patch%20Pixel%20Camera/morphe-patches/src/main/kotlin/app/morphe/patches/pixelcamera/video/Hdr10BitVideoPatch.kt).
+   - Enforces `Lvku;->f()Z` to return `true` via `PixelCameraPatchUtils.forceReturnTrue(clazz, "f")`.
+   - Intercepts camcorder flags via `PixelCameraPatchUtils.hookKlmFlags(clazz)`.
+   - Registered in `patches-list.json` and `patches-bundle.json`.
+4. **Verification & Testing:**
+   - Added unit test `testHdr10BitVideoPatch()` in `SmokeTest.kt`.
+   - Added `vku.f` return check in `PatcherExecutionTest.kt`.
+   - Reassembled `TomteInitHelper.dex` and executed full test suite (`./gradlew test`), achieving 100% pass across all 24 unit and patcher tests.
+
 
 
 

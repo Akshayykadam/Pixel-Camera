@@ -1,5 +1,5 @@
 {
-  "version": "1.1.3",
+  "version": "1.1.4",
   "patches": [
     {
       "name": "Camera Looks Backport",
@@ -135,7 +135,7 @@
     },
     {
       "name": "Permanent Portrait Mode Fix",
-      "description": "Fixes front camera total blur and rear camera flat/bokeh-less portraits by routing portrait processing to Google's pure-TFLite monocular depth pipeline across all cameras.",
+      "description": "Preserves native portrait depth and matting selection and enables the P23-compatible CPU panoptic model for non-human subjects.",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [
@@ -197,6 +197,34 @@
           "packageName": "com.google.android.GoogleCamera",
           "name": "Pixel Camera",
           "description": "AV1 hardware video encoding with automatic fallback",
+          "apkFileType": "APK_REQUIRED",
+          "appIconColor": "#4285F4",
+          "targets": [
+            {
+              "version": "11.1.040.982810059.19",
+              "versionCodes": [
+                69703284
+              ],
+              "isExperimental": false,
+              "minSdk": 31,
+              "description": "Official Pixel Camera 11.1 APKM bundle"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4K 60 FPS 10-bit HDR & Log Video",
+      "description": "Unlocks 10-bit HDR (HLG10 / BT.2020) and Amethyst Log video recording at 4K resolution and 60 FPS across all supported Google Pixel devices (Pixel 8, 9, and 10 series). Unhides the 10-bit HDR toggle in Video Settings and overrides device capability gates.",
+      "default": true,
+      "dependencies": [
+        "Camera Looks Backport"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.GoogleCamera",
+          "name": "Pixel Camera",
+          "description": "4K 60 FPS 10-bit HDR & Log video recording",
           "apkFileType": "APK_REQUIRED",
           "appIconColor": "#4285F4",
           "targets": [

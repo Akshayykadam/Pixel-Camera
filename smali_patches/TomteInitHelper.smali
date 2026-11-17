@@ -28,6 +28,10 @@
 
 .field public static final PREF_RAW_SEPARATE_FOLDER:Ljava/lang/String; = "pref_camera_raw_separate_folder_key"
 
+.field public static final PREF_FRONT_BACKLIGHT_FIX:Ljava/lang/String; = "pref_camera_front_backlight_fix_key"
+
+.field public static sIsFrontCamera:Z
+
 .field public static sCurrentActivity:Ljava/lang/ref/WeakReference;
 
 .field public static sFineTuneContrast:F
@@ -83,6 +87,8 @@
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sLastSelectedLook:Lqvj;
 
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
 
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
 
@@ -152,6 +158,9 @@
 .end method
 
 .method public static native nativeProcessRasterImage(JIIIII)V
+.end method
+
+.method public static native nativeProcessFrontBacklightImage(JIIII)V
 .end method
 
 .method public static getSelectedLookId()I
@@ -313,7 +322,7 @@
 
     :cond_start
     :try_start_proc
-    # 1. Quick check: Is a look active or fine-tuning set?
+    # 1. Quick check: Is a look active or fine-tuning set, or front backlight fix active?
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
 
     move-result v6
@@ -321,6 +330,12 @@
     if-nez v6, :cond_check_ft
 
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->hasActiveFineTuning()Z
+
+    move-result v0
+
+    if-nez v0, :cond_check_ft
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontBacklightFixActive()Z
 
     move-result v0
 
@@ -419,6 +434,25 @@
 
     if-eqz v8, :cond_free_view
 
+    # Apply front backlight fix if active
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontBacklightFixActive()Z
+
+    move-result v8
+
+    if-eqz v8, :cond_check_raster
+
+    invoke-static/range {v0 .. v5}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeProcessFrontBacklightImage(JIIII)V
+
+    :cond_check_raster
+    if-nez v6, :cond_do_raster
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->hasActiveFineTuning()Z
+
+    move-result v8
+
+    if-eqz v8, :cond_free_view
+
+    :cond_do_raster
     invoke-static/range {v0 .. v6}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeProcessRasterImage(JIIIII)V
 
     :cond_free_view
@@ -2975,7 +3009,7 @@
 .end method
 
 .method public static applyShotParamsDenoiseAndSharpen(Lcom/google/googlex/gcam/ShotParams;)V
-    .locals 5
+    .locals 8
 
     if-nez p0, :cond_start
 
@@ -2989,10 +3023,61 @@
 
     cmp-long v4, v0, v2
 
-    if-nez v4, :cond_check_p10
+    if-nez v4, :cond_check_front
 
     return-void
 
+    :cond_check_front
+    # Front Camera Backlight AE / AWB Optimization:
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontBacklightFixActive()Z
+
+    move-result v2
+
+    if-eqz v2, :cond_check_p10
+
+    :try_start_ae
+    # 1. Lift people brightness in AE from bottom 5% underexposure
+    invoke-virtual {p0}, Lcom/google/googlex/gcam/ShotParams;->a()Lcom/google/googlex/gcam/AeShotParams;
+
+    move-result-object v2
+
+    if-eqz v2, :cond_skip_ae
+
+    iget-wide v3, v2, Lcom/google/googlex/gcam/AeShotParams;->a:J
+
+    const-wide/16 v6, 0x0
+
+    cmp-long v6, v3, v6
+
+    if-eqz v6, :cond_skip_ae
+
+    const v5, 0x3ed70a3d    # 0.42f (elevate face brightness preference in backlit scenes)
+
+    invoke-static {v3, v4, v2, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->AeShotParams_people_brightness_preference_set(JLcom/google/googlex/gcam/AeShotParams;F)V
+
+    const/high16 v5, 0x41000000    # 8.0f (increase max HDR portrait dynamic range ratio)
+
+    invoke-static {v3, v4, v2, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->AeShotParams_max_hdr_portrait_ratio_override_set(JLcom/google/googlex/gcam/AeShotParams;F)V
+
+    :cond_skip_ae
+    :try_end_ae
+    .catch Ljava/lang/Throwable; {:try_start_ae .. :try_end_ae} :catch_ae
+
+    :catch_ae
+    :try_start_peony
+    # 2. Disable peony AWB to prevent neutralizing warm melanin skin into ashy/cyan shadow
+    const/4 v2, 0x0
+
+    invoke-static {v0, v1, p0, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_peony_awb_enabled_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    # 3. Force face detection rerun
+    const/4 v2, 0x1
+
+    invoke-static {v0, v1, p0, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_rerun_face_detection_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+    :try_end_peony
+    .catch Ljava/lang/Throwable; {:try_start_peony .. :try_end_peony} :catch_peony
+
+    :catch_peony
     :cond_check_p10
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
 
@@ -5958,6 +6043,71 @@
 
     move-result v0
 
+    if-eqz v0, :cond_check_camcorder_glimmerix
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_glimmerix
+    const-string v0, "camcorder.glimmerix"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_halifax
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_halifax
+    const-string v0, "camcorder.halifax"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_amethyst
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_amethyst
+    const-string v0, "camcorder.amethyst"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_amethyst_opt
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_amethyst_opt
+    const-string v0, "camcorder.amethyst_opt"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_camcorder_zenthoria
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_zenthoria
+    const-string v0, "camcorder.zenthoria"
+
+    invoke-virtual {p0, v0}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v0
+
     if-eqz v0, :cond_check_raw_separate_folder
 
     const/4 v0, 0x1
@@ -8100,6 +8250,75 @@
     :cond_done
     :catch_all
     return-void
+.end method
+
+.method public static onCameraFacingChanged(Ljava/lang/Object;)V
+    .locals 2
+
+    if-nez p0, :cond_check
+
+    return-void
+
+    :cond_check
+    instance-of v0, p0, Lvhd;
+
+    if-nez v0, :cond_cast
+
+    return-void
+
+    :cond_cast
+    check-cast p0, Lvhd;
+
+    sget-object v0, Lvhd;->a:Lvhd;
+
+    if-ne p0, v0, :cond_set_back
+
+    const/4 v1, 0x1
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
+
+    return-void
+
+    :cond_set_back
+    const/4 v1, 0x0
+
+    sput-boolean v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
+
+    return-void
+.end method
+
+.method public static setFrontCameraActive(Z)V
+    .locals 0
+
+    sput-boolean p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
+
+    return-void
+.end method
+
+.method public static isFrontCameraActive()Z
+    .locals 1
+
+    sget-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
+
+    return v0
+.end method
+
+.method public static isFrontBacklightFixEnabled()Z
+    .locals 1
+
+    const/4 v0, 0x1
+
+    return v0
+.end method
+
+.method public static isFrontBacklightFixActive()Z
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontCameraActive()Z
+
+    move-result v0
+
+    return v0
 .end method
 
 .method public static isFocalLengthCyclingEnabled()Z

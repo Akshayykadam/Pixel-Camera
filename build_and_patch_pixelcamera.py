@@ -343,6 +343,7 @@ def patch_vku_smali():
 
     content = replace_method(content, "l()Z", "const/4 v0, 0x1\n\n    return v0")
     content = replace_method(content, "q()Z", "const/4 v0, 0x1\n\n    return v0")
+    content = replace_method(content, "f()Z", "const/4 v0, 0x1\n\n    return v0")
 
     # Ensure e()Z checks T (Pixel 10 base), U (Pixel 10 Pro XL), and V (Pixel 10 Pro)
     e_code = """iget-boolean v0, p0, Lvku;->T:Z
@@ -373,7 +374,7 @@ def patch_vku_smali():
 
     with open(vku_path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("    [+] vku.smali patched: l(), q() return true; e() checks T, U, V (Pixel 10 family recognized).")
+    print("    [+] vku.smali patched: l(), q(), f() return true; e() checks T, U, V (Pixel 10 family recognized).")
 
 def patch_ksf_smali():
     print("[*] Patching ksf.smali (Gouda flags, Mantis, Looks, Segmenter model interception, was klm)...")
@@ -978,6 +979,71 @@ def patch_ksf_smali():
 
     move-result v1
 
+    if-eqz v1, :cond_check_camcorder_glimmerix
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_glimmerix
+    const-string v1, "camcorder.glimmerix"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_halifax
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_halifax
+    const-string v1, "camcorder.halifax"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_amethyst
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_amethyst
+    const-string v1, "camcorder.amethyst"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_amethyst_opt
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_amethyst_opt
+    const-string v1, "camcorder.amethyst_opt"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_check_camcorder_zenthoria
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_check_camcorder_zenthoria
+    const-string v1, "camcorder.zenthoria"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z
+
+    move-result v1
+
     if-eqz v1, :cond_check_raw_separate_folder
 
     const/4 v0, 0x1
@@ -1094,6 +1160,11 @@ def patch_ksf_smali():
                 "camcorder.surface_share",
                 "camcorder.stokes_dyn",
                 "camcorder.4k60fps",
+                "camcorder.glimmerix",
+                "camcorder.halifax",
+                "camcorder.amethyst",
+                "camcorder.amethyst_opt",
+                "camcorder.zenthoria",
             ]
             chain_x = ""
             for idx, flag in enumerate(flags_x):
@@ -5228,9 +5299,75 @@ def patch_mtt_smali():
     elif "TomteInitHelper;->applyShotParamsDenoiseAndSharpen" in content:
         print("    [+] mtt.smali: ShotParams applyShotParamsDenoiseAndSharpen already hooked.")
 
+    # Hook camera facing in mtt.K
+    facing_target = """    invoke-interface/range {p6 .. p6}, Lvgr;->m()Lvhd;
+
+    move-result-object v13
+
+    sget-object v15, Lvhd;->b:Lvhd;"""
+    facing_repl = """    invoke-interface/range {p6 .. p6}, Lvgr;->m()Lvhd;
+
+    move-result-object v13
+
+    invoke-static {v13}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onCameraFacingChanged(Ljava/lang/Object;)V
+
+    sget-object v15, Lvhd;->b:Lvhd;"""
+    if facing_target in content:
+        content = content.replace(facing_target, facing_repl, 1)
+        print("    [+] mtt.smali: Camera facing onCameraFacingChanged hooked.")
+
     with open(mtt_path, "w", encoding="utf-8") as f:
         f.write(content)
     print("    [+] mtt.smali patched: getEffectiveLookId & denoiser filters hooked.")
+
+
+def patch_jue_smali():
+    print("[*] Patching jue.smali (Tracking camera facing for front backlight fix)...")
+    jue_path = os.path.join(APKTOOL_DIR, "smali", "jue.smali")
+    if not os.path.exists(jue_path):
+        for sdir in [d for d in os.listdir(APKTOOL_DIR) if d.startswith("smali")]:
+            p = os.path.join(APKTOOL_DIR, sdir, "jue.smali")
+            if os.path.exists(p):
+                jue_path = p
+                break
+    if not os.path.exists(jue_path):
+        print("    [!] Warning: jue.smali not found.")
+        return
+
+    with open(jue_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Hook jue.g(Lvhd;)V
+    g_target = """.method public final g(Lvhd;)V
+    .locals 1
+
+    invoke-direct {p0}, Ljue;->n()Z"""
+    g_repl = """.method public final g(Lvhd;)V
+    .locals 1
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onCameraFacingChanged(Ljava/lang/Object;)V
+
+    invoke-direct {p0}, Ljue;->n()Z"""
+    if g_target in content:
+        content = content.replace(g_target, g_repl, 1)
+
+    # Hook jue.m(Lvhd;)V
+    m_target = """.method private final m(Lvhd;)V
+    .locals 2
+
+    iget-object p0, p0, Ljue;->k:Ljava/util/List;"""
+    m_repl = """.method private final m(Lvhd;)V
+    .locals 2
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onCameraFacingChanged(Ljava/lang/Object;)V
+
+    iget-object p0, p0, Ljue;->k:Ljava/util/List;"""
+    if m_target in content:
+        content = content.replace(m_target, m_repl, 1)
+
+    with open(jue_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("    [+] jue.smali patched: camera facing tracking hooked.")
 
 
 def patch_jii_smali():
@@ -12925,6 +13062,7 @@ def main():
     patch_rva_smali()
     patch_ozw_smali()
     patch_mtt_smali()
+    patch_jue_smali()
     patch_jii_smali()
     patch_pyp_smali()
     patch_rdb_smali()

@@ -13,6 +13,7 @@ import app.morphe.patches.pixelcamera.pro.proControlsPatch
 import app.morphe.patches.pixelcamera.quality.proImageQualityPatch
 import app.morphe.patches.pixelcamera.quickaccess.quickAccessPatch
 import app.morphe.patches.pixelcamera.video.av1VideoEncodingPatch
+import app.morphe.patches.pixelcamera.video.hdr10BitVideoPatch
 import app.morphe.patches.pixelcamera.video.videoLensSwitchingPatch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
@@ -39,6 +40,7 @@ class PatcherExecutionTest {
             proControlsPatch,
             creatorSuitePatch,
             av1VideoEncodingPatch,
+            hdr10BitVideoPatch,
             videoLensSwitchingPatch,
             maxBrightnessPatch,
             proImageQualityPatch,
@@ -137,6 +139,7 @@ class PatcherExecutionTest {
         var foundAutobahnHook = false
         var foundRexHook = false
         var foundRflHook = false
+        var foundVkuFBypass = false
         for (dexFile in outDexDir.listFiles()?.filter { it.name.endsWith(".dex") } ?: emptyList()) {
             val dex = com.android.tools.smali.dexlib2.DexFileFactory.loadDexFile(dexFile, com.android.tools.smali.dexlib2.Opcodes.getDefault())
             for (c in dex.classes) {
@@ -296,6 +299,13 @@ class PatcherExecutionTest {
                         foundKsaClonedAuth = true
                     }
                 }
+                if (c.type == "Lvku;") {
+                    val fMethod = c.methods.firstOrNull { it.name == "f" }
+                    val insList = fMethod?.implementation?.instructions?.toList() ?: emptyList()
+                    if (insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_4 } && insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN }) {
+                        foundVkuFBypass = true
+                    }
+                }
             }
         }
         assertTrue(foundOmsHiRes, "oms must be hooked with isHighResShot(omw)")
@@ -306,8 +316,9 @@ class PatcherExecutionTest {
         assertTrue(foundMgsGuard, "mgs.a must guard null projection")
         assertTrue(foundKsoBypass, "kso.a must return true to bypass caller signature verification")
         assertTrue(foundKsaClonedAuth, "ksa.<clinit> must align SpecialTypesProvider authority to cloned package")
+        assertTrue(foundVkuFBypass, "vku.f must return true to unlock 4K 60FPS 10-bit HDR video tier")
 
-        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, rbu.night=$foundRbuNight, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth")
+        println("Verified DEX bytecode hooks: ons.e=$foundOnsHook, rdb.C=$foundRdbHook, poy.M=$foundPoyHook, AutobahnViewPager.onMeasure=$foundAutobahnHook, rfl.ar=$foundRflHook, rfx.M=$foundRfxMGoto, oms.hi_res=$foundOmsHiRes, oml.hi_res=$foundOmlHiRes, rbu.night=$foundRbuNight, ccp.bypass=$foundCcpBypass, mgs.guard=$foundMgsGuard, kso.bypass=$foundKsoBypass, ksa.auth=$foundKsaClonedAuth, vku.f=$foundVkuFBypass")
     }
 
     @Test
