@@ -9391,8 +9391,29 @@ def patch_sauce_onboarding():
         else:
             print("    [!] Warning: isu.smali target not found.")
 
+def patch_teleprompter_landscape_dimensions():
+    """Keep the landscape presenter wide and short in the current view coordinates."""
+    path = os.path.join(APKTOOL_DIR, "res", "values", "dimens.xml")
+    with open(path, "r", encoding="utf-8") as source:
+        content = source.read()
+    for name, value in {
+        "biotite_presenter_container_width_landscape": "336.0dip",
+        "biotite_presenter_container_height_landscape": "212.0dip",
+    }.items():
+        pattern = rf'(<dimen\s+name="{name}"\s*>)[^<]+(</dimen>)'
+        content, count = re.subn(
+            pattern, lambda match: match[1] + value + match[2], content
+        )
+        if count != 1:
+            raise ValueError(f"Expected exactly one {name} dimension in Pixel Camera resources")
+    with open(path, "w", encoding="utf-8") as target:
+        target.write(content)
+    print("    [+] Biotite landscape presenter: 336dp wide x 212dp high.")
+
+
 def patch_creator_suite_smali():
     print("[*] Patching Creator Suite (Granite, Biotite, Mica, Slate, Basalt, Project Album)...")
+    patch_teleprompter_landscape_dimensions()
     # 1. kow.smali (was kid.smali)
     kow_path = os.path.join(APKTOOL_DIR, "smali", "kow.smali")
     if os.path.exists(kow_path):
