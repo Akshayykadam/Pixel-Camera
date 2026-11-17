@@ -15,9 +15,21 @@ val hdr10BitVideoPatch = bytecodePatch(
         "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
-        // 1. Force top-tier hardware video capability gate Lvku;->f()Z to true
+        // 1. Delegate Lvku;->f()Z to TomteInitHelper.is60FpsHdrSupported()Z
+        // Hardware HAL gate: 60 FPS 10-bit HDR is supported on Pixel 9 Pro and Pixel 10.
+        // On Pixel 8 Pro / Tensor G3, HAL hard-rejects 60 FPS Hlg10 with -22 (Invalid argument),
+        // so returning false ensures safe fallback to 8-bit SDR at 60 FPS while enabling 30 FPS 10-bit HDR.
         mutableClassDefByOrNull("Lvku;")?.let { clazz ->
-            PixelCameraPatchUtils.forceReturnTrue(clazz, "f")
+            PixelCameraPatchUtils.replaceMethodBody(
+                clazz,
+                "f",
+                "Z",
+                """
+                    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z
+                    move-result v0
+                    return v0
+                """.trimIndent()
+            )
         }
 
         // 2. Intercept camcorder 10-bit HDR flags (camcorder.glimmerix, camcorder.halifax, camcorder.amethyst, camcorder.amethyst_opt, camcorder.zenthoria) via TomteInitHelper

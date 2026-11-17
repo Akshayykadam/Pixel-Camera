@@ -302,7 +302,7 @@ class PatcherExecutionTest {
                 if (c.type == "Lvku;") {
                     val fMethod = c.methods.firstOrNull { it.name == "f" }
                     val insList = fMethod?.implementation?.instructions?.toList() ?: emptyList()
-                    if (insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.CONST_4 } && insList.any { it.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN }) {
+                    if (insList.any { (it as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference?.toString()?.contains("is60FpsHdrSupported") == true }) {
                         foundVkuFBypass = true
                     }
                 }

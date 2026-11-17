@@ -102,11 +102,13 @@ def patch_manifest():
     content = content.replace('android:authorities="com.google.android.GoogleCamera.fileprovider"',
                             'android:authorities="com.google.android.GoogleCameraEng.fileprovider"')
     content = content.replace('android:authorities="com.google.android.apps.camera.specialtypes.SpecialTypesProvider"',
-                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:grantUriPermissions="true"')
+                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider;com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng" android:grantUriPermissions="true"')
     content = content.replace('android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:exported="true"',
-                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider" android:exported="true" android:grantUriPermissions="true"')
+                            'android:authorities="com.google.android.GoogleCameraEng.specialtypes.SpecialTypesProvider;com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng" android:exported="true" android:grantUriPermissions="true"')
     # Normalize if duplicate android:grantUriPermissions="true" occurred
     content = content.replace('android:grantUriPermissions="true" android:grantUriPermissions="true"', 'android:grantUriPermissions="true"')
+    content = content.replace('com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng;com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng',
+                            'com.google.android.apps.camera.specialtypes.SpecialTypesProviderEng')
     content = content.replace('android:authorities="com.google.android.GoogleCamera"',
                             'android:authorities="com.google.android.GoogleCameraEng.search"')
     content = content.replace('android:authorities="com.google.android.GoogleCamera.mlkitinitprovider"',
@@ -120,12 +122,44 @@ def patch_manifest():
     content = re.sub(r'<meta-data android:name="com\.android\.stamp\.source"[^>]*/>', '', content)
     content = re.sub(r'<meta-data android:name="com\.android\.stamp\.type"[^>]*/>', '', content)
 
-    # 6. Ensure launcher activity-alias explicitly carries app_name label
+    # 6. Ensure launcher activity-alias and activities explicitly carry app_name label
     if '<activity-alias android:exported="true" android:name="com.android.camera.CameraLauncher"' in content:
         content = content.replace(
             '<activity-alias android:exported="true" android:name="com.android.camera.CameraLauncher"',
             '<activity-alias android:exported="true" android:label="@string/app_name" android:name="com.android.camera.CameraLauncher"'
         )
+    if '<activity-alias android:exported="true" android:name="com.android.camera.CameraImageActivity"' in content:
+        content = content.replace(
+            '<activity-alias android:exported="true" android:name="com.android.camera.CameraImageActivity"',
+            '<activity-alias android:exported="true" android:label="@string/app_name" android:name="com.android.camera.CameraImageActivity"'
+        )
+    if 'android:name="com.google.android.apps.camera.activity.main.CameraActivity"' in content and 'android:label="@string/app_name"' not in content.split('android:name="com.google.android.apps.camera.activity.main.CameraActivity"')[0].split('<activity')[-1]:
+        content = content.replace(
+            'android:name="com.google.android.apps.camera.activity.main.CameraActivity"',
+            'android:label="@string/app_name" android:name="com.google.android.apps.camera.activity.main.CameraActivity"'
+        )
+
+    # 6a. App Visibility & Media Integration for Google Photos & OS Chooser
+    photos_visibility_alias = """        <activity-alias android:exported="true" android:icon="@mipmap/adaptiveproduct_pixelcamera" android:label="@string/app_name" android:name="com.android.camera.PhotosVisibilityAlias" android:targetActivity="com.google.android.apps.camera.activity.main.CameraActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.ATTACH_DATA"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/*"/>
+            </intent-filter>
+        </activity-alias>"""
+    if "PhotosVisibilityAlias" not in content and "</activity-alias>" in content:
+        launcher_end = content.find("</activity-alias>") + len("</activity-alias>")
+        content = content[:launcher_end] + "\n" + photos_visibility_alias + content[launcher_end:]
 
     # 6b. Sanitize compileSdkVersion and codenames to avoid "There was a problem parsing the package" on older/production OS
     content = re.sub(r'android:compileSdkVersion="[^"]*"', 'android:compileSdkVersion="35"', content)
@@ -343,7 +377,7 @@ def patch_vku_smali():
 
     content = replace_method(content, "l()Z", "const/4 v0, 0x1\n\n    return v0")
     content = replace_method(content, "q()Z", "const/4 v0, 0x1\n\n    return v0")
-    content = replace_method(content, "f()Z", "const/4 v0, 0x1\n\n    return v0")
+    content = replace_method(content, "f()Z", "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z\n\n    move-result v0\n\n    return v0")
 
     # Ensure e()Z checks T (Pixel 10 base), U (Pixel 10 Pro XL), and V (Pixel 10 Pro)
     e_code = """iget-boolean v0, p0, Lvku;->T:Z
@@ -994,7 +1028,9 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_camcorder_halifax
 
-    const/4 v0, 0x1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z
+
+    move-result v0
 
     return v0
 
@@ -1007,7 +1043,9 @@ def patch_ksf_smali():
 
     if-eqz v1, :cond_check_camcorder_amethyst
 
-    const/4 v0, 0x1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z
+
+    move-result v0
 
     return v0
 
@@ -3617,6 +3655,205 @@ def patch_camera_content_provider():
                 with open(ccp_path, "w", encoding="utf-8") as f:
                     f.write(c)
                 print("    [+] CameraContentProvider.smali: openFile reverted to clean stock bytecode.")
+
+        # Dual-authority URI support for SpecialTypesProvider in mgw.smali & mha.smali
+        mgw_path = os.path.join(APKTOOL_DIR, folder, "mgw.smali")
+        if os.path.exists(mgw_path):
+            with open(mgw_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            if '.method public final b()Landroid/content/UriMatcher;\n    .locals 3' in c:
+                target_mgw = c[c.find('.method public final b()Landroid/content/UriMatcher;\n    .locals 3'):c.find('.end method', c.find('.method public final b()Landroid/content/UriMatcher;\n    .locals 3')) + len('.end method')]
+                repl_mgw = """.method public final b()Landroid/content/UriMatcher;
+    .locals 7
+
+    iget-object v0, p0, Lmgw;->a:Lacnw;
+
+    check-cast v0, Lksk;
+
+    invoke-virtual {v0}, Lksk;->b()Ljava/lang/String;
+
+    move-result-object v0
+
+    new-instance v1, Landroid/content/UriMatcher;
+
+    const/4 v2, -0x1
+
+    invoke-direct {v1, v2}, Landroid/content/UriMatcher;-><init>(I)V
+
+    const-string v2, ";"
+
+    invoke-virtual {v0, v2}, Ljava/lang/String;->split(Ljava/lang/String;)[Ljava/lang/String;
+
+    move-result-object v2
+
+    array-length v3, v2
+
+    const/4 v4, 0x0
+
+    :goto_0
+    if-ge v4, v3, :cond_0
+
+    aget-object v5, v2, v4
+
+    invoke-virtual {v5}, Ljava/lang/String;->trim()Ljava/lang/String;
+
+    move-result-object v5
+
+    const-string v6, "type/*"
+
+    const/4 v0, 0x1
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "data/*"
+
+    const/4 v0, 0x2
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "icon/#/badge"
+
+    const/4 v0, 0x3
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "icon/#/interact"
+
+    const/4 v0, 0x4
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "icon/#/dialog"
+
+    const/4 v0, 0x5
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "delete/#"
+
+    const/4 v0, 0x6
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "processing"
+
+    const/4 v0, 0x7
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "processing/#"
+
+    const/16 v0, 0x8
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "discover"
+
+    const/16 v0, 0x9
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "discover/*"
+
+    const/16 v0, 0xa
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    const-string v6, "update/#"
+
+    const/16 v0, 0xb
+
+    invoke-virtual {v1, v5, v6, v0}, Landroid/content/UriMatcher;->addURI(Ljava/lang/String;Ljava/lang/String;I)V
+
+    add-int/lit8 v4, v4, 0x1
+
+    goto :goto_0
+
+    :cond_0
+    return-object v1
+.end method"""
+                c = c.replace(target_mgw, repl_mgw, 1)
+                with open(mgw_path, "w", encoding="utf-8") as f:
+                    f.write(c)
+                print("    [+] mgw.smali: patched UriMatcher to support dual authorities.")
+            elif '.method public final b()Landroid/content/UriMatcher;\n    .locals 7' in c:
+                print("    [+] mgw.smali: already patched for dual authorities.")
+
+        mha_path = os.path.join(APKTOOL_DIR, folder, "mha.smali")
+        if os.path.exists(mha_path):
+            with open(mha_path, "r", encoding="utf-8") as f:
+                c = f.read()
+            if '.method public final b()Lmgz;\n    .locals 2' in c:
+                target_mha = """.method public final b()Lmgz;
+    .locals 2
+
+    iget-object v0, p0, Lmha;->a:Lacnw;
+
+    check-cast v0, Lrek;
+
+    invoke-virtual {v0}, Lrek;->b()Landroid/content/Context;
+
+    move-result-object v0
+
+    iget-object p0, p0, Lmha;->b:Lacnw;
+
+    check-cast p0, Lksk;
+
+    invoke-virtual {p0}, Lksk;->b()Ljava/lang/String;
+
+    move-result-object p0
+
+    new-instance v1, Lmgz;
+
+    invoke-direct {v1, v0, p0}, Lmgz;-><init>(Landroid/content/Context;Ljava/lang/String;)V
+
+    return-object v1
+.end method"""
+                repl_mha = """.method public final b()Lmgz;
+    .locals 3
+
+    iget-object v0, p0, Lmha;->a:Lacnw;
+
+    check-cast v0, Lrek;
+
+    invoke-virtual {v0}, Lrek;->b()Landroid/content/Context;
+
+    move-result-object v0
+
+    iget-object p0, p0, Lmha;->b:Lacnw;
+
+    check-cast p0, Lksk;
+
+    invoke-virtual {p0}, Lksk;->b()Ljava/lang/String;
+
+    move-result-object p0
+
+    const-string v1, ";"
+
+    invoke-virtual {p0, v1}, Ljava/lang/String;->split(Ljava/lang/String;)[Ljava/lang/String;
+
+    move-result-object p0
+
+    const/4 v1, 0x0
+
+    aget-object p0, p0, v1
+
+    invoke-virtual {p0}, Ljava/lang/String;->trim()Ljava/lang/String;
+
+    move-result-object p0
+
+    new-instance v1, Lmgz;
+
+    invoke-direct {v1, v0, p0}, Lmgz;-><init>(Landroid/content/Context;Ljava/lang/String;)V
+
+    return-object v1
+.end method"""
+                c = c.replace(target_mha, repl_mha, 1)
+                with open(mha_path, "w", encoding="utf-8") as f:
+                    f.write(c)
+                print("    [+] mha.smali: patched authority extraction for clean primary authority.")
+            elif '.method public final b()Lmgz;\n    .locals 3' in c:
+                print("    [+] mha.smali: already patched for clean primary authority.")
 
 def patch_mgs_smali():
     print("[*] Patching mgs.smali (Guard SpecialTypesProvider query against null projection)...")

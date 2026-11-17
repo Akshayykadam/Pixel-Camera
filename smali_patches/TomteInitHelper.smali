@@ -2694,6 +2694,83 @@
     return v0
 .end method
 
+.method public static is60FpsHdrSupported()Z
+    .locals 3
+
+    sget-object v0, Landroid/os/Build;->DEVICE:Ljava/lang/String;
+
+    if-nez v0, :cond_check_60fps_dev
+
+    const/4 v0, 0x0
+
+    return v0
+
+    :cond_check_60fps_dev
+    sget-object v1, Ljava/util/Locale;->ROOT:Ljava/util/Locale;
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->toLowerCase(Ljava/util/Locale;)Ljava/lang/String;
+
+    move-result-object v0
+
+    # Pixel 9 Pro (caiman)
+    const-string v1, "caiman"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_60fps_komodo
+
+    const/4 v0, 0x1
+
+    return v0
+
+    # Pixel 9 Pro XL (komodo)
+    :cond_60fps_komodo
+    const-string v1, "komodo"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_60fps_comet
+
+    const/4 v0, 0x1
+
+    return v0
+
+    # Pixel 9 Pro Fold (comet)
+    :cond_60fps_comet
+    const-string v1, "comet"
+
+    invoke-virtual {v0, v1}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v1
+
+    if-eqz v1, :cond_60fps_p10
+
+    const/4 v0, 0x1
+
+    return v0
+
+    # Pixel 10 family
+    :cond_60fps_p10
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_60fps_ret_false
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_60fps_ret_false
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
 .method public static isMaxBrightnessEnabled()Z
     .locals 2
 
@@ -6058,7 +6135,9 @@
 
     if-eqz v0, :cond_check_camcorder_halifax
 
-    const/4 v0, 0x1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z
+
+    move-result v0
 
     return v0
 
@@ -6071,7 +6150,9 @@
 
     if-eqz v0, :cond_check_camcorder_amethyst
 
-    const/4 v0, 0x1
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->is60FpsHdrSupported()Z
+
+    move-result v0
 
     return v0
 

@@ -100,12 +100,56 @@ val pixelCameraClonePatch = resourcePatch(
             root.removeAttribute("android:splitTypes")
             root.removeAttribute("android:isSplitRequired")
 
-            // 6. Ensure launcher activity-alias explicitly carries app_name label
+            // 6. Ensure launcher activity-alias and activities explicitly carry app_name label
+            val activities = doc.getElementsByTagName("activity")
+            for (i in 0 until activities.length) {
+                val elem = activities.item(i) as? Element ?: continue
+                if (elem.getAttribute("android:name") == "com.google.android.apps.camera.activity.main.CameraActivity") {
+                    elem.setAttribute("android:label", "@string/app_name")
+                }
+            }
             val aliases = doc.getElementsByTagName("activity-alias")
             for (i in 0 until aliases.length) {
                 val elem = aliases.item(i) as? Element ?: continue
-                if (elem.getAttribute("android:name") == "com.android.camera.CameraLauncher") {
+                val name = elem.getAttribute("android:name")
+                if (name == "com.android.camera.CameraLauncher" || name == "com.android.camera.CameraImageActivity") {
                     elem.setAttribute("android:label", "@string/app_name")
+                }
+            }
+
+            // 6b. Inject PhotosVisibilityAlias for Google Photos & OS Chooser visibility
+            val application = doc.getElementsByTagName("application").item(0) as? Element
+            if (application != null) {
+                var hasPhotosAlias = false
+                for (i in 0 until aliases.length) {
+                    val elem = aliases.item(i) as? Element ?: continue
+                    if (elem.getAttribute("android:name") == "com.android.camera.PhotosVisibilityAlias") {
+                        hasPhotosAlias = true
+                        break
+                    }
+                }
+                if (!hasPhotosAlias) {
+                    val aliasElem = doc.createElement("activity-alias")
+                    aliasElem.setAttribute("android:exported", "true")
+                    aliasElem.setAttribute("android:icon", "@mipmap/adaptiveproduct_pixelcamera")
+                    aliasElem.setAttribute("android:label", "@string/app_name")
+                    aliasElem.setAttribute("android:name", "com.android.camera.PhotosVisibilityAlias")
+                    aliasElem.setAttribute("android:targetActivity", "com.google.android.apps.camera.activity.main.CameraActivity")
+
+                    for (actionName in listOf("android.intent.action.ATTACH_DATA", "android.intent.action.VIEW", "android.intent.action.SEND")) {
+                        val filter = doc.createElement("intent-filter")
+                        val act = doc.createElement("action")
+                        act.setAttribute("android:name", actionName)
+                        filter.appendChild(act)
+                        val cat = doc.createElement("category")
+                        cat.setAttribute("android:name", "android.intent.category.DEFAULT")
+                        filter.appendChild(cat)
+                        val data = doc.createElement("data")
+                        data.setAttribute("android:mimeType", "image/*")
+                        filter.appendChild(data)
+                        aliasElem.appendChild(filter)
+                    }
+                    application.appendChild(aliasElem)
                 }
             }
         }
