@@ -16,6 +16,11 @@ val creatorSuitePatch = bytecodePatch(
         "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
     execute {
+        // Gate scripts, SODA locale discovery and word-based WPM consistently.
+        enableRussianBiotite(requireNotNull(mutableClassDefByOrNull("Lkuw;")))
+        enableRussianBiotite(requireNotNull(mutableClassDefByOrNull("Ltjb;")), localeEntries = true)
+        enableRussianBiotite(requireNotNull(mutableClassDefByOrNull("Lktp;")), wordSet = true)
+
         // ── 1. Unlock Creator Suite feature getters in kow.smali ─────────────────────────
         mutableClassDefByOrNull("Lkow;")?.let { clazz ->
             for (m in listOf("a", "b", "c", "d", "e", "f", "g")) {

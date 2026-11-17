@@ -1,0 +1,7 @@
+script languages=[en, ru]
+SODA locales=[en_US, de_DE, ja_JP, en_GB, es_ES, fr_FR, it_IT, en_AU, en_CA, en_IN, hi_IN, fr_CA, zh_TW, cmn_TW_#Hant, ru_RU]
+word-count languages=[en, ru]
+normalized script=Ёлка, ещё 1 съёмочный день. две тысячи двадцать шесть
+word count=6
+English still allowed=true
+ERROR: adad: PERMISSION_DENIED: Api access revoked.
