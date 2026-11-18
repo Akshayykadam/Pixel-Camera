@@ -94,7 +94,7 @@ Launch `com.google.android.GoogleCameraEng/pixel.camera.test.PixelRussianSpeechT
 and inspect the `PixelRussianTest` log tag. The report is also written to the
 app's external files directory as `russian-speech-test.txt`.
 
-`tests/android/NativeRussianSpeechInstrumentation.java` runs the native checks
+`tests/android/NativeSpeechInstrumentation.java` runs the native checks
 against a normally built camera APK. Register it as instrumentation targeting
 `com.google.android.GoogleCameraEng` in a separate diagnostic APK signed with
 the same key as the camera, then run
