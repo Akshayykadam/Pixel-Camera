@@ -1,0 +1,29 @@
+Physical Pixel 9 Pro XL / Android 17 / API 37
+Camera 11.1.040.982810059.19, actual Kotlin-patched classes
+Native model query uses the production Google-package verifier.
+
+script languages=[en, ru]
+SODA locales=[en_US, de_DE, ja_JP, en_GB, es_ES, fr_FR, it_IT, en_AU, en_CA, en_IN, hi_IN, fr_CA, zh_TW, cmn_TW_#Hant, ru_RU]
+word-count languages=[en, ru]
+normalized script=Ёлка, ещё 1 съёмочный день. две тысячи двадцать шесть
+word count=6
+English still allowed=true
+CORE LANGUAGE CHECKS PASSED; checking native model access next
+model catalog=# xgm@7b56eb8b
+Russian native model=SodaSttLanguagePackInfo(currentLocale=ru_RU, matchedLocale=ru_RU, isSupported=true, state=STATE_DOWNLOADED)
+DONE
+
+Public on-device PCM probe:
+Fixture: 7.531338 seconds, mono 16000 Hz PCM16, 241004 bytes
+Installed models: ru-RU, en-US
+Expected: Сегодня мы проверяем распознавание русской речи. Суфлёр должен следить за текстом и прокручивать строки во время записи видео.
+First final segment hypothesis: Сегодня мы проверяем распознавание русской речи суфлёр должен следить за текстом и прокручивать строки во время записи видео
+Segmented session ended normally; incremental partial results observed.
+
+Camera microphone check:
+Russian script accepted; Dynamic text scrolling On.
+Actual video recording, Mac playback into Pixel microphone.
+Green highlight advanced from the first line to subsequent Russian lines;
+script scrolled. Recording stopped. Manual device confirmation passed.
+Landscape HUD observed at 1008 x 636 px / density 3 = 336 x 212 dp.
+Camera screenshots and personal media are excluded from this report.

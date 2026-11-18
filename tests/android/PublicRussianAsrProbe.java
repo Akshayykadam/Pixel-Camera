@@ -33,12 +33,24 @@ public class PublicRussianAsrProbe extends Activity {
  }
  private void listen(Intent intent) {
   try {
-   android.os.ParcelFileDescriptor audio=android.os.ParcelFileDescriptor.open(new java.io.File(getExternalFilesDir(null),"russian.pcm"),android.os.ParcelFileDescriptor.MODE_READ_ONLY);
+   java.io.File sample=new java.io.File(getExternalFilesDir(null),"russian.pcm");
+   if(sample.length()<3200)throw new java.io.IOException("PCM fixture missing or too short: "+sample.length());
+   log("PCM bytes="+sample.length());
+   android.os.ParcelFileDescriptor[] pipe=android.os.ParcelFileDescriptor.createPipe();
+   android.os.ParcelFileDescriptor audio=pipe[0];
+   new Thread(() -> {
+    try(java.io.InputStream input=new java.io.FileInputStream(sample);
+        java.io.OutputStream output=new android.os.ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])) {
+      byte[] bytes=new byte[3200];int count;
+      while((count=input.read(bytes))!=-1){output.write(bytes,0,count);Thread.sleep(100);}
+    }catch(Exception error){log("PCM writer="+error);}
+   },"PCM-test-writer").start();
    intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE,audio);
    intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT,1);
    intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING,android.media.AudioFormat.ENCODING_PCM_16BIT);
    intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE,16000);
    intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);
+   intent.putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION,RecognizerIntent.EXTRA_AUDIO_SOURCE);
    recognizer.setRecognitionListener(new RecognitionListener(){
     public void onReadyForSpeech(Bundle b){log("ready for offline PCM");}
     public void onBeginningOfSpeech(){log("speech started");}
@@ -48,6 +60,8 @@ public class PublicRussianAsrProbe extends Activity {
     public void onError(int code){log("recognition error="+code);}
     public void onResults(Bundle result){log("RESULT="+result.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));}
     public void onPartialResults(Bundle result){log("PARTIAL="+result.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));}
+    public void onSegmentResults(Bundle result){log("SEGMENT="+result.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));}
+    public void onEndOfSegmentedSession(){log("segmented session ended");}
     public void onEvent(int code,Bundle b){}
    });
    recognizer.startListening(intent);
