@@ -9391,8 +9391,71 @@ def patch_sauce_onboarding():
         else:
             print("    [!] Warning: isu.smali target not found.")
 
+def russian_biotite_smali(content, class_name, locale_entries=False, word_set=False):
+    """Extend native language gates; never fabricate model installation or support."""
+    helper_name = "pixelCameraRussianBiotite"
+    if f".method private static {helper_name}(" in content:
+        return content
+    collection = "Set" if word_set else "List"
+    signature = f"Ljava/util/{collection};"
+    start = content.index(".method static constructor <clinit>()V")
+    end = content.index(".end method", start)
+    initializer = content[start:end]
+    pattern = rf"(?m)^(    sput-object (v\d+), L{class_name};->a:{re.escape(signature)})$"
+    matches = list(re.finditer(pattern, initializer))
+    if len(matches) != 1:
+        raise ValueError(f"Expected one language collection initializer in {class_name}")
+    match = matches[0]
+    register = match[2]
+    hook = (f"    invoke-static {{{register}}}, L{class_name};->{helper_name}({signature}){signature}\n"
+            f"    move-result-object {register}\n\n")
+    initializer = initializer[:match.start()] + hook + initializer[match.start():]
+    content = content[:start] + initializer + content[end:]
+    entry = ('    const-string v1, "ru-RU"\n'
+             '    invoke-static {v1}, Ljava/util/Locale;->forLanguageTag(Ljava/lang/String;)Ljava/util/Locale;\n'
+             '    move-result-object v1') if locale_entries else '    const-string v1, "ru"'
+    mutable = "LinkedHashSet" if word_set else "ArrayList"
+    return content + f"""
+
+.method private static {helper_name}({signature}){signature}
+    .locals 2
+
+{entry}
+    invoke-interface {{p0, v1}}, Ljava/util/Collection;->contains(Ljava/lang/Object;)Z
+    move-result v0
+    if-eqz v0, :add_russian
+    return-object p0
+    :add_russian
+    new-instance v0, Ljava/util/{mutable};
+    invoke-direct {{v0, p0}}, Ljava/util/{mutable};-><init>(Ljava/util/Collection;)V
+    invoke-interface {{v0, v1}}, Ljava/util/Collection;->add(Ljava/lang/Object;)Z
+    invoke-static {{v0}}, Ljava/util/Collections;->unmodifiable{collection}(Ljava/util/{collection};)Ljava/util/{collection};
+    move-result-object v0
+    return-object v0
+.end method
+"""
+
+
+def patch_russian_biotite_speech():
+    targets = [("kuw", False, False), ("tjb", True, False), ("ktp", False, True)]
+    updates = []
+    for class_name, locales, words in targets:
+        paths = [os.path.join(APKTOOL_DIR, directory, class_name + ".smali")
+                 for directory in os.listdir(APKTOOL_DIR) if directory.startswith("smali")
+                 and os.path.isfile(os.path.join(APKTOOL_DIR, directory, class_name + ".smali"))]
+        if len(paths) != 1:
+            raise ValueError(f"Expected one {class_name}.smali in decoded Pixel Camera")
+        with open(paths[0], encoding="utf-8") as source:
+            updates.append((paths[0], russian_biotite_smali(source.read(), class_name, locales, words)))
+    for path, content in updates:
+        with open(path, "w", encoding="utf-8") as target:
+            target.write(content)
+    print("    [+] Russian Biotite script gate, SODA locale and word counting enabled.")
+
+
 def patch_creator_suite_smali():
     print("[*] Patching Creator Suite (Granite, Biotite, Mica, Slate, Basalt, Project Album)...")
+    patch_russian_biotite_speech()
     # 1. kow.smali (was kid.smali)
     kow_path = os.path.join(APKTOOL_DIR, "smali", "kow.smali")
     if os.path.exists(kow_path):
