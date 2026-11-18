@@ -4,7 +4,7 @@ package app.morphe.patches.pixelcamera.creator
 internal fun fixTeleprompterLandscapeDimensions(xml: String): String {
     var result = xml
     for ((name, value) in mapOf(
-        "biotite_presenter_container_width_landscape" to "336.0dip",
+        "biotite_presenter_container_width_landscape" to "404.0dip",
         "biotite_presenter_container_height_landscape" to "212.0dip"
     )) {
         val dimension = Regex("""(<dimen\s+name="$name"\s*>)[^<]+(</dimen>)""")

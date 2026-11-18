@@ -20,7 +20,7 @@ class TeleprompterLandscapeDimensionsTest {
     fun landscapeIsWideAndShortWithoutChangingOtherResources() {
         val expected = original
             .replace("height_landscape\">336.0dip", "height_landscape\">212.0dip")
-            .replace("width_landscape\">212.0dip", "width_landscape\">336.0dip")
+            .replace("width_landscape\">212.0dip", "width_landscape\">404.0dip")
         assertEquals(expected, fixTeleprompterLandscapeDimensions(original))
         assertEquals(expected, fixTeleprompterLandscapeDimensions(expected))
     }

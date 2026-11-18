@@ -9397,7 +9397,7 @@ def patch_teleprompter_landscape_dimensions():
     with open(path, "r", encoding="utf-8") as source:
         content = source.read()
     for name, value in {
-        "biotite_presenter_container_width_landscape": "336.0dip",
+        "biotite_presenter_container_width_landscape": "404.0dip",
         "biotite_presenter_container_height_landscape": "212.0dip",
     }.items():
         pattern = rf'(<dimen\s+name="{name}"\s*>)[^<]+(</dimen>)'
@@ -9408,7 +9408,7 @@ def patch_teleprompter_landscape_dimensions():
             raise ValueError(f"Expected exactly one {name} dimension in Pixel Camera resources")
     with open(path, "w", encoding="utf-8") as target:
         target.write(content)
-    print("    [+] Biotite landscape presenter: 336dp wide x 212dp high.")
+    print("    [+] Biotite landscape presenter: 404dp wide x 212dp high.")
 
 
 def patch_creator_suite_smali():

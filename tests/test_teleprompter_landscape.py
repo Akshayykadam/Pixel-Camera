@@ -16,7 +16,7 @@ ORIGINAL = '''<resources>
     <dimen name="biotite_presenter_container_width_landscape">212.0dip</dimen>
     <dimen name="biotite_font_size_medium">24.0sp</dimen>
 </resources>'''
-EXPECTED = ORIGINAL.replace('height_landscape">336.0dip', 'height_landscape">212.0dip').replace('width_landscape">212.0dip', 'width_landscape">336.0dip')
+EXPECTED = ORIGINAL.replace('height_landscape">336.0dip', 'height_landscape">212.0dip').replace('width_landscape">212.0dip', 'width_landscape">404.0dip')
 
 class LandscapeDimensionsTest(unittest.TestCase):
     def setUp(self):
