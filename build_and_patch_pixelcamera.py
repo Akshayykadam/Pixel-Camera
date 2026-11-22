@@ -5316,7 +5316,7 @@ def patch_mtt_smali():
 
     move-result v15
 
-    invoke-static {v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
+    invoke-static {v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getShotParamsTomteType(I)I
 
     move-result v15
 
@@ -10253,6 +10253,8 @@ def patch_dual_ev_ctrl_and_slider_sync():
     return-void
 
     :cond_clear_ae
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onVideoExposureSliderReset(Lvae;)V
+
     sget-object v1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_EXPOSURE_COMPENSATION:Landroid/hardware/camera2/CaptureRequest$Key;
 
     invoke-static {p0, v1}, Lyrh;->I(Ljava/lang/Object;Ljava/lang/Object;)Lyrh;
@@ -10411,8 +10413,8 @@ def patch_dual_ev_ctrl_and_slider_sync():
             if target_poo in c:
                 c = c.replace(target_poo, repl_poo)
                 c = c.replace("    invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V\n\n    return-void",
-                              "    invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V\n\n    :cond_skip_poo\n    return-void")
-                print(f"    [+] {rel_p}: AE compensation dispatch unblocked (Video mode enabled).")
+                              "    invoke-interface {p0, p1}, Lvae;->r(Lvaz;)V\n\n    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onVideoExposureSliderActive(Lvae;)V\n\n    :cond_skip_poo\n    return-void")
+                print(f"    [+] {rel_p}: AE compensation dispatch unblocked (Video mode enabled with AE lock).")
 
             target_pfh = """    iget-object v0, p0, Lpjo;->d:Lppn;
 
@@ -10441,6 +10443,128 @@ def patch_dual_ev_ctrl_and_slider_sync():
 
             with open(p_path, "w", encoding="utf-8") as f:
                 f.write(c)
+
+    # 4b. pzq.smali: Auto-lock AE on video exposure slider adjustment and unlock on reset
+    pzq_path = os.path.join(APKTOOL_DIR, "smali", "pzq.smali")
+    if os.path.exists(pzq_path):
+        with open(pzq_path, "r", encoding="utf-8") as f:
+            pzq_c = f.read()
+
+        # Register capture session in <init>
+        target_pzq_vae = """    iput-object p1, p0, Lpzq;->a:Lvae;"""
+        repl_pzq_vae = """    iput-object p1, p0, Lpzq;->a:Lvae;
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->registerCaptureSession(Lvae;)V"""
+        if target_pzq_vae in pzq_c and "registerCaptureSession" not in pzq_c:
+            pzq_c = pzq_c.replace(target_pzq_vae, repl_pzq_vae)
+
+        # Add CONTROL_AE_LOCK to tracked keys in <init>
+        target_pzq_init = """    sget-object p1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_EXPOSURE_COMPENSATION:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {p1}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+
+    invoke-interface {p2, p1}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    :cond_1"""
+        repl_pzq_init = """    sget-object p1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_EXPOSURE_COMPENSATION:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-virtual {p1}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+
+    invoke-interface {p2, p1}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    sget-object p1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_LOCK:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    invoke-interface {p2, p1}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    :cond_1"""
+        if target_pzq_init in pzq_c:
+            pzq_c = pzq_c.replace(target_pzq_init, repl_pzq_init)
+
+        # Hook a() to unlock on reset
+        target_pzq_a = """    iget-object v0, p0, Lpzq;->a:Lvae;
+
+    iget-object v1, p0, Lpzq;->g:Ljava/util/Set;"""
+        repl_pzq_a = """    iget-object v0, p0, Lpzq;->a:Lvae;
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onVideoExposureSliderReset(Lvae;)V
+
+    iget-object v1, p0, Lpzq;->g:Ljava/util/Set;"""
+        if target_pzq_a in pzq_c and "onVideoExposureSliderReset" not in pzq_c:
+            pzq_c = pzq_c.replace(target_pzq_a, repl_pzq_a)
+
+        # Hook b(Lpzs;) to lock AE when exposure compensation updated
+        target_pzq_b = """    invoke-interface {v0, v1}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    :cond_5"""
+        repl_pzq_b = """    invoke-interface {v0, v1}, Ljava/util/Set;->add(Ljava/lang/Object;)Z
+
+    iget-object v1, p0, Lpzq;->a:Lvae;
+
+    invoke-static {v1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onVideoExposureSliderActive(Lvae;)V
+
+    :cond_5"""
+        if target_pzq_b in pzq_c and "onVideoExposureSliderActive" not in pzq_c:
+            pzq_c = pzq_c.replace(target_pzq_b, repl_pzq_b)
+
+        with open(pzq_path, "w", encoding="utf-8") as f:
+            f.write(pzq_c)
+        print("    [+] pzq.smali: Video exposure slider AE lock and unlock hooks registered.")
+
+    # 4c. FocusIndicatorView.smali: Synchronize AF Lock with AE Lock in Video mode
+    focus_ind_path = os.path.join(APKTOOL_DIR, "smali", "com", "google", "android", "apps", "camera", "focusindicator", "FocusIndicatorView.smali")
+    if os.path.exists(focus_ind_path):
+        with open(focus_ind_path, "r", encoding="utf-8") as f:
+            fiv_c = f.read()
+        target_fiv = """.method public final s(Z)V
+    .locals 2
+
+    iget-object v0, p0, Lcom/google/android/apps/camera/focusindicator/FocusIndicatorView;->j:Lusf;"""
+        repl_fiv = """.method public final s(Z)V
+    .locals 2
+
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onFocusLockStateChanged(Z)V
+
+    iget-object v0, p0, Lcom/google/android/apps/camera/focusindicator/FocusIndicatorView;->j:Lusf;"""
+        if target_fiv in fiv_c and "onFocusLockStateChanged" not in fiv_c:
+            fiv_c = fiv_c.replace(target_fiv, repl_fiv)
+            with open(focus_ind_path, "w", encoding="utf-8") as f:
+                f.write(fiv_c)
+            print("    [+] FocusIndicatorView.smali: AF/AE lock synchronization hook registered.")
+
+    # 4d. thz.smali: Release AE lock on tap elsewhere in Video mode
+    thz_path = os.path.join(APKTOOL_DIR, "smali", "thz.smali")
+    if os.path.exists(thz_path):
+        with open(thz_path, "r", encoding="utf-8") as f:
+            thz_c = f.read()
+        target_thz_tap = """.method public final onSingleTapConfirmed(Landroid/view/MotionEvent;)Z
+    .locals 2
+
+    new-instance v0, Landroid/graphics/PointF;"""
+        repl_thz_tap = """.method public final onSingleTapConfirmed(Landroid/view/MotionEvent;)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onViewfinderTapped()V
+
+    new-instance v0, Landroid/graphics/PointF;"""
+        if target_thz_tap in thz_c and "onViewfinderTapped" not in thz_c:
+            thz_c = thz_c.replace(target_thz_tap, repl_thz_tap)
+
+        target_thz_up = """.method public final onSingleTapUp(Landroid/view/MotionEvent;)Z
+    .locals 2
+
+    new-instance v0, Landroid/graphics/PointF;"""
+        repl_thz_up = """.method public final onSingleTapUp(Landroid/view/MotionEvent;)Z
+    .locals 2
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onViewfinderTapped()V
+
+    new-instance v0, Landroid/graphics/PointF;"""
+        if target_thz_up in thz_c and "onViewfinderTapped" not in thz_c:
+            thz_c = thz_c.replace(target_thz_up, repl_thz_up)
+
+        with open(thz_path, "w", encoding="utf-8") as f:
+            f.write(thz_c)
+        print("    [+] thz.smali: Tap-to-unlock AE hooks registered in viewfinder gesture detector.")
 
     # 5. ksf.smali: Intercept camera.dualev.* to return false
     ksf_path = os.path.join(APKTOOL_DIR, "smali_classes2", "ksf.smali")

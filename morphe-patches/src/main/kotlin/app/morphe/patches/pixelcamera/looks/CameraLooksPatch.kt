@@ -206,7 +206,7 @@ val cameraLooksPatch = bytecodePatch(
             clazz.methods.firstOrNull { it.name == "K" }?.let { method ->
                 val impl = method.implementation ?: return@let
                 val hookSmali = """
-                    invoke-static {v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
+                    invoke-static {v15}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getShotParamsTomteType(I)I
                     move-result v15
                 """.trimIndent()
                 try {

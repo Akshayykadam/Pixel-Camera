@@ -62,6 +62,10 @@
 
 .field public static sLastNightSightCaptureTime:J
 
+.field public static volatile sIsVideoAeLocked:Z
+
+.field public static sCurrentVae:Ljava/lang/ref/WeakReference;
+
 
 
 # direct methods
@@ -89,6 +93,10 @@
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sAppContext:Landroid/content/Context;
 
     sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsFrontCamera:Z
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsVideoAeLocked:Z
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentVae:Ljava/lang/ref/WeakReference;
 
     sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentActivity:Ljava/lang/ref/WeakReference;
 
@@ -3105,6 +3113,19 @@
     return-void
 
     :cond_check_front
+    # Fix Overexposure / Blown-Out Highlights on Non-Default Looks (Issue #2 & User Godmode Request):
+    # When ShotParams.tomte_type > 0, Gcam's AE engine in libgcastartup.so forces t=0.7f
+    # ("TomteType %s forcing t=%.1f to reduce highlights and dim shadows" -> "Highlights will be blown out")
+    # and BuildPayloadBurstSpec drops all PSL (Preserving Short Luminance) frames
+    # ("No PSL frames to request for this Tomte type").
+    # On Tensor G1-G5, this destroys HDR+ dynamic range and blows out highlights.
+    # By enforcing ShotParams.tomte_type = 0 here, Gcam runs pure calibrated stock HDR+
+    # Auto-Exposure with full PSL bracket capture, preserving 100% of highlight detail,
+    # while TomteMetadata and nativeProcessRasterImage still apply the exact Look styling.
+    const/4 v2, 0x0
+
+    invoke-static {v0, v1, p0, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_tomte_type_set(JLcom/google/googlex/gcam/ShotParams;I)V
+
     # Front Camera Backlight AE / AWB Optimization:
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontBacklightFixActive()Z
 
@@ -3128,11 +3149,11 @@
 
     if-eqz v6, :cond_skip_ae
 
-    const v5, 0x3ed70a3d    # 0.42f (elevate face brightness preference in backlit scenes)
+    const v5, 0x3e4ccccd    # 0.20f (moderated face brightness preference in backlit scenes from 0.42f)
 
     invoke-static {v3, v4, v2, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->AeShotParams_people_brightness_preference_set(JLcom/google/googlex/gcam/AeShotParams;F)V
 
-    const/high16 v5, 0x41000000    # 8.0f (increase max HDR portrait dynamic range ratio)
+    const/high16 v5, 0x40c00000    # 6.0f (moderated max HDR portrait dynamic range ratio from 8.0f)
 
     invoke-static {v3, v4, v2, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->AeShotParams_max_hdr_portrait_ratio_override_set(JLcom/google/googlex/gcam/AeShotParams;F)V
 
@@ -4146,6 +4167,162 @@
     return v0
 .end method
 
+.method public static isVideoAeLocked()Z
+    .locals 1
+
+    sget-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsVideoAeLocked:Z
+
+    if-eqz v0, :cond_ret_f
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_ret_f
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :cond_ret_f
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method public static registerCaptureSession(Lvae;)V
+    .locals 1
+
+    if-eqz p0, :cond_ret
+
+    new-instance v0, Ljava/lang/ref/WeakReference;
+
+    invoke-direct {v0, p0}, Ljava/lang/ref/WeakReference;-><init>(Ljava/lang/Object;)V
+
+    sput-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentVae:Ljava/lang/ref/WeakReference;
+
+    :cond_ret
+    return-void
+.end method
+
+.method public static setVideoAeLocked(Z)V
+    .locals 3
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-nez v0, :cond_do_set
+
+    return-void
+
+    :cond_do_set
+    sput-boolean p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsVideoAeLocked:Z
+
+    sget-object v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentVae:Ljava/lang/ref/WeakReference;
+
+    if-eqz v0, :cond_ret
+
+    invoke-virtual {v0}, Ljava/lang/ref/WeakReference;->get()Ljava/lang/Object;
+
+    move-result-object v0
+
+    check-cast v0, Lvae;
+
+    if-eqz v0, :cond_ret
+
+    :try_start_dispatch
+    sget-object v1, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_LOCK:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    if-eqz p0, :cond_disp_false
+
+    sget-object v2, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
+
+    goto :cond_disp_send
+
+    :cond_disp_false
+    sget-object v2, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
+
+    :cond_disp_send
+    new-instance p0, Lvaz;
+
+    invoke-direct {p0, v1, v2}, Lvaz;-><init>(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    invoke-interface {v0, p0}, Lvae;->r(Lvaz;)V
+    :try_end_dispatch
+    .catch Ljava/lang/Throwable; {:try_start_dispatch .. :try_end_dispatch} :catch_disp
+
+    :catch_disp
+    :cond_ret
+    return-void
+.end method
+
+.method public static onFocusLockStateChanged(Z)V
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-nez v0, :cond_do_lock
+
+    return-void
+
+    :cond_do_lock
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setVideoAeLocked(Z)V
+
+    return-void
+.end method
+
+.method public static onViewfinderTapped()V
+    .locals 1
+
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-nez v0, :cond_do_tap
+
+    return-void
+
+    :cond_do_tap
+    const/4 v0, 0x0
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setVideoAeLocked(Z)V
+
+    return-void
+.end method
+
+.method public static onVideoExposureSliderActive(Lvae;)V
+    .locals 1
+
+    if-eqz p0, :cond_do_lock
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->registerCaptureSession(Lvae;)V
+
+    :cond_do_lock
+    const/4 v0, 0x1
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setVideoAeLocked(Z)V
+
+    return-void
+.end method
+
+.method public static onVideoExposureSliderReset(Lvae;)V
+    .locals 1
+
+    if-eqz p0, :cond_do_unlock
+
+    invoke-static {p0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->registerCaptureSession(Lvae;)V
+
+    :cond_do_unlock
+    const/4 v0, 0x0
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->setVideoAeLocked(Z)V
+
+    return-void
+.end method
+
 .method public static applyVideoIspToBuilder(Landroid/hardware/camera2/CaptureRequest$Builder;)V
     .locals 2
 
@@ -4252,6 +4429,41 @@
     .catch Ljava/lang/Throwable; {:try_start_avstab .. :try_end_avstab} :catch_avstab
 
     :catch_avstab
+    :cond_chk_aelock
+    :try_start_aelock
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-nez v0, :cond_chk_ae_lock_state
+
+    goto :cond_done
+
+    :cond_chk_ae_lock_state
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoAeLocked()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_set_ae_false
+
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_LOCK:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    sget-object v1, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+
+    goto :cond_done
+
+    :cond_set_ae_false
+    sget-object v0, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_LOCK:Landroid/hardware/camera2/CaptureRequest$Key;
+
+    sget-object v1, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
+
+    invoke-virtual {p0, v0, v1}, Landroid/hardware/camera2/CaptureRequest$Builder;->set(Landroid/hardware/camera2/CaptureRequest$Key;Ljava/lang/Object;)V
+    :try_end_aelock
+    .catch Ljava/lang/Throwable; {:try_start_aelock .. :try_end_aelock} :catch_aelock
+
+    :catch_aelock
     :cond_done
     return-void
 .end method
@@ -4952,10 +5164,27 @@
     return p0
 .end method
 
+.method public static getShotParamsTomteType(I)I
+    .locals 1
+
+    # Keep ShotParams.tomte_type strictly at 0 across all camera looks to prevent Gcam AE
+    # from forcing t=0.7f ("Highlights will be blown out") and dropping PSL short frames
+    # ("No PSL frames to request for this Tomte type").
+    # This preserves 100% of HDR+ dynamic range and highlight preservation on Tensor G1-G5,
+    # while Look styling is applied by TomteMetadata and nativeProcessRasterImage.
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
 .method public static setCurrentMode(I)V
     .locals 2
 
     sput p0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
+
+    const/4 v0, 0x0
+
+    sput-boolean v0, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sIsVideoAeLocked:Z
 
     new-instance v0, Ljava/lang/StringBuilder;
 

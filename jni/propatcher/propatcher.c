@@ -178,6 +178,7 @@ static uint8_t s_active_lut_y[256];
 static uint8_t s_active_lut_u[256];
 static uint8_t s_active_lut_v[256];
 static uint8_t s_tint_weight[256];
+static uint8_t s_sat_weight[256];
 static float s_active_saturation = 1.0f;
 static float s_active_shift_u = 0.0f;
 static float s_active_shift_v = 0.0f;
@@ -259,6 +260,19 @@ static void update_active_luts(int lookId) {
         if (w < 0) w = 0;
         if (w > 255) w = 255;
         s_tint_weight[i] = (uint8_t)w;
+    }
+
+    // Filmic Highlight Desaturation Roll-off weights:
+    // Shadows & midtones (0..215): 255 (full rich saturation boost)
+    // Highlights (> 215): smoothly tapers down to 0 at peak white (specular highlights desaturate cleanly toward neutral white)
+    for (int i = 0; i < 256; i++) {
+        int sw = 255;
+        if (i > 215) {
+            sw = ((255 - i) * 255) / 40;
+        }
+        if (sw < 0) sw = 0;
+        if (sw > 255) sw = 255;
+        s_sat_weight[i] = (uint8_t)sw;
     }
 
     // 4. Vibrance (Saturation)
@@ -498,6 +512,10 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
     uint8x16x4_t tw1 = vld1q_u8_x4(s_tint_weight + 64);
     uint8x16x4_t tw2 = vld1q_u8_x4(s_tint_weight + 128);
     uint8x16x4_t tw3 = vld1q_u8_x4(s_tint_weight + 192);
+    uint8x16x4_t sw0 = vld1q_u8_x4(s_sat_weight + 0);
+    uint8x16x4_t sw1 = vld1q_u8_x4(s_sat_weight + 64);
+    uint8x16x4_t sw2 = vld1q_u8_x4(s_sat_weight + 128);
+    uint8x16x4_t sw3 = vld1q_u8_x4(s_sat_weight + 192);
     uint8x16_t v64 = vdupq_n_u8(64);
     uint8x16_t v128 = vdupq_n_u8(128);
     uint8x16_t v192 = vdupq_n_u8(192);
@@ -526,6 +544,10 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                     int r = pix[0], g = pix[1], b = pix[2];
                     int luma = (r * 77 + g * 150 + b * 29) >> 8;
                     int eff_sq8 = s_q8;
+                    if (luma > 215 && eff_sq8 > 256) {
+                        int hw = 255 - luma; // 40..0
+                        eff_sq8 = 256 + (((s_q8 - 256) * hw * 6) >> 8);
+                    }
                     int r_sat = luma + (((r - luma) * eff_sq8) >> 8);
                     int g_sat = luma + (((g - luma) * eff_sq8) >> 8);
                     int b_sat = luma + (((b - luma) * eff_sq8) >> 8);
@@ -612,9 +634,31 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 uint8x8_t y_hi = vshrn_n_u16(luma_hi16, 8);
                 uint8x16_t y16 = vcombine_u8(y_lo, y_hi);
 
-                // 2. Uniform Saturation Scaling (eliminates high-frequency thresholding noise)
+                // 2. Highlight-Adaptive Saturation Scaling (filmic soft-knee desaturation in highlights)
                 int16x8_t eff_sq8_lo = v_sq8_base;
                 int16x8_t eff_sq8_hi = v_sq8_base;
+                if (s_q8 > 256) {
+                    uint8x16_t sw_r0 = vqtbl4q_u8(sw0, y16);
+                    uint8x16_t sw_r1 = vqtbl4q_u8(sw1, vsubq_u8(y16, v64));
+                    uint8x16_t sw_r2 = vqtbl4q_u8(sw2, vsubq_u8(y16, v128));
+                    uint8x16_t sw_r3 = vqtbl4q_u8(sw3, vsubq_u8(y16, v192));
+                    uint8x16_t sw16 = vorrq_u8(vorrq_u8(sw_r0, sw_r1), vorrq_u8(sw_r2, sw_r3));
+
+                    int16_t delta_sat = (int16_t)(s_q8 - 256);
+                    int16x8_t sw_lo = vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(sw16)));
+                    int16x8_t sw_hi = vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(sw16)));
+
+                    int32x4_t d_lo0 = vmull_n_s16(vget_low_s16(sw_lo), delta_sat);
+                    int32x4_t d_lo1 = vmull_n_s16(vget_high_s16(sw_lo), delta_sat);
+                    int16x8_t boost_lo = vcombine_s16(vshrn_n_s32(d_lo0, 8), vshrn_n_s32(d_lo1, 8));
+
+                    int32x4_t d_hi0 = vmull_n_s16(vget_low_s16(sw_hi), delta_sat);
+                    int32x4_t d_hi1 = vmull_n_s16(vget_high_s16(sw_hi), delta_sat);
+                    int16x8_t boost_hi = vcombine_s16(vshrn_n_s32(d_hi0, 8), vshrn_n_s32(d_hi1, 8));
+
+                    eff_sq8_lo = vaddq_s16(vdupq_n_s16(256), boost_lo);
+                    eff_sq8_hi = vaddq_s16(vdupq_n_s16(256), boost_hi);
+                }
 
                 // 3. Lookup luminance-weighted split-toning tint weights
                 uint8x16_t tw_r0 = vqtbl4q_u8(tw0, y16);
@@ -717,6 +761,10 @@ static inline void lut_grade_raster(uint8_t* data, uint32_t width, uint32_t heig
                 int r = pix[0], g = pix[1], b = pix[2];
                 int luma = (r * 77 + g * 150 + b * 29) >> 8;
                 int eff_sq8 = s_q8;
+                if (luma > 215 && eff_sq8 > 256) {
+                    int hw = 255 - luma; // 40..0
+                    eff_sq8 = 256 + (((s_q8 - 256) * hw * 6) >> 8);
+                }
                 int r_sat = luma + (((r - luma) * eff_sq8) >> 8);
                 int g_sat = luma + (((g - luma) * eff_sq8) >> 8);
                 int b_sat = luma + (((b - luma) * eff_sq8) >> 8);
@@ -1118,14 +1166,15 @@ static void init_selfie_luma_lut(void) {
         // Luminance lift: in backlit scenes, faces are underexposed into y in [25..150].
         // We lift shadow/lower-midtones smoothly with an asymmetrical bell curve:
         // y = 0: lift = 0 (deep blacks preserved)
-        // y in [1..25]: subtle smooth toe lift 0..+3
-        // y in [25..130]: sculpted lift up to +18 (peak around y=75-85)
+        // y in [1..25]: subtle smooth toe lift 0..+1
+        // y in [25..130]: sculpted subtle lift up to +6 (peak around y=75-85)
         // y in [130..195]: smooth taper back to 0
         // y in [195..255]: 0 (highlights stay clean)
+        // Moderated from +18 to +6 to eliminate artificial overbrightening while maintaining shadow legibility
         float lift = 0.0f;
         if (y > 0 && y < 200) {
             float norm = (float)y / 200.0f; // 0..1
-            lift = 18.0f * sinf(norm * 3.14159265f);
+            lift = 6.0f * sinf(norm * 3.14159265f);
         }
         int new_y = (int)roundf((float)y + lift);
         if (new_y < 0) new_y = 0;
@@ -1159,27 +1208,26 @@ static void grade_front_backlight_raster(uint8_t* data, uint32_t width, uint32_t
             }
 
             // Detect skin tones or backlit-damaged ashy skin
-            int is_normal_skin = (luma >= 25 && luma <= 235 && r > g && g >= (b - 15) && (r - luma) >= 2 && (b - luma) <= 15);
             int is_ashy_skin = (luma >= 25 && luma <= 175 && r >= (g - 6) && g >= (b - 16) && b <= (r + 10) && (abs(r - g) + abs(g - b)) < 52 && (r - luma) <= 12 && (r - luma) >= -6);
 
             if (is_ashy_skin) {
-                // Melanin Revival: inject natural warm hemoglobin/melanin perfusion into collapsed shadows
-                r = clamp_u8_fast(r + 16);
-                g = clamp_u8_fast(g + 4);
-                b = clamp_u8_fast(b - 8);
-                // Recompute after revival to flow into warm apple skin curve
-                is_normal_skin = 1;
-            }
-
-            if (is_normal_skin) {
-                // Apple iPhone Warm Memory Color Target:
-                // Peach/amber hue bias + local chroma expansion
-                int r_sat = luma + (((r - luma) * 295) >> 8);
-                int g_sat = luma + (((g - luma) * 280) >> 8);
-                int b_sat = luma + (((b - luma) * 240) >> 8);
-                r = clamp_u8_fast(r_sat + 5);
-                g = clamp_u8_fast(g_sat + 1);
-                b = clamp_u8_fast(b_sat - 3);
+                // Melanin Revival: gently restore natural hemoglobin/melanin perfusion in collapsed shadows
+                // Moderated from (R+16, G+4, B-8) down to (R+7, G+2, B-3) to eliminate unnatural orange/warm cast
+                r = clamp_u8_fast(r + 7);
+                g = clamp_u8_fast(g + 2);
+                b = clamp_u8_fast(b - 3);
+            } else {
+                int is_normal_skin = (luma >= 25 && luma <= 235 && r > g && g >= (b - 15) && (r - luma) >= 2 && (b - luma) <= 15);
+                if (is_normal_skin) {
+                    // Natural Warm Memory Color Target:
+                    // Subtle, healthy tone without oversaturating or casting orange
+                    int r_sat = luma + (((r - luma) * 266) >> 8); // subtle ~3.9% chroma expansion
+                    int g_sat = luma + (((g - luma) * 260) >> 8);
+                    int b_sat = luma + (((b - luma) * 252) >> 8);
+                    r = clamp_u8_fast(r_sat + 1);
+                    g = clamp_u8_fast(g_sat);
+                    b = clamp_u8_fast(b_sat - 1);
+                }
             }
 
             // Filmic Highlight Soft Shoulder for strong background light sources (sun, window, lamps)

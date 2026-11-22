@@ -6518,7 +6518,7 @@
 
     move-result v7
 
-    invoke-static {v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getEffectiveLookId(I)I
+    invoke-static {v7}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getShotParamsTomteType(I)I
 
     move-result v7
 

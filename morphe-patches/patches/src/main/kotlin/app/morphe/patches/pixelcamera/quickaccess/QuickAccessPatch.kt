@@ -772,5 +772,37 @@ val quickAccessPatch = bytecodePatch(
             PixelCameraPatchUtils.forceReturnFalse(clazz, "i")
         }
 
+        // ── 11. Hook FocusIndicatorView.s(Z)V → Synchronize AF lock state with AE lock in Video mode ──
+        mutableClassDefByOrNull("Lcom/google/android/apps/camera/focusindicator/FocusIndicatorView;")?.let { clazz ->
+            clazz.methods.firstOrNull { it.name == "s" && it.parameterTypes == listOf("Z") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookInst = "invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onFocusLockStateChanged(Z)V".toInstructions(method)
+                var pos = 0
+                for (ins in hookInst) {
+                    impl.addInstruction(pos++, ins)
+                }
+            }
+        }
+
+        // ── 12. Hook thz.onSingleTapUp and onSingleTapConfirmed → Unlock AE on tap elsewhere in Video mode ──
+        mutableClassDefByOrNull("Lthz;")?.let { clazz ->
+            val hookSmali = "invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->onViewfinderTapped()V"
+            clazz.methods.firstOrNull { it.name == "onSingleTapConfirmed" && it.parameterTypes == listOf("Landroid/view/MotionEvent;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookInst = hookSmali.toInstructions(method)
+                var pos = 0
+                for (ins in hookInst) {
+                    impl.addInstruction(pos++, ins)
+                }
+            }
+            clazz.methods.firstOrNull { it.name == "onSingleTapUp" && it.parameterTypes == listOf("Landroid/view/MotionEvent;") }?.let { method ->
+                val impl = method.implementation ?: return@let
+                val hookInst = hookSmali.toInstructions(method)
+                var pos = 0
+                for (ins in hookInst) {
+                    impl.addInstruction(pos++, ins)
+                }
+            }
+        }
     }
 }

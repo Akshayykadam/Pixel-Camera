@@ -357,7 +357,10 @@ class SmokeTest {
             java.io.File(rootDir, "apktool_full/smali_classes2/puu.smali"),
             java.io.File(rootDir, "apktool_full/smali_classes2/puo.smali"),
             java.io.File(rootDir, "apktool_full/smali_classes2/pua.smali"),
-            java.io.File(rootDir, "apktool_full/smali_classes2/pul.smali")
+            java.io.File(rootDir, "apktool_full/smali_classes2/pul.smali"),
+            java.io.File(rootDir, "apktool_full/smali/pzq.smali"),
+            java.io.File(rootDir, "apktool_full/smali_classes2/poo.smali"),
+            java.io.File(rootDir, "apktool_full/smali/pqs.smali")
         ).filter { it.exists() }
 
         if (quickAccessSmaliFiles.isNotEmpty()) {
@@ -1089,6 +1092,65 @@ class SmokeTest {
         val patch = app.morphe.patches.pixelcamera.video.hdr10BitVideoPatch
         assertTrue(patch.name == "4K 60 FPS 10-bit HDR & Log Video", "Patch name must match")
         println("Verified: 4K 60 FPS 10-bit HDR & Log Video patch and TomteInitHelper bytecode verified successfully.")
+    }
+
+    @Test
+    fun testVideoModeAeLockOnExposureSlider() {
+        val rootDir = if (java.io.File("../../smali_patches").exists()) java.io.File("../..") else java.io.File("..")
+        val helperSmali = java.io.File(rootDir, "smali_patches/TomteInitHelper.smali")
+        assertTrue(helperSmali.exists(), "smali_patches/TomteInitHelper.smali must exist")
+        val content = helperSmali.readText()
+
+        assertTrue(content.contains("sIsVideoAeLocked"), "Must contain sIsVideoAeLocked field")
+        assertTrue(content.contains("isVideoAeLocked()Z"), "Must contain isVideoAeLocked()Z")
+        assertTrue(content.contains("onVideoExposureSliderActive(Lvae;)V"), "Must contain onVideoExposureSliderActive")
+        assertTrue(content.contains("onVideoExposureSliderReset(Lvae;)V"), "Must contain onVideoExposureSliderReset")
+
+        val pzqSmali = java.io.File(rootDir, "apktool_full/smali/pzq.smali")
+        assertTrue(pzqSmali.exists(), "pzq.smali must exist")
+        val pzqContent = pzqSmali.readText()
+        assertTrue(pzqContent.contains("CONTROL_AE_LOCK"), "pzq.smali must contain CONTROL_AE_LOCK")
+        assertTrue(pzqContent.contains("onVideoExposureSliderActive"), "pzq.smali must hook onVideoExposureSliderActive")
+        assertTrue(pzqContent.contains("onVideoExposureSliderReset"), "pzq.smali must hook onVideoExposureSliderReset")
+
+        println("Verified: Video Mode Exposure Slider AE Lock & Unlock bytecode verified successfully.")
+    }
+
+    @Test
+    fun testVideoTapAndHoldAfAeLockAndTapToReMeter() {
+        val rootDir = if (java.io.File("../../smali_patches").exists()) java.io.File("../..") else java.io.File("..")
+        val helperSmali = java.io.File(rootDir, "smali_patches/TomteInitHelper.smali")
+        assertTrue(helperSmali.exists(), "smali_patches/TomteInitHelper.smali must exist")
+        val helperContent = helperSmali.readText()
+
+        assertTrue(helperContent.contains("sCurrentVae"), "TomteInitHelper must contain sCurrentVae")
+        assertTrue(helperContent.contains("registerCaptureSession(Lvae;)V"), "TomteInitHelper must contain registerCaptureSession")
+        assertTrue(helperContent.contains("setVideoAeLocked(Z)V"), "TomteInitHelper must contain setVideoAeLocked")
+        assertTrue(helperContent.contains("onFocusLockStateChanged(Z)V"), "TomteInitHelper must contain onFocusLockStateChanged")
+        assertTrue(helperContent.contains("onViewfinderTapped()V"), "TomteInitHelper must contain onViewfinderTapped")
+
+        val pzqSmali = java.io.File(rootDir, "apktool_full/smali/pzq.smali")
+        assertTrue(pzqSmali.exists(), "pzq.smali must exist")
+        val pzqContent = pzqSmali.readText()
+        assertTrue(pzqContent.contains("registerCaptureSession"), "pzq.smali must call registerCaptureSession")
+
+        val focusSmali = java.io.File(rootDir, "apktool_full/smali/com/google/android/apps/camera/focusindicator/FocusIndicatorView.smali")
+        assertTrue(focusSmali.exists(), "FocusIndicatorView.smali must exist")
+        val focusContent = focusSmali.readText()
+        assertTrue(focusContent.contains("onFocusLockStateChanged"), "FocusIndicatorView.s(Z)V must hook onFocusLockStateChanged")
+
+        val thzSmali = java.io.File(rootDir, "apktool_full/smali/thz.smali")
+        assertTrue(thzSmali.exists(), "thz.smali must exist")
+        val thzContent = thzSmali.readText()
+        assertTrue(thzContent.contains("onViewfinderTapped"), "thz.smali must hook onViewfinderTapped")
+
+        val patchFile = java.io.File(rootDir, "morphe-patches/patches/src/main/kotlin/app/morphe/patches/pixelcamera/quickaccess/QuickAccessPatch.kt")
+        assertTrue(patchFile.exists(), "QuickAccessPatch.kt must exist")
+        val patchContent = patchFile.readText()
+        assertTrue(patchContent.contains("onFocusLockStateChanged"), "QuickAccessPatch must hook onFocusLockStateChanged")
+        assertTrue(patchContent.contains("onViewfinderTapped"), "QuickAccessPatch must hook onViewfinderTapped")
+
+        println("Verified: Video Tap-and-Hold AF/AE Lock & Tap-to-Re-meter bytecode and hooks verified successfully.")
     }
 }
 
