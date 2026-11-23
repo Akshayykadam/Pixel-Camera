@@ -6896,11 +6896,13 @@ def patch_qgh_smali():
 
     return-wide v0"""
 
+    # 1. In qgh.a(): Ensure asynchronous initialization (do NOT invoke this.b() synchronously on UI thread)
+    # Fixes Issues #94 & #96 (Portrait mode freeze on mode switch)
     if repl_a in content:
-        print("    [+] qgh.smali: Synchronous b() initialization already present in a().")
-    elif target_a in content:
-        content = content.replace(target_a, repl_a, 1)
-        print("    [+] qgh.smali: Added synchronous b() initialization in a().")
+        content = content.replace(repl_a, target_a)
+        print("    [+] qgh.smali: Reverted synchronous b() in a() to prevent UI thread freeze.")
+    else:
+        print("    [+] qgh.smali: Asynchronous a() check verified.")
 
     # 2. In qgh.b(): Default model name to 1c33 stock model if null or empty
     target_b_model = """    iget-object v0, v1, Lqgh;->g:Landroid/content/Context;

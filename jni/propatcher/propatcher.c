@@ -316,24 +316,24 @@ static void update_active_luts(int lookId) {
     }
 
     // 6. Filmic Highlight Roll-off Shoulder for Non-Default Looks
-    // Counteracts Google native TomteGlobalTonemap +0.35 EV overexposure lift in libgcastartup.so.
-    // Preserves 100% of shadows and midtones (i <= 130).
-    // Gently compresses upper midtones & highlights (i in [131..254]) toward natural baseline.
+    // Counteracts Google native TomteGlobalTonemap overexposure lift in libgcastartup.so.
+    // Preserves 100% of shadows and midtones (i <= 120).
+    // Gently compresses upper midtones & highlights (i in [121..254]) toward natural baseline.
     // Specular whites (i == 255) remain pure clean white.
     if (lookId > 0) {
         s_roll_off_active = 1;
-        float peak_pull = 10.5f - (s_ft_highlights * 8.0f);
-        if (peak_pull < 2.0f) peak_pull = 2.0f;
-        if (peak_pull > 20.0f) peak_pull = 20.0f;
+        float peak_pull = 18.0f - (s_ft_highlights * 10.0f);
+        if (peak_pull < 4.0f) peak_pull = 4.0f;
+        if (peak_pull > 32.0f) peak_pull = 32.0f;
 
         for (int i = 0; i < 256; i++) {
-            if (i <= 130) {
+            if (i <= 120) {
                 s_luma_roll_off[i] = (uint8_t)i;
             } else if (i == 255) {
                 s_luma_roll_off[i] = 255;
             } else {
-                float t = (float)(i - 130) / 125.0f;
-                float curve = sinf(3.14159265f * powf(t, 0.82f));
+                float t = (float)(i - 120) / 135.0f;
+                float curve = sinf(3.14159265f * powf(t, 0.75f));
                 float pull = peak_pull * curve;
                 int val = (int)roundf((float)i - pull);
                 s_luma_roll_off[i] = clamp_u8(val);
@@ -1078,6 +1078,11 @@ Java_com_google_android_patch_cameralooks_TomteInitHelper_nativeProcessHardwareB
 
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
+
+    // Issue #95 Fix: Ignore PiP minimap / Zoom Stabilization preview buffers (< 640x480)
+    if (desc.width < 640 || desc.height < 480) {
+        return;
+    }
 
     AHardwareBuffer_Planes planes;
     int res = AHardwareBuffer_lockPlanes(buffer,

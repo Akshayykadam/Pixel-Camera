@@ -363,30 +363,212 @@
 .end method
 
 .method private static buildOrUpdatePanel(Ljava/lang/Object;Landroid/widget/LinearLayout;)V
-    .locals 2
+    .locals 12
 
-    .line 379
     if-nez p1, :cond_0
 
     return-void
 
-    .line 382
     :cond_0
     # 1. Enforce solid non-translucent bottom sheet background
     invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->enforceSolidBackground(Landroid/view/View;)V
 
-    # 2. Hide/remove custom options panel from bottom sheet
+    # 2. Check if we are in Video mode
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isVideoMode()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_photo_mode
+
+    goto :goto_video_mode
+
+    :cond_check_photo_mode
+    invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->isPhotoMode(Ljava/lang/Object;Landroid/view/View;)Z
+
+    move-result v0
+
+    if-nez v0, :cond_is_photo_mode
+
+    goto :goto_video_mode
+
+    :cond_is_photo_mode
+    # In Photo mode: hide/remove custom options panel from bottom sheet
     const-string v0, "tomte_pro_panel"
 
     invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->findViewWithTag(Ljava/lang/Object;)Landroid/view/View;
 
     move-result-object v0
 
-    if-eqz v0, :cond_1
+    if-eqz v0, :cond_ret_photo
 
     invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->removeView(Landroid/view/View;)V
 
-    :cond_1
+    :cond_ret_photo
+    return-void
+
+    :goto_video_mode
+    # 3. Video mode: resolve palette and check for existing panel
+    invoke-static {p1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->resolveDynamicPalette(Landroid/view/ViewGroup;)Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;
+
+    move-result-object v1
+
+    const-string v2, "tomte_pro_panel"
+
+    invoke-virtual {p1, v2}, Landroid/widget/LinearLayout;->findViewWithTag(Ljava/lang/Object;)Landroid/view/View;
+
+    move-result-object v3
+
+    const/4 v8, 0x1
+
+    if-eqz v3, :cond_create_panel
+
+    # Panel exists: refresh pills & styling
+    invoke-static {v3, v1}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->refreshPanel(Landroid/view/View;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;)V
+
+    invoke-virtual {p1}, Landroid/widget/LinearLayout;->getChildCount()I
+
+    move-result v0
+
+    if-lez v0, :cond_panel_done
+
+    sub-int/2addr v0, v8
+
+    invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->getChildAt(I)Landroid/view/View;
+
+    move-result-object v0
+
+    if-eq v0, v3, :cond_panel_done
+
+    invoke-virtual {p1, v3}, Landroid/widget/LinearLayout;->removeView(Landroid/view/View;)V
+
+    invoke-virtual {p1, v3}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
+
+    :cond_panel_done
+    return-void
+
+    :cond_create_panel
+    invoke-virtual {p1}, Landroid/widget/LinearLayout;->getContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    new-instance v9, Landroid/widget/LinearLayout;
+
+    invoke-direct {v9, v0}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
+
+    invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->setTag(Ljava/lang/Object;)V
+
+    invoke-virtual {v9, v8}, Landroid/widget/LinearLayout;->setOrientation(I)V
+
+    new-instance v2, Landroid/widget/LinearLayout$LayoutParams;
+
+    const/4 v3, -0x2
+
+    const/4 v4, -0x1
+
+    invoke-direct {v2, v4, v3}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
+
+    const/4 v3, 0x4
+
+    invoke-static {v0, v3}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v3
+
+    const/16 v5, 0x18
+
+    invoke-static {v0, v5}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v5
+
+    const/4 v10, 0x0
+
+    invoke-virtual {v2, v10, v3, v10, v5}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
+
+    invoke-virtual {v9, v2}, Landroid/widget/LinearLayout;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
+
+    invoke-static {v0}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->getHorizontalMargin(Landroid/content/Context;)I
+
+    move-result v2
+
+    # Subtle divider line
+    new-instance v3, Landroid/view/View;
+
+    invoke-direct {v3, v0}, Landroid/view/View;-><init>(Landroid/content/Context;)V
+
+    new-instance v5, Landroid/widget/LinearLayout$LayoutParams;
+
+    invoke-static {v0, v8}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v6
+
+    invoke-direct {v5, v4, v6}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
+
+    const/16 v4, 0x8
+
+    invoke-static {v0, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v6
+
+    invoke-static {v0, v4}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->dpToPx(Landroid/content/Context;I)I
+
+    move-result v4
+
+    invoke-virtual {v5, v2, v6, v2, v4}, Landroid/widget/LinearLayout$LayoutParams;->setMargins(IIII)V
+
+    invoke-virtual {v3, v5}, Landroid/view/View;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
+
+    const v2, 0x1fffffff
+
+    invoke-virtual {v3, v2}, Landroid/view/View;->setBackgroundColor(I)V
+
+    invoke-virtual {v9, v3}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
+
+    # 10-bit HDR Quick Setting Row
+    const/4 v11, 0x2
+
+    new-array v5, v11, [Ljava/lang/String;
+
+    const-string v2, "0"
+
+    aput-object v2, v5, v10
+
+    const-string v2, "1"
+
+    aput-object v2, v5, v8
+
+    new-array v6, v11, [Ljava/lang/String;
+
+    const-string v2, "Off"
+
+    aput-object v2, v6, v10
+
+    const-string v2, "On"
+
+    aput-object v2, v6, v8
+
+    new-array v7, v11, [Ljava/lang/String;
+
+    const-string v2, "Off"
+
+    aput-object v2, v7, v10
+
+    const-string v2, "On"
+
+    aput-object v2, v7, v8
+
+    const-string v2, "pref_video_amethyst_key"
+
+    const-string v3, "10-bit HDR"
+
+    const-string v4, "1"
+
+    invoke-static/range {v0 .. v7}, Lcom/google/android/patch/cameralooks/TomteProSettingsPanel;->createSettingRow(Landroid/content/Context;Lcom/google/android/patch/cameralooks/TomteProSettingsPanel$DynamicPalette;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;)Landroid/view/View;
+
+    move-result-object v0
+
+    invoke-virtual {v9, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
+
+    invoke-virtual {p1, v9}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
+
     return-void
 .end method
 
@@ -2543,9 +2725,22 @@
 
     move-result v0
 
-    if-eqz v0, :cond_empty
+    if-eqz v0, :cond_check_amethyst
 
     const-string p0, "compressed"
+
+    return-object p0
+
+    :cond_check_amethyst
+    const-string v0, "pref_video_amethyst_key"
+
+    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :cond_empty
+
+    const-string p0, "1"
 
     return-object p0
 

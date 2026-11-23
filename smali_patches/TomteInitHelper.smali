@@ -286,9 +286,32 @@
     return-void
 
     :cond_not_null
+    # Issue #95 Fix: Ignore small preview / Zoom Stabilization PiP minimap (< 640x480)
+    invoke-virtual {p0}, Landroid/hardware/HardwareBuffer;->getWidth()I
+
+    move-result v0
+
+    const/16 v1, 0x280
+
+    if-ge v0, v1, :cond_chk_min_h
+
+    return-void
+
+    :cond_chk_min_h
+    invoke-virtual {p0}, Landroid/hardware/HardwareBuffer;->getHeight()I
+
+    move-result v0
+
+    const/16 v1, 0x1e0
+
+    if-ge v0, v1, :cond_chk_mode
+
+    return-void
+
+    :cond_chk_mode
     sget v1, Lcom/google/android/patch/cameralooks/TomteInitHelper;->sCurrentModeOrdinal:I
 
-    # Video = 2, Photo Sphere/Panorama = 4, Landscape(LongExposure) = 14, Action Pan = 15
+    # Video = 2, Photo Sphere/Panorama = 4, Portrait = 6, Landscape(LongExposure) = 14, Action Pan = 15
     const/4 v0, 0x2
 
     if-ne v1, v0, :cond_chk_4
@@ -297,6 +320,14 @@
 
     :cond_chk_4
     const/4 v0, 0x4
+
+    if-ne v1, v0, :cond_chk_6
+
+    return-void
+
+    # Issues #94 & #96 Fix: Portrait live depth/bokeh preview bypasses native buffer grading
+    :cond_chk_6
+    const/4 v0, 0x6
 
     if-ne v1, v0, :cond_chk_14
 
@@ -2954,6 +2985,19 @@
     return v0
 .end method
 
+.method public static isEdgeTpuBlocked()Z
+    .locals 1
+
+    # On Google Tensor devices (Pixel 6, 7, 8, 9, 10), /vendor/bin/hw/android.hardware.edgetpu.service
+    # restricts /dev/edgetpu access to Google platform release key.
+    # Third-party re-signed builds fail with errno -8 (PERMISSION_DENIED).
+    # Always report true so Gcam cleanly bypasses EdgeTPU ML denoisers (Pecan/Walnut/Chess)
+    # and utilizes full multi-frame SpatialRGB burst merge with zero pipeline aborts.
+    const/4 v0, 0x1
+
+    return v0
+.end method
+
 .method public static isPixel10Family()Z
     .locals 3
 
@@ -3063,7 +3107,7 @@
 .method public static filterPecanForce(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3091,7 +3135,7 @@
 .method public static filterPecanModelType(I)I
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3151,8 +3195,8 @@
 
     # Capture-Level Auto-Exposure Trim for Non-Default Photographic Looks
     # When a non-default Look is selected (sSelectedLookId > 0), TomteGlobalTonemap in libgcastartup.so
-    # applies Google's Tensor G6 tone curves which lift midtones and highlights by +0.35 EV.
-    # Applying a gentle -0.30 EV capture compensation preserves raw sensor highlight dynamic headroom.
+    # applies Google's Tensor G6 tone curves which lift midtones and highlights.
+    # Applying a -0.50 EV capture compensation preserves raw sensor highlight dynamic headroom.
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
 
     move-result v2
@@ -3178,7 +3222,7 @@
 
     move-result v5
 
-    const v6, 0x3e99999a    # 0.30f
+    const/high16 v6, 0x3f000000    # 0.50f (increased from 0.30f to eliminate residual overexposure)
 
     sub-float/2addr v5, v6
 
@@ -3240,13 +3284,14 @@
 
     :catch_peony
     :cond_check_p10
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v2
 
     if-eqz v2, :cond_check_denoise
 
-    # On Pixel 10: Disable all EdgeTPU ML denoisers to prevent errno -8 EdgeTPU permission blocks & pipeline stalls
+    # On Tensor devices where EdgeTPU is blocked on re-signed builds:
+    # Disable all EdgeTPU ML denoisers to prevent errno -8 EdgeTPU permission blocks & pipeline stalls
     const/4 v3, 0x0
 
     invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_force_pecan_set(JLcom/google/googlex/gcam/ShotParams;Z)V
@@ -3269,7 +3314,14 @@
 
     invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_mochi_force_apply_set(JLcom/google/googlex/gcam/ShotParams;Z)V
 
+    # Ensure full spatial/temporal QuadBayer merge and high-ISO denoisers are active:
+    const/4 v3, 0x1
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_allow_spatial_rgb_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
     invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_strengthen_denoise_for_sky_set(JLcom/google/googlex/gcam/ShotParams;Z)V
+
+    invoke-static {v0, v1, p0, v3}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_remosaic_merged_output_set(JLcom/google/googlex/gcam/ShotParams;Z)V
 
     goto :cond_check_sharpen
 
@@ -3318,7 +3370,7 @@
 .method public static filterWalnutEnabled(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3346,7 +3398,7 @@
 .method public static filterWalnutOption(I)I
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3374,7 +3426,7 @@
 .method public static filterChessEnabled(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3402,7 +3454,7 @@
 .method public static filterEdamameEnabled(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3430,7 +3482,7 @@
 .method public static filterAlmondEnabled(Z)Z
     .locals 1
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3456,7 +3508,7 @@
 .method public static filterMochiEnabled(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isEdgeTpuBlocked()Z
 
     move-result v0
 
@@ -3484,24 +3536,11 @@
 .method public static filterSkyDenoise(Z)Z
     .locals 2
 
-    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
-
-    move-result v0
-
-    if-eqz v0, :cond_check_mode
-
-    const/4 p0, 0x0
-
-    return p0
-
-    :cond_check_mode
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getNoiseReductionMode()I
 
     move-result v0
 
-    const/4 v1, 0x2
-
-    if-ge v0, v1, :cond_ret_orig
+    if-nez v0, :cond_ret_orig
 
     const/4 p0, 0x0
 
@@ -5674,6 +5713,16 @@
     return v0
 
     :cond_check_mantis
+    # Issues #94 & #96 Fix: Tensor G5 (Pixel 10 family) requires native Darwinn/TPU session keys for CameraPipe Gouda
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isPixel10Family()Z
+
+    move-result v0
+
+    if-eqz v0, :cond_check_tpu_legacy
+
+    goto :cond_check_mantis_policy
+
+    :cond_check_tpu_legacy
     const-string v0, "camera.gouda.use_darwinn_offline_compilation"
 
     invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
