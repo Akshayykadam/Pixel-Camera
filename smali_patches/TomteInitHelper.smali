@@ -171,6 +171,29 @@
 .method public static native nativeProcessFrontBacklightImage(JIIII)V
 .end method
 
+.method public static native nativeGetAeExposureCompensation(J)F
+.end method
+
+.method public static getAeExposureCompensation(J)F
+    .locals 2
+
+    :try_start_ae_ec
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteProPatcherLoader;->loadProPatcher()V
+
+    invoke-static {p0, p1}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->nativeGetAeExposureCompensation(J)F
+
+    move-result p0
+
+    return p0
+    :try_end_ae_ec
+    .catchall {:try_start_ae_ec .. :try_end_ae_ec} :catchall_ae_ec
+
+    :catchall_ae_ec
+    const/4 p0, 0x0
+
+    return p0
+.end method
+
 .method public static getSelectedLookId()I
     .locals 3
 
@@ -3126,6 +3149,46 @@
 
     invoke-static {v0, v1, p0, v2}, Lcom/google/googlex/gcam/GcamModuleJNI;->ShotParams_tomte_type_set(JLcom/google/googlex/gcam/ShotParams;I)V
 
+    # Capture-Level Auto-Exposure Trim for Non-Default Photographic Looks
+    # When a non-default Look is selected (sSelectedLookId > 0), TomteGlobalTonemap in libgcastartup.so
+    # applies Google's Tensor G6 tone curves which lift midtones and highlights by +0.35 EV.
+    # Applying a gentle -0.30 EV capture compensation preserves raw sensor highlight dynamic headroom.
+    invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getSelectedLookId()I
+
+    move-result v2
+
+    if-lez v2, :cond_check_front_backlight
+
+    :try_start_look_ae
+    invoke-virtual {p0}, Lcom/google/googlex/gcam/ShotParams;->a()Lcom/google/googlex/gcam/AeShotParams;
+
+    move-result-object v2
+
+    if-eqz v2, :cond_check_front_backlight
+
+    iget-wide v3, v2, Lcom/google/googlex/gcam/AeShotParams;->a:J
+
+    const-wide/16 v6, 0x0
+
+    cmp-long v6, v3, v6
+
+    if-eqz v6, :cond_check_front_backlight
+
+    invoke-static {v3, v4}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->getAeExposureCompensation(J)F
+
+    move-result v5
+
+    const v6, 0x3e99999a    # 0.30f
+
+    sub-float/2addr v5, v6
+
+    invoke-static {v3, v4, v2, v5}, Lcom/google/googlex/gcam/GcamModuleJNI;->AeShotParams_exposure_compensation_set(JLcom/google/googlex/gcam/AeShotParams;F)V
+
+    :cond_check_front_backlight
+    :try_end_look_ae
+    .catch Ljava/lang/Throwable; {:try_start_look_ae .. :try_end_look_ae} :catch_look_ae
+
+    :catch_look_ae
     # Front Camera Backlight AE / AWB Optimization:
     invoke-static {}, Lcom/google/android/patch/cameralooks/TomteInitHelper;->isFrontBacklightFixActive()Z
 
