@@ -1,17 +1,26 @@
 package app.morphe.patches.pixelcamera.creator
 
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.smali.toInstructions
 import app.morphe.patches.pixelcamera.PixelCameraPatchUtils
 
 import app.morphe.patches.pixelcamera.looks.cameraLooksPatch
+
+// Keep this resource change attached to Creator Suite in both supported source trees.
+private val teleprompterLandscapeLayoutPatch = resourcePatch {
+    execute {
+        val dimensions = get("res/values/dimens.xml")
+        dimensions.writeText(fixTeleprompterLandscapeDimensions(dimensions.readText()))
+    }
+}
 
 val creatorSuitePatch = bytecodePatch(
     name = "Pixel Camera Creator Suite",
     description = "Enables Teleprompter HUD (Biotite), Live Audio VU Meter (Mica), and Social Framing Guides (Slate).",
     default = true
 ) {
-    dependsOn(cameraLooksPatch)
+    dependsOn(cameraLooksPatch, teleprompterLandscapeLayoutPatch)
     compatibleWith(
         "com.google.android.GoogleCamera" to setOf("11.1.040.982810059.19")
     )
